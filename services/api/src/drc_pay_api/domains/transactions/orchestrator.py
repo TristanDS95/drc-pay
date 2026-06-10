@@ -52,6 +52,7 @@ class Orchestrator:
             amount=amount,
             fee=fee,
             state=TxState.INITIATED,
+            history=[TxState.INITIATED],
         )
         self._store.save(transaction)
         self._transition(transaction, TxState.COLLECTION_PENDING)
@@ -137,4 +138,5 @@ class Orchestrator:
     def _transition(self, transaction: Transaction, destination: TxState) -> None:
         assert_transition(transaction.state, destination)
         transaction.state = destination
+        transaction.history.append(destination)
         self._store.save(transaction)

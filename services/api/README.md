@@ -12,8 +12,20 @@ pip install -e ".[dev]"
 ## Run
 
 ```bash
-uvicorn drc_pay_api.main:app --reload     # http://127.0.0.1:8000/health
+# --app-dir src puts the package on the import path. (This repo sits under a path
+# containing a space, which breaks pip editable installs; --app-dir sidesteps that.)
+uvicorn --app-dir src drc_pay_api.main:app --reload
 ```
+
+Then open **http://127.0.0.1:8000/docs** — FastAPI's auto-generated interactive page —
+and try `POST /transactions`, e.g.:
+
+```json
+{"payer_msisdn": "243800000001", "payee_msisdn": "243810000002", "amount": "10.00", "scenario": "success"}
+```
+
+`scenario` can be `success`, `payout_fail`, `collection_fail`, or `refund_fail`. The
+response shows the final state, the full state history, and the ledger entries.
 
 ## Checks
 

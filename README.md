@@ -40,8 +40,8 @@ drc-pay/
 cd services/api
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-pytest                                    # runs the ledger + state-machine tests
-uvicorn drc_pay_api.main:app --reload     # http://127.0.0.1:8000/health
+pytest                                    # runs the ledger + state-machine + API tests
+uvicorn --app-dir src drc_pay_api.main:app --reload   # then open http://127.0.0.1:8000/docs
 ```
 
 ## Engineering standards

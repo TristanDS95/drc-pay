@@ -6,7 +6,7 @@ is in its lifecycle.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..ledger.money import Money
 from .state_machine import TxState
@@ -20,3 +20,4 @@ class Transaction:
     amount: Money  # the amount delivered to the payee
     fee: Money  # our charge, same currency as amount (payer pays amount + fee)
     state: TxState
+    history: list[TxState] = field(default_factory=list)  # every state, in order
