@@ -21,3 +21,4 @@ class Transaction:
     fee: Money  # our charge, same currency as amount (payer pays amount + fee)
     state: TxState
     history: list[TxState] = field(default_factory=list)  # every state, in order
+    idempotency_key: str | None = None  # client-supplied dedup key (stored; an API concern)

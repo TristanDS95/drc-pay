@@ -63,6 +63,7 @@ class Orchestrator:
         payee_msisdn: str,
         amount: Money,
         fee: Money,
+        idempotency_key: str | None = None,
     ) -> Transaction:
         if amount.currency != fee.currency:
             raise ValueError("amount and fee must share a currency")
@@ -77,6 +78,7 @@ class Orchestrator:
             fee=fee,
             state=TxState.INITIATED,
             history=[TxState.INITIATED],
+            idempotency_key=idempotency_key,
         )
         self._store.save(transaction)
         self._rec("state · created → initiated")

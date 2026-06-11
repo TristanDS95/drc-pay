@@ -99,6 +99,17 @@ def test_ledger_post_and_read_grouped() -> None:
     assert ledger.for_transaction("missing") == []
 
 
+def test_find_by_idempotency_key() -> None:
+    store = SqlTransactionStore(_factory())
+    tx = _tx("t1")
+    tx.idempotency_key = "key-1"
+    store.save(tx)
+    found = store.find_by_idempotency_key("key-1")
+    assert found is not None
+    assert found.id == "t1"
+    assert store.find_by_idempotency_key("missing") is None
+
+
 def _run_all() -> None:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

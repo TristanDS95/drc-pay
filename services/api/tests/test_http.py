@@ -57,6 +57,33 @@ def test_unknown_transaction_returns_404() -> None:
     assert _client().get("/transactions/does-not-exist").status_code == 404
 
 
+def test_idempotent_retry_returns_the_same_transaction() -> None:
+    client = _client()
+    payload = {"payer_msisdn": "243a", "payee_msisdn": "243b", "amount": "10.00", "scenario": "success"}
+    headers = {"Idempotency-Key": "tap-abc-123"}
+    first = client.post("/transactions", json=payload, headers=headers).json()
+    second = client.post("/transactions", json=payload, headers=headers).json()
+    assert first["id"] == second["id"]  # same transaction, not a new one
+    assert len(client.get("/transactions").json()) == 1  # only one was created
+
+
+def test_different_idempotency_keys_create_different_transactions() -> None:
+    client = _client()
+    payload = {"payer_msisdn": "243a", "payee_msisdn": "243b", "amount": "10.00", "scenario": "success"}
+    a = client.post("/transactions", json=payload, headers={"Idempotency-Key": "k1"}).json()
+    b = client.post("/transactions", json=payload, headers={"Idempotency-Key": "k2"}).json()
+    assert a["id"] != b["id"]
+    assert len(client.get("/transactions").json()) == 2
+
+
+def test_no_idempotency_key_creates_a_new_transaction_each_time() -> None:
+    client = _client()
+    payload = {"payer_msisdn": "243a", "payee_msisdn": "243b", "amount": "10.00", "scenario": "success"}
+    client.post("/transactions", json=payload)
+    client.post("/transactions", json=payload)
+    assert len(client.get("/transactions").json()) == 2
+
+
 def _run_all() -> None:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

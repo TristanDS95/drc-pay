@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 
 from ..adapters.memory import ListRecorder
 from ..domains.ledger.money import Money
@@ -71,7 +71,11 @@ def _to_response(
 
 
 @router.post("/transactions", response_model=TransactionResponse)
-def create_transaction(body: CreateTransactionRequest, request: Request) -> TransactionResponse:
+def create_transaction(
+    body: CreateTransactionRequest,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+) -> TransactionResponse:
     if body.scenario not in _SCENARIOS:
         raise HTTPException(status_code=422, detail=f"unknown scenario: {body.scenario}")
     try:
@@ -82,6 +86,16 @@ def create_transaction(body: CreateTransactionRequest, request: Request) -> Tran
         raise HTTPException(status_code=422, detail="amount must be positive")
 
     container = _container(request)
+
+    # Idempotency: if this key was already processed, return the ORIGINAL result rather
+    # than creating a second transaction — so a retry or double-tap never double-charges.
+    if idempotency_key is not None:
+        existing = container.store.find_by_idempotency_key(idempotency_key)
+        if existing is not None:
+            return _to_response(
+                container, existing, ["idempotent replay · key already processed; original returned"]
+            )
+
     fee = default_fee(amount)
     recorder = ListRecorder()
     recorder.record(f"POST /transactions · {body.amount} {body.currency} · scenario={body.scenario}")
@@ -95,6 +109,7 @@ def create_transaction(body: CreateTransactionRequest, request: Request) -> Tran
         payee_msisdn=body.payee_msisdn,
         amount=amount,
         fee=fee,
+        idempotency_key=idempotency_key,
     )
     _play_out(orchestrator, transaction_id, body.scenario)
     return _to_response(container, container.store.get(transaction_id), recorder.messages)

@@ -46,6 +46,7 @@ class TransactionRow(Base):
     currency: Mapped[str] = mapped_column(String)
     state: Mapped[str] = mapped_column(String)
     history: Mapped[list[str]] = mapped_column(JSON)
+    idempotency_key: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -87,6 +88,7 @@ def _to_domain(row: TransactionRow) -> Transaction:
         fee=Money(row.fee_minor, row.currency),
         state=TxState(row.state),
         history=[TxState(s) for s in row.history],
+        idempotency_key=row.idempotency_key,
     )
 
 
@@ -114,12 +116,20 @@ class SqlTransactionStore:
             row.currency = transaction.amount.currency
             row.state = transaction.state.value
             row.history = [s.value for s in transaction.history]
+            row.idempotency_key = transaction.idempotency_key
             session.commit()
 
     def all(self) -> list[Transaction]:
         with self._sf() as session:
             rows = session.scalars(select(TransactionRow).order_by(TransactionRow.created_at)).all()
             return [_to_domain(row) for row in rows]
+
+    def find_by_idempotency_key(self, key: str) -> Transaction | None:
+        with self._sf() as session:
+            row = session.scalars(
+                select(TransactionRow).where(TransactionRow.idempotency_key == key)
+            ).first()
+            return _to_domain(row) if row is not None else None
 
 
 class SqlLedger:

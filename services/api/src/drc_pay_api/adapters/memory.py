@@ -23,6 +23,12 @@ class InMemoryTransactionStore:
     def all(self) -> list[Transaction]:
         return list(self._rows.values())
 
+    def find_by_idempotency_key(self, key: str) -> Transaction | None:
+        for transaction in self._rows.values():
+            if transaction.idempotency_key == key:
+                return transaction
+        return None
+
 
 class InMemoryLedger:
     def __init__(self) -> None:
