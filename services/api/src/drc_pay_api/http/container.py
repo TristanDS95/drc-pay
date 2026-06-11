@@ -14,7 +14,7 @@ from typing import Protocol
 from sqlalchemy.orm import sessionmaker
 
 from ..adapters.memory import InMemoryLedger, InMemoryTransactionStore
-from ..adapters.sql import SqlLedger, SqlTransactionStore, init_db, make_engine
+from ..adapters.sql import SqlLedger, SqlTransactionStore, make_engine
 from ..domains.ledger.ledger import Posting
 from ..domains.transactions.models import Transaction
 from ..integrations.pawapay.simulator import SimulatedPaymentRail
@@ -44,8 +44,8 @@ class Container:
 def build_container(database_url: str = "") -> Container:
     rail = SimulatedPaymentRail()
     if database_url:
+        # Schema is managed by Alembic (`alembic upgrade head`), not created here.
         engine = make_engine(database_url)
-        init_db(engine)
         session_factory = sessionmaker(engine)
         return Container(SqlTransactionStore(session_factory), SqlLedger(session_factory), rail)
     return Container(InMemoryTransactionStore(), InMemoryLedger(), rail)

@@ -73,9 +73,9 @@ def make_engine(url: str) -> Engine:
     return create_engine(url)
 
 
-def init_db(engine: Engine) -> None:
-    """Create tables if they don't exist. (Alembic migrations replace this later.)"""
-    Base.metadata.create_all(engine)
+# Note: the schema is created/evolved by Alembic migrations (`alembic upgrade head`),
+# not auto-created at runtime — see migrations/. Tests build their own schema directly
+# with `Base.metadata.create_all` against in-memory SQLite.
 
 
 def _to_domain(row: TransactionRow) -> Transaction:

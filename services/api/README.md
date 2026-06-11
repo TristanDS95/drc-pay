@@ -35,11 +35,23 @@ against **Postgres**, start one with Docker (from the repo root) and point the A
 ```bash
 docker compose up -d        # starts Postgres on localhost:5432 (see ../../docker-compose.yml)
 export DRCPAY_DATABASE_URL=postgresql+psycopg://drcpay:drcpay@localhost:5432/drcpay
+alembic upgrade head        # create/update the schema (Alembic migrations)
 uvicorn --app-dir src drc_pay_api.main:app --reload
 ```
 
-Tables are auto-created on startup for now (Alembic migrations come next). Unset
-`DRCPAY_DATABASE_URL` to switch back to the in-memory store.
+Unset `DRCPAY_DATABASE_URL` to switch back to the in-memory store.
+
+### Migrations (Alembic)
+
+The schema is managed by **Alembic**, not auto-created. After changing a model in
+`src/drc_pay_api/adapters/sql.py`:
+
+```bash
+alembic revision --autogenerate -m "describe the change"   # generate a migration — review it!
+alembic upgrade head                                       # apply it
+```
+
+Handy: `alembic current` (where the DB is) · `alembic history` · `alembic downgrade -1` (undo one).
 
 ## Checks
 
