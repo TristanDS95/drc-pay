@@ -29,7 +29,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.state.container = build_container()
+    app.state.container = build_container(settings.database_url)
     app.include_router(router)
 
     @app.get("/health")

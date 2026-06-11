@@ -27,6 +27,20 @@ and try `POST /transactions`, e.g.:
 `scenario` can be `success`, `payout_fail`, `collection_fail`, or `refund_fail`. The
 response shows the final state, the full state history, and the ledger entries.
 
+## Database
+
+By default the API uses an in-memory store (zero setup — perfect for the demo). To run
+against **Postgres**, start one with Docker (from the repo root) and point the API at it:
+
+```bash
+docker compose up -d        # starts Postgres on localhost:5432 (see ../../docker-compose.yml)
+export DRCPAY_DATABASE_URL=postgresql+psycopg://drcpay:drcpay@localhost:5432/drcpay
+uvicorn --app-dir src drc_pay_api.main:app --reload
+```
+
+Tables are auto-created on startup for now (Alembic migrations come next). Unset
+`DRCPAY_DATABASE_URL` to switch back to the in-memory store.
+
 ## Checks
 
 ```bash

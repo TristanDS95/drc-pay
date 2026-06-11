@@ -1,0 +1,21 @@
+# Local development services. Start with:  docker compose up -d
+# Stop with:  docker compose down   (add -v to also wipe the data volume)
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: drcpay
+      POSTGRES_PASSWORD: drcpay
+      POSTGRES_DB: drcpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - drcpay_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drcpay"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  drcpay_pgdata:
