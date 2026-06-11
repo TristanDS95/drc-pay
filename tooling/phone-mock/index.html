@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DRC Pay — phone mock</title>
+<style>
+  :root{
+    --coral:#FF6B5B; --coral-dark:#E2553F; --cream:#FFFCF8; --charcoal:#1A1A1A;
+    --muted:#5A5A57; --border:#ECE8E1; --surface:#FFFFFF;
+    --success:#1E8E5A; --error:#D64541; --warning:#C77700;
+  }
+  *{box-sizing:border-box;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+       gap:16px;background:#1f2933;padding:24px;}
+  .stage{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;justify-content:center;}
+  .hint{color:#aeb6bf;font-size:12.5px;max-width:860px;text-align:center;line-height:1.5;}
+  .hint code{background:#2b3640;color:#dfe6ec;padding:1px 5px;border-radius:4px;}
+  /* phone */
+  .phone{width:390px;max-width:96vw;height:780px;max-height:92vh;background:var(--cream);border-radius:42px;
+         box-shadow:0 18px 60px rgba(0,0,0,.45);overflow:hidden;display:flex;flex-direction:column;
+         border:10px solid #0c0f12;position:relative;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:150px;height:26px;background:#0c0f12;
+         border-radius:0 0 16px 16px;z-index:5;}
+  .screen{flex:1;display:flex;flex-direction:column;padding:54px 22px 22px;overflow-y:auto;}
+  .badge{position:absolute;top:40px;right:16px;background:#0c0f12;color:#9aa6b2;font-size:9px;letter-spacing:.08em;
+         padding:3px 7px;border-radius:6px;z-index:6;}
+  .langtog{position:absolute;top:38px;left:16px;z-index:6;display:flex;border:1px solid var(--border);
+           border-radius:8px;overflow:hidden;background:var(--surface);}
+  .langtog button{border:none;background:transparent;padding:4px 10px;font-size:11px;font-weight:700;
+           color:var(--muted);cursor:pointer;}
+  .langtog button.active{background:var(--coral);color:#fff;}
+  h1{font-size:22px;color:var(--charcoal);margin:2px 0 2px;}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 22px;}
+  label{display:block;font-size:12px;color:var(--muted);margin:14px 0 5px;font-weight:600;letter-spacing:.02em;}
+  input,select{width:100%;padding:13px 14px;border:1px solid var(--border);border-radius:12px;font-size:16px;
+        background:var(--surface);color:var(--charcoal);outline:none;}
+  input:focus,select:focus{border-color:var(--coral);}
+  .amount-row{display:flex;gap:10px;align-items:flex-end;}
+  .amount-row .cur{width:84px;flex:none;}
+  .sim{margin-top:20px;padding:12px 14px;border:1px dashed #d8cfc0;border-radius:12px;background:#fff9f0;}
+  .sim label{margin-top:0;color:#9a6b2f;}
+  .sim .note{font-size:11px;color:#a98a5d;margin-top:6px;}
+  button.cta{margin-top:auto;width:100%;padding:16px;border:none;border-radius:14px;background:var(--coral);
+        color:#fff;font-size:17px;font-weight:700;cursor:pointer;}
+  button.cta:active{background:var(--coral-dark);}
+  button.cta:disabled{opacity:.6;cursor:default;}
+  button.ghost{margin-top:14px;width:100%;padding:14px;border:1px solid var(--border);border-radius:14px;
+        background:transparent;color:var(--charcoal);font-size:15px;font-weight:600;cursor:pointer;}
+  .steps{list-style:none;padding:0;margin:10px 0;}
+  .steps li{display:flex;align-items:center;gap:12px;padding:9px 0;color:#bdbab3;font-size:15px;
+        opacity:.35;transition:opacity .25s,color .25s;}
+  .steps li.on{opacity:1;color:var(--charcoal);}
+  .dot{width:22px;height:22px;border-radius:50%;border:2px solid #d8d2c7;flex:none;display:flex;
+        align-items:center;justify-content:center;font-size:12px;color:#fff;}
+  .steps li.on .dot{border-color:var(--coral);background:var(--coral);}
+  .steps li.fail.on .dot{border-color:var(--error);background:var(--error);}
+  .result{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-top:18px;}
+  .result .ring{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+        font-size:42px;color:#fff;margin-bottom:6px;}
+  .ok{background:var(--success);} .warn{background:var(--warning);} .bad{background:var(--error);} .rev{background:var(--muted);}
+  .result h2{margin:0;font-size:22px;color:var(--charcoal);}
+  .result p{margin:0;color:var(--muted);font-size:14px;}
+  .receipt{width:100%;margin-top:20px;border:1px solid var(--border);border-radius:14px;background:var(--surface);
+        padding:16px;font-size:14px;}
+  .receipt .row{display:flex;justify-content:space-between;padding:6px 0;color:var(--charcoal);}
+  .receipt .row .k{color:var(--muted);}
+  .receipt .tot{border-top:1px solid var(--border);margin-top:6px;padding-top:10px;font-weight:700;}
+  details{width:100%;margin-top:14px;font-size:12.5px;color:var(--muted);}
+  details pre{background:#f3efe7;border-radius:10px;padding:10px;overflow-x:auto;font-size:11.5px;}
+  .err{color:var(--error);font-size:13px;margin-top:14px;text-align:center;}
+  .hidden{display:none;}
+  /* operations console */
+  .console{width:440px;max-width:96vw;height:780px;max-height:92vh;background:#0b0f13;border-radius:18px;
+        border:1px solid #1d2730;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.45);}
+  .console-head{padding:14px 18px;border-bottom:1px solid #1d2730;display:flex;align-items:center;}
+  .console-head .lights{width:10px;height:10px;border-radius:50%;background:#ff5f57;
+        box-shadow:16px 0 0 #febc2e,32px 0 0 #28c840;margin-right:46px;}
+  .console-head .lbl{color:#9fb0bd;font:600 12.5px Inter,sans-serif;}
+  .console-head .lbl span{color:#56646f;font-weight:400;margin-left:8px;}
+  .console-body{flex:1;margin:0;padding:14px 16px;overflow-y:auto;
+        font:12px/1.7 "SF Mono",Menlo,Consolas,monospace;color:#cfe9da;}
+  .cline{opacity:0;transform:translateY(3px);transition:opacity .2s ease,transform .2s ease;white-space:pre-wrap;}
+  .cline.on{opacity:1;transform:none;}
+  .cline.state{color:#cfe9da;} .cline.ledger{color:#8fd0ff;} .cline.rail{color:#ffd27f;}
+  .cline.webhook{color:#c9a8ff;} .cline.ok{color:#67e0a3;font-weight:600;} .cline.bad{color:#ff9a8f;font-weight:600;}
+  .cline.meta{color:#8a98a4;}
+  .console-empty{color:#56646f;font-style:italic;}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="langtog"><button id="lang-en">EN</button><button id="lang-fr">FR</button></div>
+      <div class="badge" id="badge">DEMO</div>
+      <div class="screen">
+
+        <div id="send-view">
+          <h1 id="send-title">Send</h1>
+          <p class="sub" id="send-sub">Pay any mobile-money number.</p>
+          <label for="payee" id="lbl-payee">Recipient number</label>
+          <input id="payee" type="tel" inputmode="numeric" value="243810000002" />
+          <label for="amount" id="lbl-amount">Amount</label>
+          <div class="amount-row">
+            <input id="amount" type="text" inputmode="decimal" value="10.00" />
+            <select id="currency" class="cur"><option>USD</option><option>CDF</option></select>
+          </div>
+          <div class="sim">
+            <label for="scenario" id="lbl-scenario">pawaPay simulator (demo)</label>
+            <select id="scenario">
+              <option value="success"></option>
+              <option value="payout_fail"></option>
+              <option value="collection_fail"></option>
+              <option value="refund_fail"></option>
+            </select>
+            <div class="note" id="sim-note"></div>
+          </div>
+          <button class="cta" id="send-btn">Send</button>
+          <div id="send-err" class="err hidden"></div>
+        </div>
+
+        <div id="proc-view" class="hidden">
+          <h1 id="proc-title">Processing…</h1>
+          <p class="sub" id="proc-sub"></p>
+          <ul class="steps" id="steps"></ul>
+        </div>
+
+        <div id="result-view" class="hidden">
+          <div class="result">
+            <div class="ring" id="res-ring"></div>
+            <h2 id="res-title"></h2>
+            <p id="res-msg"></p>
+          </div>
+          <div class="receipt" id="receipt"></div>
+          <details id="ledger-details">
+            <summary id="ledger-summary">Accounting detail (double-entry)</summary>
+            <pre id="ledger-pre"></pre>
+          </details>
+          <button class="ghost" id="again-btn">New payment</button>
+        </div>
+
+      </div>
+    </div>
+
+    <aside class="console">
+      <div class="console-head">
+        <span class="lights"></span>
+        <span class="lbl">operations <span>— live trace from the API (collect → payout → refund)</span></span>
+      </div>
+      <div class="console-body" id="console-body"></div>
+    </aside>
+  </div>
+
+  <div class="hint" id="hint"></div>
+
+<script>
+  const API = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:8000";
+  const $ = (id) => document.getElementById(id);
+  const views = { send: $("send-view"), proc: $("proc-view"), result: $("result-view") };
+  const show = (name) => { for (const k in views) views[k].classList.toggle("hidden", k !== name); };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const FAIL_STATES = new Set(["payout_failed", "refund_pending", "refunded", "collection_failed", "manual_review"]);
+
+  const I18N = {
+    en: {
+      demo: "DEMO", sendTitle: "Send", sendSub: "Pay any mobile-money number.",
+      recipient: "Recipient number", amount: "Amount",
+      simTitle: "pawaPay simulator (demo)",
+      simNote: "Picks the simulated outcome. In production, pawaPay decides.",
+      scenarios: { success: "Payment succeeds", payout_fail: "Payout fails → refund",
+        collection_fail: "Collection fails", refund_fail: "Refund fails → review" },
+      sendBtn: "Send", processing: "Processing…",
+      steps: { initiated: "Initializing", collection_pending: "Charging the sender…",
+        collection_succeeded: "Funds received", payout_pending: "Sending to recipient…",
+        payout_succeeded: "Delivered", payout_failed: "Send failed", refund_pending: "Refunding…",
+        refunded: "Refunded", collection_failed: "Charge declined", manual_review: "Manual review" },
+      result: {
+        sent: { title: "Sent", msg: (a, c, p) => `${a} ${c} delivered to ${p}` },
+        refunded: { title: "Refunded", msg: (a, c) => `The payout failed. ${a} ${c} was refunded to you.` },
+        declined: { title: "Payment declined", msg: () => "No money was taken." },
+        review: { title: "Under review", msg: () => "Our team is checking this transaction." } },
+      receipt: { recipient: "Recipient", amount: "Amount", fee: "Fee (1%)", total: "Total charged", ref: "Reference" },
+      ledgerSummary: "Accounting detail (double-entry)", again: "New payment",
+      err: (api, e) => `Couldn't reach the API (${api}). Is it running? ${e}`,
+      hintBackend: "Backend expected at", hintStart: "start it with", consoleEmpty: "// run a payment to trace every operation",
+    },
+    fr: {
+      demo: "DÉMO", sendTitle: "Envoyer", sendSub: "Payez n'importe quel numéro mobile money.",
+      recipient: "Numéro du destinataire", amount: "Montant",
+      simTitle: "Simulateur pawaPay (démo)",
+      simNote: "Choisit le résultat simulé. En production, c'est pawaPay qui décide.",
+      scenarios: { success: "Paiement réussi", payout_fail: "Échec du versement → remboursement",
+        collection_fail: "Échec du débit", refund_fail: "Remboursement échoué → vérification" },
+      sendBtn: "Envoyer", processing: "Traitement…",
+      steps: { initiated: "Initialisation", collection_pending: "Débit du compte de l'expéditeur…",
+        collection_succeeded: "Fonds reçus", payout_pending: "Envoi au destinataire…",
+        payout_succeeded: "Livré", payout_failed: "Échec de l'envoi", refund_pending: "Remboursement…",
+        refunded: "Remboursé", collection_failed: "Débit refusé", manual_review: "Vérification manuelle" },
+      result: {
+        sent: { title: "Envoyé", msg: (a, c, p) => `${a} ${c} livré à ${p}` },
+        refunded: { title: "Remboursé", msg: (a, c) => `Le versement a échoué. ${a} ${c} vous a été remboursé.` },
+        declined: { title: "Paiement refusé", msg: () => "Aucun montant n'a été prélevé." },
+        review: { title: "En vérification", msg: () => "Notre équipe examine cette transaction." } },
+      receipt: { recipient: "Destinataire", amount: "Montant", fee: "Frais (1%)", total: "Total débité", ref: "Référence" },
+      ledgerSummary: "Détails comptables (double-entrée)", again: "Nouveau paiement",
+      err: (api, e) => `Impossible de joindre l'API (${api}). Est-elle démarrée ? ${e}`,
+      hintBackend: "Backend attendu sur", hintStart: "démarrez-le avec", consoleEmpty: "// lancez un paiement pour tracer chaque opération",
+    },
+  };
+
+  let lang = "en";
+  let lastResult = null;
+
+  function applyStaticText() {
+    const t = I18N[lang];
+    $("badge").textContent = t.demo;
+    $("send-title").textContent = t.sendTitle;
+    $("send-sub").textContent = t.sendSub;
+    $("lbl-payee").textContent = t.recipient;
+    $("lbl-amount").textContent = t.amount;
+    $("lbl-scenario").textContent = t.simTitle;
+    $("sim-note").textContent = t.simNote;
+    $("send-btn").textContent = t.sendBtn;
+    $("proc-title").textContent = t.processing;
+    $("ledger-summary").textContent = t.ledgerSummary;
+    $("again-btn").textContent = t.again;
+    for (const opt of $("scenario").options) opt.textContent = t.scenarios[opt.value] || opt.value;
+    $("hint").innerHTML = `${t.hintBackend} <code>${API}</code> — ${t.hintStart} <code>uvicorn --app-dir src drc_pay_api.main:app</code>`;
+    $("lang-en").classList.toggle("active", lang === "en");
+    $("lang-fr").classList.toggle("active", lang === "fr");
+    if (lastResult && !views.result.classList.contains("hidden")) showResult(lastResult.body, lastResult.payee);
+  }
+
+  function setLang(l) { lang = l; applyStaticText(); }
+
+  function classify(line) {
+    if (line.startsWith("ledger")) return "ledger";
+    if (line.startsWith("state")) return "state";
+    if (line.startsWith("rail")) return "rail";
+    if (line.startsWith("webhook")) return "webhook";
+    if (line.startsWith("✓")) return "ok";
+    if (line.startsWith("✕") || line.startsWith("⚠")) return "bad";
+    return "meta";
+  }
+
+  async function revealTrace(trace) {
+    const body = $("console-body");
+    body.innerHTML = "";
+    for (const line of trace) {
+      const div = document.createElement("div");
+      div.className = "cline " + classify(line);
+      div.textContent = line;
+      body.appendChild(div);
+      await sleep(70);
+      div.classList.add("on");
+      body.scrollTop = body.scrollHeight;
+      await sleep(150);
+    }
+  }
+
+  async function send() {
+    $("send-err").classList.add("hidden");
+    const payee = $("payee").value.trim();
+    const amount = $("amount").value.trim();
+    const currency = $("currency").value;
+    const scenario = $("scenario").value;
+    $("send-btn").disabled = true;
+    let body;
+    try {
+      const res = await fetch(`${API}/transactions`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ payer_msisdn: "243800000001", payee_msisdn: payee, amount, currency, scenario }),
+      });
+      body = await res.json();
+      if (!res.ok) throw new Error(body.detail || `HTTP ${res.status}`);
+    } catch (e) {
+      $("send-btn").disabled = false;
+      $("send-err").textContent = I18N[lang].err(API, e);
+      $("send-err").classList.remove("hidden");
+      return;
+    }
+    show("proc");
+    $("proc-sub").textContent = `${body.amount} ${body.currency} → ${payee}`;
+    revealTrace(body.trace || []); // fire-and-forget: console fills alongside the phone animation
+    const stepsEl = $("steps");
+    stepsEl.innerHTML = "";
+    for (const state of body.history) {
+      const li = document.createElement("li");
+      const failed = FAIL_STATES.has(state);
+      li.className = failed ? "fail" : "";
+      li.innerHTML = `<span class="dot">${failed ? "!" : "✓"}</span><span>${I18N[lang].steps[state] || state}</span>`;
+      stepsEl.appendChild(li);
+      await sleep(120);
+      li.classList.add("on");
+      await sleep(430);
+    }
+    await sleep(280);
+    showResult(body, payee);
+  }
+
+  function showResult(body, payee) {
+    lastResult = { body, payee };
+    const t = I18N[lang];
+    const ring = $("res-ring"), title = $("res-title"), msg = $("res-msg");
+    if (body.state === "payout_succeeded") {
+      ring.className = "ring ok"; ring.textContent = "✓";
+      title.textContent = t.result.sent.title; msg.textContent = t.result.sent.msg(body.amount, body.currency, payee);
+    } else if (body.state === "refunded") {
+      ring.className = "ring warn"; ring.textContent = "↩";
+      title.textContent = t.result.refunded.title; msg.textContent = t.result.refunded.msg(body.amount, body.currency);
+    } else if (body.state === "collection_failed") {
+      ring.className = "ring bad"; ring.textContent = "✕";
+      title.textContent = t.result.declined.title; msg.textContent = t.result.declined.msg();
+    } else {
+      ring.className = "ring rev"; ring.textContent = "⏳";
+      title.textContent = t.result.review.title; msg.textContent = t.result.review.msg();
+    }
+    const r = t.receipt;
+    const charged = body.state !== "collection_failed";
+    const total = charged ? addMajor(body.amount, body.fee) : null;
+    $("receipt").innerHTML = `
+      <div class="row"><span class="k">${r.recipient}</span><span>${payee}</span></div>
+      <div class="row"><span class="k">${r.amount}</span><span>${body.amount} ${body.currency}</span></div>
+      <div class="row"><span class="k">${r.fee}</span><span>${body.fee} ${body.currency}</span></div>
+      ${total ? `<div class="row tot"><span class="k">${r.total}</span><span>${total} ${body.currency}</span></div>` : ""}
+      <div class="row"><span class="k">${r.ref}</span><span>${body.id.slice(0, 12)}</span></div>`;
+    $("ledger-pre").textContent = body.ledger.length
+      ? body.ledger.map((l) => `${l.direction.padEnd(6)} ${l.account.padEnd(16)} ${l.amount} ${l.currency}`).join("\n")
+      : "—";
+    show("result");
+  }
+
+  function addMajor(a, b) {
+    const cents = (s) => Math.round(parseFloat(s) * 100);
+    return ((cents(a) + cents(b)) / 100).toFixed(2);
+  }
+
+  $("send-btn").addEventListener("click", send);
+  $("again-btn").addEventListener("click", () => { $("send-btn").disabled = false; lastResult = null; show("send"); });
+  $("lang-en").addEventListener("click", () => setLang("en"));
+  $("lang-fr").addEventListener("click", () => setLang("fr"));
+  applyStaticText();
+  $("console-body").innerHTML = `<div class="console-empty">${I18N[lang].consoleEmpty}</div>`;
+</script>
+</body>
+</html>
