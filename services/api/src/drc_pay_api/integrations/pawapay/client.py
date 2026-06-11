@@ -1,9 +1,10 @@
 """pawaPay v2 HTTP client — the outbound calls to pawaPay's Merchant API.
 
 The ONLY module that knows pawaPay's wire format. Built to pawaPay's v2 docs (accessed
-2026-06): deposits = collections, payouts = disbursements, refunds reverse a deposit.
+2026-06): deposits = collections, payouts = disbursements, refunds reverse a deposit,
+predict-provider maps a phone number to its operator.
 
-The API is **asynchronous**: these calls return a synchronous acknowledgement
+The API is **asynchronous**: financial calls return a synchronous acknowledgement
 (``ACCEPTED`` / ``REJECTED`` / ``DUPLICATE_IGNORED``); the FINAL outcome arrives later via
 a signed callback handled by the webhook receiver (built separately).
 
@@ -12,6 +13,7 @@ Sources:
   https://docs.pawapay.io/v2/api-reference/deposits/initiate-deposit
   https://docs.pawapay.io/v2/api-reference/payouts/initiate-payout
   https://docs.pawapay.io/v2/api-reference/refunds/initiate-refund
+  https://www.pawapay.io/changelog                                   (predict-provider)
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from typing import Any
 import httpx
 
 from ...domains.ledger.money import Money
+from .providers import format_amount, provider_decimals
 
 
 @dataclass
@@ -37,6 +40,16 @@ class PawaPayAck:
         return self.status == "ACCEPTED"
 
 
+@dataclass
+class ProviderPrediction:
+    """pawaPay's guess at the operator a phone number belongs to, plus a sanitised
+    number. Accuracy is high but not 100% — callers should allow a manual override."""
+
+    provider: str | None
+    phone_number: str | None  # sanitised by pawaPay
+    country: str | None
+
+
 def _ack(response: httpx.Response, id_field: str) -> PawaPayAck:
     data: Any = response.json()
     failure = data.get("failureReason") or {}
@@ -49,7 +62,7 @@ def _ack(response: httpx.Response, id_field: str) -> PawaPayAck:
 
 
 class PawaPayClient:
-    """Thin, faithful wrapper over pawaPay's v2 financial endpoints."""
+    """Thin, faithful wrapper over pawaPay's v2 endpoints."""
 
     def __init__(self, *, base_url: str, api_token: str, http: httpx.Client | None = None) -> None:
         self._base = base_url.rstrip("/")
@@ -58,6 +71,19 @@ class PawaPayClient:
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         }
+
+    def predict_provider(self, phone_number: str) -> ProviderPrediction:
+        response = self._http.post(
+            f"{self._base}/v2/predict-provider",
+            json={"phoneNumber": phone_number},
+            headers=self._headers,
+        )
+        data: Any = response.json()
+        return ProviderPrediction(
+            provider=data.get("provider"),
+            phone_number=data.get("phoneNumber"),
+            country=data.get("country"),
+        )
 
     def request_deposit(
         self,
@@ -74,7 +100,7 @@ class PawaPayClient:
                 "type": "MMO",
                 "accountDetails": {"phoneNumber": phone_number, "provider": provider},
             },
-            "amount": amount.to_major_str(),
+            "amount": format_amount(amount, provider_decimals(provider, amount.currency)),
             "currency": amount.currency,
         }
         if customer_message is not None:
@@ -97,7 +123,7 @@ class PawaPayClient:
                 "type": "MMO",
                 "accountDetails": {"phoneNumber": phone_number, "provider": provider},
             },
-            "amount": amount.to_major_str(),
+            "amount": format_amount(amount, provider_decimals(provider, amount.currency)),
             "currency": amount.currency,
         }
         if customer_message is not None:
@@ -105,11 +131,15 @@ class PawaPayClient:
         response = self._http.post(f"{self._base}/v2/payouts", json=body, headers=self._headers)
         return _ack(response, "payoutId")
 
-    def request_refund(self, *, refund_id: str, deposit_id: str, amount: Money) -> PawaPayAck:
+    def request_refund(
+        self, *, refund_id: str, deposit_id: str, amount: Money, provider: str
+    ) -> PawaPayAck:
+        # `provider` is used only to format the amount to the right decimal precision;
+        # pawaPay derives the actual provider from the original depositId.
         body: dict[str, Any] = {
             "refundId": refund_id,
             "depositId": deposit_id,
-            "amount": amount.to_major_str(),
+            "amount": format_amount(amount, provider_decimals(provider, amount.currency)),
             "currency": amount.currency,
         }
         response = self._http.post(f"{self._base}/v2/refunds", json=body, headers=self._headers)

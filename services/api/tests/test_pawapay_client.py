@@ -1,6 +1,5 @@
-"""pawaPay client: request shapes + acknowledgement parsing, against a mocked HTTP
-transport — verifies we build the documented requests and parse responses, with no real
-pawaPay and no network.
+"""pawaPay client: request shapes, provider prediction, provider-aware amount decimals,
+and ack parsing — all against a mocked HTTP transport (no real pawaPay, no network).
 """
 from __future__ import annotations
 
@@ -11,6 +10,7 @@ import httpx
 
 from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.integrations.pawapay.client import PawaPayClient
+from drc_pay_api.integrations.pawapay.providers import format_amount, provider_decimals
 
 
 def _client_capturing(into: dict[str, Any], response_json: dict[str, Any]) -> PawaPayClient:
@@ -60,11 +60,54 @@ def test_payout_request_shape() -> None:
 def test_refund_request_shape() -> None:
     cap: dict[str, Any] = {}
     client = _client_capturing(cap, {"refundId": "ref-1", "status": "ACCEPTED"})
-    ack = client.request_refund(refund_id="ref-1", deposit_id="dep-1", amount=Money(1050, "USD"))
+    ack = client.request_refund(
+        refund_id="ref-1", deposit_id="dep-1", amount=Money(1050, "USD"), provider="ORANGE_COD"
+    )
     assert cap["url"].endswith("/v2/refunds")
     assert cap["body"]["refundId"] == "ref-1"
     assert cap["body"]["depositId"] == "dep-1"
     assert ack.accepted
+
+
+def test_predict_provider() -> None:
+    cap: dict[str, Any] = {}
+    client = _client_capturing(
+        cap, {"country": "COD", "provider": "VODACOM_MPESA_COD", "phoneNumber": "243800000001"}
+    )
+    prediction = client.predict_provider("+243 80 000 0001")
+    assert cap["url"].endswith("/v2/predict-provider")
+    assert cap["body"] == {"phoneNumber": "+243 80 000 0001"}
+    assert prediction.provider == "VODACOM_MPESA_COD"
+    assert prediction.phone_number == "243800000001"  # pawaPay sanitised it
+    assert prediction.country == "COD"
+
+
+def test_mpesa_cdf_amount_has_no_decimals() -> None:
+    cap: dict[str, Any] = {}
+    client = _client_capturing(cap, {"depositId": "d", "status": "ACCEPTED"})
+    client.request_deposit(
+        deposit_id="d",
+        phone_number="243800000001",
+        provider="VODACOM_MPESA_COD",
+        amount=Money(10000, "CDF"),  # 100.00 CDF
+    )
+    assert cap["body"]["amount"] == "100"  # Vodacom M-Pesa CDF takes NO decimals
+    assert cap["body"]["currency"] == "CDF"
+
+
+def test_provider_decimals_and_format() -> None:
+    assert provider_decimals("VODACOM_MPESA_COD", "CDF") == 0
+    assert provider_decimals("AIRTEL_COD", "CDF") == 2
+    assert provider_decimals("ORANGE_COD", "USD") == 2
+    assert provider_decimals("UNKNOWN", "USD") == 2  # default
+    assert format_amount(Money(1050, "USD"), 2) == "10.50"
+    assert format_amount(Money(10000, "CDF"), 0) == "100"
+    try:
+        format_amount(Money(10050, "CDF"), 0)  # 100.50 cannot be 0 decimals
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("expected ValueError for impossible precision")
 
 
 def test_rejected_ack_is_parsed() -> None:
