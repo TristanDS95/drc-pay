@@ -5,6 +5,7 @@ Every money movement is asserted, and because every ledger posting self-validate
 """
 from __future__ import annotations
 
+from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
 from drc_pay_api.domains.ledger.ledger import Direction, Posting
 from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.domains.transactions.orchestrator import (
@@ -16,15 +17,15 @@ from drc_pay_api.domains.transactions.orchestrator import (
 )
 from drc_pay_api.domains.transactions.state_machine import TxState
 
-from fakes import FakePaymentRail, InMemoryTransactionStore, RecordingLedger
+from fakes import FakePaymentRail
 
 USD = "USD"
 
 
-def _make() -> tuple[Orchestrator, InMemoryTransactionStore, FakePaymentRail, RecordingLedger]:
+def _make() -> tuple[Orchestrator, InMemoryTransactionStore, FakePaymentRail, InMemoryLedger]:
     store = InMemoryTransactionStore()
     rail = FakePaymentRail()
-    ledger = RecordingLedger()
+    ledger = InMemoryLedger()
     return Orchestrator(store, rail, ledger), store, rail, ledger
 
 
@@ -52,8 +53,8 @@ def test_happy_path_delivers_amount_and_books_fee() -> None:
     amount = Money.from_major("10.00", USD)
     fee = Money.from_major("0.50", USD)
 
-    orch.start_transfer(
-        transfer_id="t1", payer_msisdn="243aaa", payee_msisdn="243bbb", amount=amount, fee=fee
+    orch.start_transaction(
+        transaction_id="t1", payer_msisdn="243aaa", payee_msisdn="243bbb", amount=amount, fee=fee
     )
     # The payer is charged amount + fee.
     assert rail.collections == [("t1", "243aaa", Money.from_major("10.50", USD))]
@@ -74,8 +75,8 @@ def test_payout_failure_refunds_the_payer() -> None:
     amount = Money.from_major("10.00", USD)
     fee = Money.from_major("0.50", USD)
 
-    orch.start_transfer(
-        transfer_id="t2", payer_msisdn="243aaa", payee_msisdn="243bbb", amount=amount, fee=fee
+    orch.start_transaction(
+        transaction_id="t2", payer_msisdn="243aaa", payee_msisdn="243bbb", amount=amount, fee=fee
     )
     orch.on_collection_result("t2", success=True)
     orch.on_payout_result("t2", success=False)
@@ -84,15 +85,15 @@ def test_payout_failure_refunds_the_payer() -> None:
 
     orch.on_refund_result("t2", success=True)
     assert store.get("t2").state is TxState.REFUNDED
-    assert _credit_total(ledger.postings, REVENUE) == 0  # no fee on a refunded transfer
+    assert _credit_total(ledger.postings, REVENUE) == 0  # no fee on a refunded transaction
     assert _net_debit(ledger.postings, PAYER) == 0  # payer made whole
     assert _net_debit(ledger.postings, CLEARING) == 0  # nothing left held
 
 
 def test_collection_failure_moves_no_money() -> None:
     orch, store, rail, ledger = _make()
-    orch.start_transfer(
-        transfer_id="t3",
+    orch.start_transaction(
+        transaction_id="t3",
         payer_msisdn="x",
         payee_msisdn="y",
         amount=Money.from_major("5.00", USD),
@@ -106,8 +107,8 @@ def test_collection_failure_moves_no_money() -> None:
 
 def test_failed_refund_escalates_to_manual_review() -> None:
     orch, store, rail, ledger = _make()
-    orch.start_transfer(
-        transfer_id="t4",
+    orch.start_transaction(
+        transaction_id="t4",
         payer_msisdn="x",
         payee_msisdn="y",
         amount=Money.from_major("5.00", USD),

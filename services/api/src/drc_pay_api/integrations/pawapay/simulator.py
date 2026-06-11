@@ -17,11 +17,11 @@ class SimulatedPaymentRail:
         self.payouts: list[tuple[str, str, Money]] = []
         self.refunds: list[str] = []
 
-    def request_collection(self, *, transfer_id: str, msisdn: str, amount: Money) -> None:
-        self.collections.append((transfer_id, msisdn, amount))
+    def request_collection(self, *, transaction_id: str, msisdn: str, amount: Money) -> None:
+        self.collections.append((transaction_id, msisdn, amount))
 
-    def request_payout(self, *, transfer_id: str, msisdn: str, amount: Money) -> None:
-        self.payouts.append((transfer_id, msisdn, amount))
+    def request_payout(self, *, transaction_id: str, msisdn: str, amount: Money) -> None:
+        self.payouts.append((transaction_id, msisdn, amount))
 
-    def request_refund(self, *, transfer_id: str) -> None:
-        self.refunds.append(transfer_id)
+    def request_refund(self, *, transaction_id: str) -> None:
+        self.refunds.append(transaction_id)

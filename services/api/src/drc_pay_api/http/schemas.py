@@ -1,10 +1,10 @@
 """Request/response shapes for the HTTP API (Pydantic)."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
-class CreateTransferRequest(BaseModel):
+class CreateTransactionRequest(BaseModel):
     payer_msisdn: str
     payee_msisdn: str
     amount: str  # major units, e.g. "10.00"
@@ -20,7 +20,7 @@ class LedgerLine(BaseModel):
     currency: str
 
 
-class TransferResponse(BaseModel):
+class TransactionResponse(BaseModel):
     id: str
     payer_msisdn: str
     payee_msisdn: str
@@ -30,3 +30,5 @@ class TransferResponse(BaseModel):
     state: str
     history: list[str]
     ledger: list[LedgerLine]
+    # Human-readable operations trace (empty on plain reads; populated on create).
+    trace: list[str] = Field(default_factory=list)
