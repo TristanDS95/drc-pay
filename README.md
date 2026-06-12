@@ -2,10 +2,13 @@
 
 The DRC cross-network mobile-money payment app — **application code**.
 
-A consumer app that lets someone in the DRC pay **any** mobile-money number across
-networks (Vodacom M-Pesa, Airtel, Orange), built on rented rails (**pawaPay**) as a
-**pass-through** (we never hold funds). Smartphone app first; a feature-phone / USSD
-channel is a planned, phased addition that reuses the same backend core.
+A **merchant-facing** app for the DRC: merchants accept mobile-money payments from
+customers on **any** network (Vodacom M-Pesa, Airtel, Orange), bridged behind the scenes,
+on rented rails (**pawaPay**) as a **pure pass-through** (we never hold funds). The
+customer pays the sticker price and the **merchant absorbs our fee (MDR)**; settlement to
+the merchant is instant. **Customers need no app or internet** — they scan the merchant's
+QR or dial a USSD till — so **USSD is a first-class MVP channel, not a later phase**. A
+consumer-facing version may follow later.
 
 > Research, product spec, and decision reports live in the sibling
 > [`../drc-mvp-research/`](../drc-mvp-research/). Start there for the **why**; this
@@ -13,9 +16,11 @@ channel is a planned, phased addition that reuses the same backend core.
 
 ## Status
 
-**Scaffold.** Structure, engineering standards, CI, and the money-correctness core
-(double-entry ledger + transaction state machine, with tests) are in place. Backend
-is **Python / FastAPI**; the mobile app is **React Native / Expo** (to be initialized).
+**Backend well underway** (`services/api`, **Python / FastAPI**): the payment spine,
+merchant domain, MDR pricing, Postgres + Alembic, idempotency, the pawaPay client wired
+into the orchestrator, and a USSD channel (with QR/dial-through) — ruff + mypy --strict
+clean, **69 tests**. See [`docs/DEVLOG.md`](./docs/DEVLOG.md) for the live state. The
+mobile app (**React Native / Expo**) and merchant onboarding are not started.
 
 ## Layout
 

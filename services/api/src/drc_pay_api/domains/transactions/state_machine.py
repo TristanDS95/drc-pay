@@ -1,7 +1,7 @@
 """The transaction state machine.
 
-A cross-network transfer is two legs — collect from the payer's wallet, then pay out
-to the payee's — with an automatic refund if the payout fails after the collection
+A payment is two legs — collect from the customer's wallet, then settle to the
+merchant's — with an automatic refund if the settlement fails after the collection
 already succeeded. We model that as an explicit finite-state machine so that (a) only
 legal transitions are possible, and (b) money can never be "half moved" without a
 recorded reason. Illegal transitions raise: they are bugs, not edge cases to paper
@@ -21,7 +21,7 @@ class TxState(str, Enum):
     PAYOUT_SUCCEEDED = "payout_succeeded"  # terminal — success
     PAYOUT_FAILED = "payout_failed"
     REFUND_PENDING = "refund_pending"
-    REFUNDED = "refunded"  # terminal — money returned to payer
+    REFUNDED = "refunded"  # terminal — money returned to customer
     MANUAL_REVIEW = "manual_review"  # needs a human; NOT terminal
 
 

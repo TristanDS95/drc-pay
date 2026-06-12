@@ -10,16 +10,11 @@ endpoint (see ``client.PawaPayClient.predict_provider``), not by us.
 from __future__ import annotations
 
 from decimal import Decimal
-from enum import Enum
 
 from ...domains.ledger.money import CURRENCY_EXPONENTS, Money
 
-
-class DrcProvider(str, Enum):
-    VODACOM_MPESA = "VODACOM_MPESA_COD"
-    AIRTEL = "AIRTEL_COD"
-    ORANGE = "ORANGE_COD"
-
+# DRC pawaPay provider codes are used as plain strings (matching pawaPay's wire format and
+# predict-provider output): VODACOM_MPESA_COD, AIRTEL_COD, ORANGE_COD.
 
 # Decimal places pawaPay accepts per (provider, currency). Verified from the v2 providers
 # page. The authoritative LIVE source is GET /v2/active-conf (``decimalsInAmount``); this

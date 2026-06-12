@@ -7,7 +7,28 @@ unchanged.
 from __future__ import annotations
 
 from ..domains.ledger.ledger import Posting
+from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
+
+
+class InMemoryMerchantStore:
+    def __init__(self) -> None:
+        self._rows: dict[str, Merchant] = {}
+
+    def get(self, merchant_id: str) -> Merchant:
+        return self._rows[merchant_id]
+
+    def get_by_short_code(self, short_code: str) -> Merchant | None:
+        for merchant in self._rows.values():
+            if merchant.short_code == short_code:
+                return merchant
+        return None
+
+    def save(self, merchant: Merchant) -> None:
+        self._rows[merchant.id] = merchant
+
+    def all(self) -> list[Merchant]:
+        return list(self._rows.values())
 
 
 class InMemoryTransactionStore:
@@ -26,6 +47,12 @@ class InMemoryTransactionStore:
     def find_by_idempotency_key(self, key: str) -> Transaction | None:
         for transaction in self._rows.values():
             if transaction.idempotency_key == key:
+                return transaction
+        return None
+
+    def find_by_op_id(self, op_id: str) -> Transaction | None:
+        for transaction in self._rows.values():
+            if op_id in (transaction.deposit_id, transaction.payout_id, transaction.refund_id):
                 return transaction
         return None
 

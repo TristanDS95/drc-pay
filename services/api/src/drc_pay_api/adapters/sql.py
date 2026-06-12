@@ -20,6 +20,7 @@ from sqlalchemy import (
     String,
     create_engine,
     func,
+    or_,
     select,
 )
 from sqlalchemy.engine import Engine
@@ -27,6 +28,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sess
 
 from ..domains.ledger.ledger import Direction, Entry, Posting
 from ..domains.ledger.money import Money
+from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
 from ..domains.transactions.state_machine import TxState
 
@@ -35,18 +37,38 @@ class Base(DeclarativeBase):
     pass
 
 
+class MerchantRow(Base):
+    __tablename__ = "merchants"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    short_code: Mapped[str] = mapped_column(String, unique=True)
+    settlement_msisdn: Mapped[str] = mapped_column(String)
+    settlement_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class TransactionRow(Base):
     __tablename__ = "transactions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    payer_msisdn: Mapped[str] = mapped_column(String)
-    payee_msisdn: Mapped[str] = mapped_column(String)
+    customer_msisdn: Mapped[str] = mapped_column(String)
+    merchant_msisdn: Mapped[str] = mapped_column(String)
     amount_minor: Mapped[int] = mapped_column(BigInteger)
     fee_minor: Mapped[int] = mapped_column(BigInteger)
     currency: Mapped[str] = mapped_column(String)
     state: Mapped[str] = mapped_column(String)
     history: Mapped[list[str]] = mapped_column(JSON)
     idempotency_key: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    merchant_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Resolved pawaPay operator codes (customer's for collection/refund, merchant's for settlement).
+    customer_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    merchant_provider: Mapped[str | None] = mapped_column(String, nullable=True)
+    # pawaPay operation ids, for callback correlation and refund referencing.
+    deposit_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    payout_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    refund_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -82,13 +104,19 @@ def make_engine(url: str) -> Engine:
 def _to_domain(row: TransactionRow) -> Transaction:
     return Transaction(
         id=row.id,
-        payer_msisdn=row.payer_msisdn,
-        payee_msisdn=row.payee_msisdn,
+        customer_msisdn=row.customer_msisdn,
+        merchant_msisdn=row.merchant_msisdn,
         amount=Money(row.amount_minor, row.currency),
         fee=Money(row.fee_minor, row.currency),
         state=TxState(row.state),
         history=[TxState(s) for s in row.history],
         idempotency_key=row.idempotency_key,
+        merchant_id=row.merchant_id,
+        customer_provider=row.customer_provider,
+        merchant_provider=row.merchant_provider,
+        deposit_id=row.deposit_id,
+        payout_id=row.payout_id,
+        refund_id=row.refund_id,
     )
 
 
@@ -109,14 +137,20 @@ class SqlTransactionStore:
             if row is None:
                 row = TransactionRow(id=transaction.id)
                 session.add(row)
-            row.payer_msisdn = transaction.payer_msisdn
-            row.payee_msisdn = transaction.payee_msisdn
+            row.customer_msisdn = transaction.customer_msisdn
+            row.merchant_msisdn = transaction.merchant_msisdn
             row.amount_minor = transaction.amount.amount_minor
             row.fee_minor = transaction.fee.amount_minor
             row.currency = transaction.amount.currency
             row.state = transaction.state.value
             row.history = [s.value for s in transaction.history]
             row.idempotency_key = transaction.idempotency_key
+            row.merchant_id = transaction.merchant_id
+            row.customer_provider = transaction.customer_provider
+            row.merchant_provider = transaction.merchant_provider
+            row.deposit_id = transaction.deposit_id
+            row.payout_id = transaction.payout_id
+            row.refund_id = transaction.refund_id
             session.commit()
 
     def all(self) -> list[Transaction]:
@@ -128,6 +162,19 @@ class SqlTransactionStore:
         with self._sf() as session:
             row = session.scalars(
                 select(TransactionRow).where(TransactionRow.idempotency_key == key)
+            ).first()
+            return _to_domain(row) if row is not None else None
+
+    def find_by_op_id(self, op_id: str) -> Transaction | None:
+        with self._sf() as session:
+            row = session.scalars(
+                select(TransactionRow).where(
+                    or_(
+                        TransactionRow.deposit_id == op_id,
+                        TransactionRow.payout_id == op_id,
+                        TransactionRow.refund_id == op_id,
+                    )
+                )
             ).first()
             return _to_domain(row) if row is not None else None
 
@@ -169,3 +216,51 @@ class SqlLedger:
                 Entry(row.account, Direction(row.direction), Money(row.amount_minor, row.currency))
             )
         return [Posting(transaction_id=transaction_id, entries=tuple(groups[pid])) for pid in order]
+
+
+def _merchant_to_domain(row: MerchantRow) -> Merchant:
+    return Merchant(
+        id=row.id,
+        name=row.name,
+        short_code=row.short_code,
+        settlement_msisdn=row.settlement_msisdn,
+        settlement_provider=row.settlement_provider,
+        status=row.status,
+    )
+
+
+class SqlMerchantStore:
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._sf = session_factory
+
+    def get(self, merchant_id: str) -> Merchant:
+        with self._sf() as session:
+            row = session.get(MerchantRow, merchant_id)
+            if row is None:
+                raise KeyError(merchant_id)
+            return _merchant_to_domain(row)
+
+    def get_by_short_code(self, short_code: str) -> Merchant | None:
+        with self._sf() as session:
+            row = session.scalars(
+                select(MerchantRow).where(MerchantRow.short_code == short_code)
+            ).first()
+            return _merchant_to_domain(row) if row is not None else None
+
+    def save(self, merchant: Merchant) -> None:
+        with self._sf() as session:
+            row = session.get(MerchantRow, merchant.id)
+            if row is None:
+                row = MerchantRow(id=merchant.id)
+                session.add(row)
+            row.name = merchant.name
+            row.short_code = merchant.short_code
+            row.settlement_msisdn = merchant.settlement_msisdn
+            row.settlement_provider = merchant.settlement_provider
+            row.status = merchant.status
+            session.commit()
+
+    def all(self) -> list[Merchant]:
+        with self._sf() as session:
+            rows = session.scalars(select(MerchantRow).order_by(MerchantRow.created_at)).all()
+            return [_merchant_to_domain(row) for row in rows]

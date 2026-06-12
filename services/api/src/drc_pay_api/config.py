@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     # secret store. No default URL here, so we never accidentally point at the wrong one.
     pawapay_base_url: str = ""
     pawapay_api_token: str = ""
+    # pawaPay's public key (PEM) for verifying signed callbacks (RFC-9421 / ECDSA-P256).
+    # Blank in the demo → the webhook receiver rejects everything when no live rail is set.
+    pawapay_public_key: str = ""
+
+    # USSD shortcode the customer dials (e.g. *123#); each merchant's till is appended
+    # (*123*1001#). The real code is assigned by the USSD aggregator/operator — this is a
+    # placeholder until it's provisioned.
+    ussd_shortcode: str = "*123#"
 
 
 settings = Settings()

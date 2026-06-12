@@ -14,11 +14,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .http.container import build_container
+from .http.merchant_routes import merchant_router
 from .http.routes import router
+from .http.ussd_routes import ussd_router
+from .http.webhook_routes import webhook_router
+from .ussd.session import UssdHandler
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="DRC Pay API", version="0.0.1")
+    app = FastAPI(title="DRC Pay — Merchant Acquiring API", version="0.0.1")
 
     # DEV ONLY: let the local web phone-mock (a different origin) call the API.
     # Production locks this down to known origins.
@@ -29,8 +33,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.state.container = build_container(settings.database_url)
+    app.state.container = build_container(
+        database_url=settings.database_url,
+        pawapay_base_url=settings.pawapay_base_url,
+        pawapay_api_token=settings.pawapay_api_token,
+        ussd_shortcode=settings.ussd_shortcode,
+        pawapay_public_key=settings.pawapay_public_key,
+    )
+    # The USSD channel is another thin caller into the same container/orchestrator.
+    app.state.ussd_handler = UssdHandler(app.state.container)
     app.include_router(router)
+    app.include_router(merchant_router)
+    app.include_router(ussd_router)
+    app.include_router(webhook_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

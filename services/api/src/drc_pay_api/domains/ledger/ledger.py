@@ -27,7 +27,7 @@ class Direction(str, Enum):
 class Entry:
     """A single side of a posting: an amount moving into or out of an account."""
 
-    account: str  # e.g. "payer:wallet", "payout:wallet", "revenue:fees"
+    account: str  # e.g. "customer:external", "merchant:external", "revenue:fees"
     direction: Direction
     amount: Money
 

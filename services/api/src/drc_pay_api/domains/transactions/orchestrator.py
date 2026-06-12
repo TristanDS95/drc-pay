@@ -1,8 +1,13 @@
 """Transaction orchestration — the payment spine.
 
-Drives a cross-network money transfer through its two legs (collect from the payer,
-pay out to the payee) keeping the state machine and the ledger in lock-step, with an
-automatic refund if the payout fails after the collection already succeeded.
+Drives a customer→merchant payment through its two legs (collect from the customer, then
+settle to the merchant) keeping the state machine and the ledger in lock-step, with an
+automatic refund to the customer if the settlement fails after the collection already
+succeeded.
+
+Fee model (merchant acquiring): the customer pays the sticker ``amount``; the merchant
+absorbs our fee (MDR) and nets ``amount − fee``; we keep ``fee`` as revenue, booked only
+on a successful settlement. A refund returns the full ``amount`` to the customer (no fee).
 
 Outcomes from the payment rail are asynchronous: ``start_transaction`` kicks off the
 collection, and the ``on_*_result`` handlers are invoked later by the webhook receiver
@@ -18,15 +23,23 @@ from __future__ import annotations
 from ..ledger.ledger import Direction, Entry, Posting
 from ..ledger.money import Money
 from .models import Transaction
-from .ports import LedgerPort, PaymentRail, Recorder, TransactionStore
+from .ports import LedgerPort, PaymentRail, RailRejected, Recorder, TransactionStore
 from .state_machine import TxState, assert_transition
 
 # Ledger account names. The persistent ledger will formalize these; here they are
 # stable string keys so postings are legible.
-PAYER = "payer:external"  # the payer's mobile-money wallet (outside our system)
-PAYEE = "payee:external"  # the payee's mobile-money wallet (outside our system)
+CUSTOMER = "customer:external"  # the customer's mobile-money wallet (outside our system)
+MERCHANT = "merchant:external"  # the merchant's settlement wallet (outside our system)
 CLEARING = "pawapay:clearing"  # funds held at pawaPay mid-transfer
 REVENUE = "revenue:fees"  # our fee income
+
+
+def _require_provider(provider: str | None, *, leg: str) -> str:
+    """A money-moving leg must know the operator. Providers are captured at
+    ``start_transaction``; a missing one here is a data error, not an edge case."""
+    if not provider:
+        raise ValueError(f"transaction is missing the {leg} provider")
+    return provider
 
 
 class Orchestrator:
@@ -59,37 +72,53 @@ class Orchestrator:
         self,
         *,
         transaction_id: str,
-        payer_msisdn: str,
-        payee_msisdn: str,
+        customer_msisdn: str,
+        merchant_msisdn: str,
         amount: Money,
         fee: Money,
+        customer_provider: str,
+        merchant_provider: str,
+        merchant_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> Transaction:
         if amount.currency != fee.currency:
             raise ValueError("amount and fee must share a currency")
         if not amount.is_positive:
             raise ValueError("amount must be positive")
-        self._rec("check · amount > 0 and amount/fee currency match — OK")
+        if fee.amount_minor >= amount.amount_minor:
+            raise ValueError("fee must be less than the amount")
+        self._rec("check · amount > 0, fee < amount, currencies match — OK")
         transaction = Transaction(
             id=transaction_id,
-            payer_msisdn=payer_msisdn,
-            payee_msisdn=payee_msisdn,
+            customer_msisdn=customer_msisdn,
+            merchant_msisdn=merchant_msisdn,
             amount=amount,
             fee=fee,
             state=TxState.INITIATED,
             history=[TxState.INITIATED],
             idempotency_key=idempotency_key,
+            customer_provider=customer_provider,
+            merchant_provider=merchant_provider,
+            merchant_id=merchant_id,
         )
         self._store.save(transaction)
         self._rec("state · created → initiated")
         self._transition(transaction, TxState.COLLECTION_PENDING)
-        # The payer is charged amount + fee.
-        self._rail.request_collection(
-            transaction_id=transaction.id,
-            msisdn=transaction.payer_msisdn,
-            amount=amount + fee,
-        )
-        self._rec(f"rail → collect {(amount + fee).to_major_str()} {amount.currency} from {payer_msisdn}")
+        # The customer pays the sticker amount, on the customer's own operator.
+        try:
+            deposit_id = self._rail.request_collection(
+                transaction_id=transaction.id,
+                msisdn=transaction.customer_msisdn,
+                amount=amount,
+                provider=customer_provider,
+            )
+        except RailRejected as exc:
+            self._rec(f"rail ✕ collection rejected synchronously — {exc}")
+            self._transition(transaction, TxState.COLLECTION_FAILED)
+            self._rec("✕ ended — collection rejected, no money moved")
+            return transaction
+        self._store_op_id(transaction, kind="deposit", op_id=deposit_id)
+        self._rec(f"rail → collect {amount.to_major_str()} {amount.currency} from {customer_msisdn}")
         return transaction
 
     # ---- collection leg ----------------------------------------------
@@ -101,13 +130,13 @@ class Orchestrator:
             self._rec("✕ ended — collection failed, no money moved")
             return
         self._transition(transaction, TxState.COLLECTION_SUCCEEDED)
-        # Payer's funds (amount + fee) are now held at pawaPay.
+        # The customer's funds are now held at pawaPay.
         self._post(
             Posting(
                 transaction_id=transaction.id,
                 entries=(
-                    Entry(PAYER, Direction.DEBIT, transaction.amount + transaction.fee),
-                    Entry(CLEARING, Direction.CREDIT, transaction.amount + transaction.fee),
+                    Entry(CUSTOMER, Direction.DEBIT, transaction.amount),
+                    Entry(CLEARING, Direction.CREDIT, transaction.amount),
                 ),
             )
         )
@@ -115,43 +144,65 @@ class Orchestrator:
 
     def _begin_payout(self, transaction: Transaction) -> None:
         self._transition(transaction, TxState.PAYOUT_PENDING)
-        self._rail.request_payout(
-            transaction_id=transaction.id,
-            msisdn=transaction.payee_msisdn,
-            amount=transaction.amount,
-        )
+        # The merchant nets amount − fee (it absorbs the fee), on the merchant's operator.
+        merchant_amount = transaction.amount - transaction.fee
+        try:
+            payout_id = self._rail.request_payout(
+                transaction_id=transaction.id,
+                msisdn=transaction.merchant_msisdn,
+                amount=merchant_amount,
+                provider=_require_provider(transaction.merchant_provider, leg="merchant"),
+            )
+        except RailRejected as exc:
+            self._rec(f"rail ✕ settlement rejected synchronously — {exc}")
+            self._transition(transaction, TxState.PAYOUT_FAILED)
+            self._begin_refund(transaction)
+            return
+        self._store_op_id(transaction, kind="payout", op_id=payout_id)
         self._rec(
-            f"rail → pay {transaction.amount.to_major_str()} {transaction.amount.currency} "
-            f"to {transaction.payee_msisdn}"
+            f"rail → settle {merchant_amount.to_major_str()} {merchant_amount.currency} "
+            f"to {transaction.merchant_msisdn}"
         )
 
     # ---- payout leg ---------------------------------------------------
     def on_payout_result(self, transaction_id: str, *, success: bool) -> None:
         transaction = self._store.get(transaction_id)
-        self._rec(f"webhook ← pawaPay: payout {'SUCCEEDED' if success else 'FAILED'}")
+        self._rec(f"webhook ← pawaPay: settlement {'SUCCEEDED' if success else 'FAILED'}")
         if not success:
             self._transition(transaction, TxState.PAYOUT_FAILED)
             self._begin_refund(transaction)
             return
         self._transition(transaction, TxState.PAYOUT_SUCCEEDED)
-        # Deliver `amount` to the payee; keep `fee` as revenue. Clearing drains to zero.
-        self._post(
-            Posting(
-                transaction_id=transaction.id,
-                entries=(
-                    Entry(CLEARING, Direction.DEBIT, transaction.amount + transaction.fee),
-                    Entry(PAYEE, Direction.CREDIT, transaction.amount),
-                    Entry(REVENUE, Direction.CREDIT, transaction.fee),
-                ),
-            )
-        )
-        self._rec("✓ complete — payout delivered, fee booked")
+        # Settle amount − fee to the merchant; keep fee as revenue. Clearing drains to zero.
+        merchant_amount = transaction.amount - transaction.fee
+        entries = [
+            Entry(CLEARING, Direction.DEBIT, transaction.amount),
+            Entry(MERCHANT, Direction.CREDIT, merchant_amount),
+        ]
+        if transaction.fee.is_positive:
+            entries.append(Entry(REVENUE, Direction.CREDIT, transaction.fee))
+        self._post(Posting(transaction_id=transaction.id, entries=tuple(entries)))
+        self._rec("✓ complete — merchant settled, fee booked")
 
     # ---- refund -------------------------------------------------------
     def _begin_refund(self, transaction: Transaction) -> None:
         self._transition(transaction, TxState.REFUND_PENDING)
-        self._rail.request_refund(transaction_id=transaction.id)
-        self._rec("rail → refund (payout failed; returning funds to payer)")
+        # Refund the full amount the customer paid, against the original deposit; the
+        # customer's operator formats the amount to the right decimal precision.
+        try:
+            refund_id = self._rail.request_refund(
+                transaction_id=transaction.id,
+                deposit_id=transaction.deposit_id,
+                amount=transaction.amount,
+                provider=_require_provider(transaction.customer_provider, leg="customer"),
+            )
+        except RailRejected as exc:
+            self._rec(f"rail ✕ refund rejected synchronously — {exc}")
+            self._transition(transaction, TxState.MANUAL_REVIEW)
+            self._rec("⚠ escalated to manual review — refund could not be initiated")
+            return
+        self._store_op_id(transaction, kind="refund", op_id=refund_id)
+        self._rec("rail → refund (settlement failed; returning funds to the customer)")
 
     def on_refund_result(self, transaction_id: str, *, success: bool) -> None:
         transaction = self._store.get(transaction_id)
@@ -162,19 +213,33 @@ class Orchestrator:
             self._rec("⚠ escalated to manual review — funds stuck at pawaPay")
             return
         self._transition(transaction, TxState.REFUNDED)
-        # Return everything held back to the payer.
+        # Return everything held back to the customer.
         self._post(
             Posting(
                 transaction_id=transaction.id,
                 entries=(
-                    Entry(CLEARING, Direction.DEBIT, transaction.amount + transaction.fee),
-                    Entry(PAYER, Direction.CREDIT, transaction.amount + transaction.fee),
+                    Entry(CLEARING, Direction.DEBIT, transaction.amount),
+                    Entry(CUSTOMER, Direction.CREDIT, transaction.amount),
                 ),
             )
         )
-        self._rec("✓ complete — payer made whole, no fee charged")
+        self._rec("✓ complete — customer made whole, no fee charged")
 
     # ---- internal -----------------------------------------------------
+    def _store_op_id(self, transaction: Transaction, *, kind: str, op_id: str | None) -> None:
+        """Persist a pawaPay op-id on the transaction, if the rail issued one. The
+        simulator returns ``None`` (no real operation), so nothing is stored then."""
+        if op_id is None:
+            return
+        if kind == "deposit":
+            transaction.deposit_id = op_id
+        elif kind == "payout":
+            transaction.payout_id = op_id
+        else:
+            transaction.refund_id = op_id
+        self._store.save(transaction)
+        self._rec(f"rail · {kind}_id={op_id} (persisted)")
+
     def _transition(self, transaction: Transaction, destination: TxState) -> None:
         previous = transaction.state
         assert_transition(previous, destination)

@@ -9,9 +9,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from drc_pay_api.adapters.sql import Base, SqlLedger, SqlTransactionStore
+from drc_pay_api.adapters.sql import Base, SqlLedger, SqlMerchantStore, SqlTransactionStore
 from drc_pay_api.domains.ledger.ledger import Direction, Entry, Posting
 from drc_pay_api.domains.ledger.money import Money
+from drc_pay_api.domains.merchants.models import Merchant
 from drc_pay_api.domains.transactions.models import Transaction
 from drc_pay_api.domains.transactions.state_machine import TxState
 
@@ -27,8 +28,8 @@ def _factory() -> sessionmaker[Session]:
 def _tx(tid: str = "t1", state: TxState = TxState.INITIATED) -> Transaction:
     return Transaction(
         id=tid,
-        payer_msisdn="243a",
-        payee_msisdn="243b",
+        customer_msisdn="243a",
+        merchant_msisdn="243b",
         amount=Money(1000, "USD"),
         fee=Money(10, "USD"),
         state=state,
@@ -50,6 +51,23 @@ def test_store_roundtrip_and_update() -> None:
     reloaded = store.get("t1")
     assert reloaded.state is TxState.COLLECTION_PENDING
     assert reloaded.history == [TxState.INITIATED, TxState.COLLECTION_PENDING]
+
+
+def test_store_persists_providers_op_ids_and_merchant() -> None:
+    store = SqlTransactionStore(_factory())
+    tx = _tx("t9")
+    tx.merchant_id = "m_alpha"
+    tx.customer_provider = "AIRTEL_COD"
+    tx.merchant_provider = "ORANGE_COD"
+    tx.deposit_id = "dep-9"
+    tx.payout_id = "pay-9"
+    tx.refund_id = "ref-9"
+    store.save(tx)
+    got = store.get("t9")
+    assert got.merchant_id == "m_alpha"
+    assert got.customer_provider == "AIRTEL_COD"
+    assert got.merchant_provider == "ORANGE_COD"
+    assert (got.deposit_id, got.payout_id, got.refund_id) == ("dep-9", "pay-9", "ref-9")
 
 
 def test_store_get_missing_raises() -> None:
@@ -77,8 +95,8 @@ def test_ledger_post_and_read_grouped() -> None:
         Posting(
             transaction_id="tx1",
             entries=(
-                Entry("payer:external", Direction.DEBIT, Money(1010, "USD")),
-                Entry("pawapay:clearing", Direction.CREDIT, Money(1010, "USD")),
+                Entry("customer:external", Direction.DEBIT, Money(1000, "USD")),
+                Entry("pawapay:clearing", Direction.CREDIT, Money(1000, "USD")),
             ),
         )
     )
@@ -86,8 +104,8 @@ def test_ledger_post_and_read_grouped() -> None:
         Posting(
             transaction_id="tx1",
             entries=(
-                Entry("pawapay:clearing", Direction.DEBIT, Money(1010, "USD")),
-                Entry("payee:external", Direction.CREDIT, Money(1000, "USD")),
+                Entry("pawapay:clearing", Direction.DEBIT, Money(1000, "USD")),
+                Entry("merchant:external", Direction.CREDIT, Money(990, "USD")),
                 Entry("revenue:fees", Direction.CREDIT, Money(10, "USD")),
             ),
         )
@@ -108,6 +126,36 @@ def test_find_by_idempotency_key() -> None:
     assert found is not None
     assert found.id == "t1"
     assert store.find_by_idempotency_key("missing") is None
+
+
+def test_merchant_store_roundtrip_and_lookup() -> None:
+    store = SqlMerchantStore(_factory())
+    store.save(
+        Merchant(
+            id="m1",
+            name="Alpha Gas Station",
+            short_code="1001",
+            settlement_msisdn="243810000001",
+            settlement_provider="AIRTEL_COD",
+        )
+    )
+    got = store.get("m1")
+    assert got.name == "Alpha Gas Station"
+    assert got.is_active
+    assert store.get_by_short_code("1001") is not None
+    assert store.get_by_short_code("nope") is None
+
+
+def test_find_by_op_id() -> None:
+    store = SqlTransactionStore(_factory())
+    tx = _tx("t7")
+    tx.deposit_id = "dep-xyz"
+    tx.payout_id = "pay-xyz"
+    store.save(tx)
+    found = store.find_by_op_id("dep-xyz")
+    assert found is not None and found.id == "t7"
+    assert store.find_by_op_id("pay-xyz") is not None  # matches any of deposit/payout/refund
+    assert store.find_by_op_id("nope") is None
 
 
 def _run_all() -> None:

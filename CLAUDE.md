@@ -1,8 +1,12 @@
 # CLAUDE.md — engineering standards for drc-pay
 
-This is **application code** for a payments product. These standards are
-non-negotiable; they exist because bugs here move real money. (Research-side
-standards live in `../drc-mvp-research/CLAUDE.md` — different repo, different rules.)
+This is **application code** for a payments product: a **merchant-facing** app for the
+DRC that lets merchants accept mobile-money payments across networks (Vodacom M-Pesa,
+Airtel, Orange) on rented rails (pawaPay), as a pure pass-through. Customers pay via the
+merchant app or **USSD** — they need no app of their own (a consumer app may follow).
+These standards are non-negotiable; they exist because bugs here move real money.
+(Research-side standards live in `../drc-mvp-research/CLAUDE.md` — different repo,
+different rules.)
 
 ## Money correctness
 - **Money is integer minor units, never a float.** Use the `Money` type
@@ -29,9 +33,12 @@ standards live in `../drc-mvp-research/CLAUDE.md` — different repo, different 
 - **Least-privilege IAM; encrypt PII at rest; TLS everywhere.**
 
 ## Channel-agnostic core
-The money logic lives in `domains/`, framework- and channel-agnostic. The HTTP API is
-a thin caller. The future USSD gateway will be **another thin caller into the same
-domain services** — never a reimplementation. Keep the boundary clean from day one.
+The money logic lives in `domains/` (plus the shared `application/` service), framework-
+and channel-agnostic. Every channel is a **thin caller into the same domain services —
+never a reimplementation**: the HTTP API (`http/`) and the **USSD channel** (`ussd/`, for
+feature-phone customers) each collect their inputs their own way, then call
+`application.start_merchant_payment`, which drives the one `Orchestrator`. Keep that
+boundary clean; a new channel must not duplicate money logic.
 
 ## Testing
 - The **ledger and state machine carry the highest coverage** — write tests first.

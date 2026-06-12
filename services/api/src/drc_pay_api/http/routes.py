@@ -1,17 +1,16 @@
 """HTTP endpoints — a thin layer over the orchestrator.
 
-POST /transactions starts a transaction and (for the demo) plays out a simulated
-pawaPay outcome chosen by ``scenario``, so one call runs the whole flow with no
-external services. The response includes a human-readable ``trace`` of every operation.
-Try it from the auto-generated interactive docs at /docs.
+POST /transactions records a customer paying a registered merchant and (for the demo)
+plays out a simulated pawaPay outcome chosen by ``scenario``, so one call runs the whole
+flow with no external services. The response includes a human-readable ``trace`` of every
+operation. Try it from the auto-generated interactive docs at /docs.
 """
 from __future__ import annotations
-
-import uuid
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from ..adapters.memory import ListRecorder
+from ..application.payments import start_merchant_payment
 from ..domains.ledger.money import Money
 from ..domains.transactions.models import Transaction
 from ..domains.transactions.orchestrator import Orchestrator
@@ -29,18 +28,13 @@ def _container(request: Request) -> Container:
     return container
 
 
-def _play_out(orchestrator: Orchestrator, transaction_id: str, scenario: str) -> None:
-    """Drive the simulated pawaPay callbacks for the chosen scenario — the same
-    handlers pawaPay's real webhooks will call in production."""
-    if scenario == "collection_fail":
-        orchestrator.on_collection_result(transaction_id, success=False)
-        return
-    orchestrator.on_collection_result(transaction_id, success=True)
-    if scenario == "success":
-        orchestrator.on_payout_result(transaction_id, success=True)
-        return
-    orchestrator.on_payout_result(transaction_id, success=False)  # -> refund
-    orchestrator.on_refund_result(transaction_id, success=scenario != "refund_fail")
+def _merchant_name(container: Container, merchant_id: str | None) -> str | None:
+    if not merchant_id:
+        return None
+    try:
+        return container.merchants.get(merchant_id).name
+    except KeyError:
+        return None
 
 
 def _to_response(
@@ -58,14 +52,21 @@ def _to_response(
     ]
     return TransactionResponse(
         id=transaction.id,
-        payer_msisdn=transaction.payer_msisdn,
-        payee_msisdn=transaction.payee_msisdn,
+        customer_msisdn=transaction.customer_msisdn,
+        merchant_id=transaction.merchant_id,
+        merchant_name=_merchant_name(container, transaction.merchant_id),
+        merchant_msisdn=transaction.merchant_msisdn,
         amount=transaction.amount.to_major_str(),
         fee=transaction.fee.to_major_str(),
         currency=transaction.amount.currency,
         state=transaction.state.value,
         history=[s.value for s in transaction.history],
         ledger=lines,
+        customer_provider=transaction.customer_provider,
+        merchant_provider=transaction.merchant_provider,
+        deposit_id=transaction.deposit_id,
+        payout_id=transaction.payout_id,
+        refund_id=transaction.refund_id,
         trace=trace,
     )
 
@@ -87,6 +88,14 @@ def create_transaction(
 
     container = _container(request)
 
+    # Resolve the merchant being paid (server-derived settlement — never trust the client).
+    try:
+        merchant = container.merchants.get(body.merchant_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="merchant not found") from exc
+    if not merchant.is_active:
+        raise HTTPException(status_code=422, detail="merchant is not active")
+
     # Idempotency: if this key was already processed, return the ORIGINAL result rather
     # than creating a second transaction — so a retry or double-tap never double-charges.
     if idempotency_key is not None:
@@ -99,19 +108,27 @@ def create_transaction(
     fee = default_fee(amount)
     recorder = ListRecorder()
     recorder.record(f"POST /transactions · {body.amount} {body.currency} · scenario={body.scenario}")
-    recorder.record(f"pricing · fee = 1% of {body.amount} = {fee.to_major_str()} {body.currency}")
+    recorder.record(f"merchant · {merchant.name} ({merchant.id}) · settle → {merchant.settlement_msisdn}")
+    recorder.record(
+        f"pricing · fee (MDR) = 1% of {body.amount} = {fee.to_major_str()} {body.currency} "
+        f"· merchant nets {(amount - fee).to_major_str()} {body.currency}"
+    )
 
+    # The HTTP API is a thin caller: build the orchestrator, delegate to the shared
+    # application service (resolve operators, start the legs, play out on the simulator).
     orchestrator = Orchestrator(container.store, container.rail, container.ledger, recorder)
-    transaction_id = uuid.uuid4().hex
-    orchestrator.start_transaction(
-        transaction_id=transaction_id,
-        payer_msisdn=body.payer_msisdn,
-        payee_msisdn=body.payee_msisdn,
+    transaction_id = start_merchant_payment(
+        orchestrator,
+        predictor=container.predictor,
+        simulated=container.simulated,
+        customer_msisdn=body.customer_msisdn,
+        merchant=merchant,
         amount=amount,
         fee=fee,
+        customer_provider_override=body.customer_provider,
         idempotency_key=idempotency_key,
+        scenario=body.scenario,
     )
-    _play_out(orchestrator, transaction_id, body.scenario)
     return _to_response(container, container.store.get(transaction_id), recorder.messages)
 
 

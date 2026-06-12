@@ -1,22 +1,38 @@
 """Composition root — holds the shared, persistent adapters.
 
-Selects the persistence backend from config: if a database URL is provided, the
-Postgres-backed SQLAlchemy adapters are used; otherwise the in-memory adapters (which
-keep the demo working with zero setup). The pawaPay simulator stands in for the rail
-either way. The orchestrator itself is built per-request (in ``routes``) with a fresh
-trace recorder, so each call can return its own operations log.
+Two independent choices are made here from config:
+  - **Rail:** a live ``PawaPayRail`` when both ``DRCPAY_PAWAPAY_*`` credentials are set,
+    otherwise the in-process ``SimulatedPaymentRail`` (keeps the demo working with zero
+    setup). When live, a provider predictor is also exposed for the route.
+  - **Persistence:** the Postgres-backed SQLAlchemy adapters when a database URL is
+    given, otherwise the in-memory adapters.
+
+The in-memory path also seeds a couple of demo merchants so the zero-setup demo and the
+tests have something to pay. In production merchants are created via the dashboard /
+onboarding (flagged); the Postgres path starts empty.
+
+The orchestrator itself is built per-request (in ``routes``) with a fresh trace recorder,
+so each call can return its own operations log.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from sqlalchemy.orm import sessionmaker
 
-from ..adapters.memory import InMemoryLedger, InMemoryTransactionStore
-from ..adapters.sql import SqlLedger, SqlTransactionStore, make_engine
+from ..adapters.memory import (
+    InMemoryLedger,
+    InMemoryMerchantStore,
+    InMemoryTransactionStore,
+)
+from ..adapters.sql import SqlLedger, SqlMerchantStore, SqlTransactionStore, make_engine
 from ..domains.ledger.ledger import Posting
+from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
+from ..domains.transactions.ports import PaymentRail
+from ..integrations.pawapay.client import PawaPayClient, ProviderPrediction
+from ..integrations.pawapay.rail import PawaPayRail
 from ..integrations.pawapay.simulator import SimulatedPaymentRail
 
 
@@ -29,6 +45,8 @@ class TxStore(Protocol):
 
     def find_by_idempotency_key(self, key: str) -> Transaction | None: ...
 
+    def find_by_op_id(self, op_id: str) -> Transaction | None: ...
+
 
 class LedgerStore(Protocol):
     def post(self, posting: Posting) -> None: ...
@@ -36,18 +54,99 @@ class LedgerStore(Protocol):
     def for_transaction(self, transaction_id: str) -> list[Posting]: ...
 
 
+class MerchantStore(Protocol):
+    def get(self, merchant_id: str) -> Merchant: ...
+
+    def get_by_short_code(self, short_code: str) -> Merchant | None: ...
+
+    def save(self, merchant: Merchant) -> None: ...
+
+    def all(self) -> list[Merchant]: ...
+
+
+class ProviderPredictor(Protocol):
+    """Resolves a phone number to its mobile-money operator (pawaPay predict-provider).
+    Present only when a live pawaPay rail is configured."""
+
+    def predict_provider(self, phone_number: str) -> ProviderPrediction: ...
+
+
+# Demo merchants for the zero-setup (in-memory) demo and tests — a gas station and a
+# pop-up store, mirroring the initial launch set.
+_DEMO_MERCHANTS = (
+    Merchant(
+        id="m_alpha",
+        name="Alpha Gas Station",
+        short_code="1001",
+        settlement_msisdn="243810000001",
+        settlement_provider="AIRTEL_COD",
+    ),
+    Merchant(
+        id="m_beta",
+        name="Beta Pop-up Store",
+        short_code="1002",
+        settlement_msisdn="243990000002",
+        settlement_provider="ORANGE_COD",
+    ),
+)
+
+
+def _seeded_merchant_store() -> InMemoryMerchantStore:
+    store = InMemoryMerchantStore()
+    for merchant in _DEMO_MERCHANTS:
+        store.save(merchant)
+    return store
+
+
 @dataclass
 class Container:
     store: TxStore
     ledger: LedgerStore
-    rail: SimulatedPaymentRail
+    rail: PaymentRail
+    predictor: ProviderPredictor | None = None
+    simulated: bool = True  # True when the rail is the in-process simulator
+    merchants: MerchantStore = field(default_factory=_seeded_merchant_store)
+    ussd_shortcode: str = "*123#"  # the code customers dial; each merchant's till appended
+    pawapay_public_key: str = ""  # PEM; verifies signed callbacks (blank → reject all)
 
 
-def build_container(database_url: str = "") -> Container:
-    rail = SimulatedPaymentRail()
+def build_container(
+    database_url: str = "",
+    pawapay_base_url: str = "",
+    pawapay_api_token: str = "",
+    ussd_shortcode: str = "*123#",
+    pawapay_public_key: str = "",
+) -> Container:
+    # Rail: live pawaPay when both credentials are present, else the simulator.
+    if pawapay_base_url and pawapay_api_token:
+        client = PawaPayClient(base_url=pawapay_base_url, api_token=pawapay_api_token)
+        rail: PaymentRail = PawaPayRail(client)
+        predictor: ProviderPredictor | None = client
+        simulated = False
+    else:
+        rail = SimulatedPaymentRail()
+        predictor = None
+        simulated = True
+
+    # Persistence: Postgres when a URL is given (schema managed by Alembic), else memory.
     if database_url:
-        # Schema is managed by Alembic (`alembic upgrade head`), not created here.
         engine = make_engine(database_url)
         session_factory = sessionmaker(engine)
-        return Container(SqlTransactionStore(session_factory), SqlLedger(session_factory), rail)
-    return Container(InMemoryTransactionStore(), InMemoryLedger(), rail)
+        store: TxStore = SqlTransactionStore(session_factory)
+        ledger: LedgerStore = SqlLedger(session_factory)
+        merchants: MerchantStore = SqlMerchantStore(session_factory)
+    else:
+        store = InMemoryTransactionStore()
+        ledger = InMemoryLedger()
+        merchants = _seeded_merchant_store()
+
+    return Container(
+        store=store,
+        ledger=ledger,
+        rail=rail,
+        predictor=predictor,
+        simulated=simulated,
+        merchants=merchants,
+        ussd_shortcode=ussd_shortcode,
+        pawapay_public_key=pawapay_public_key,
+    )

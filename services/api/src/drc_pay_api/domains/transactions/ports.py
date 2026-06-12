@@ -19,15 +19,34 @@ from ..ledger.money import Money
 from .models import Transaction
 
 
+class RailRejected(Exception):
+    """Raised by a ``PaymentRail`` when the provider *synchronously* rejects a request
+    (rather than accepting it for asynchronous processing). The orchestrator maps this to
+    an immediate failure of that leg — it will not wait for a callback that never comes."""
+
+
 class PaymentRail(Protocol):
     """Outbound money movement. Amounts cross as domain ``Money``; the adapter
-    translates to the provider's wire format (minor units + currency)."""
+    translates to the provider's wire format (minor units + currency). ``provider`` is
+    the pawaPay operator code for the wallet being charged or paid.
 
-    def request_collection(self, *, transaction_id: str, msisdn: str, amount: Money) -> None: ...
+    Each call returns the provider's operation id (or ``None`` for rails that issue
+    none, e.g. the simulator). The orchestrator persists it so a later async callback
+    can correlate back to the transaction, and so a refund can reference the original
+    deposit. The call is only the *request*: the final outcome arrives asynchronously
+    via the ``on_*_result`` handlers. A *synchronous* rejection raises ``RailRejected``."""
 
-    def request_payout(self, *, transaction_id: str, msisdn: str, amount: Money) -> None: ...
+    def request_collection(
+        self, *, transaction_id: str, msisdn: str, amount: Money, provider: str
+    ) -> str | None: ...
 
-    def request_refund(self, *, transaction_id: str) -> None: ...
+    def request_payout(
+        self, *, transaction_id: str, msisdn: str, amount: Money, provider: str
+    ) -> str | None: ...
+
+    def request_refund(
+        self, *, transaction_id: str, deposit_id: str | None, amount: Money, provider: str
+    ) -> str | None: ...
 
 
 class TransactionStore(Protocol):

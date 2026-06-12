@@ -13,15 +13,24 @@ from ...domains.ledger.money import Money
 
 class SimulatedPaymentRail:
     def __init__(self) -> None:
-        self.collections: list[tuple[str, str, Money]] = []
-        self.payouts: list[tuple[str, str, Money]] = []
-        self.refunds: list[str] = []
+        self.collections: list[tuple[str, str, Money, str]] = []
+        self.payouts: list[tuple[str, str, Money, str]] = []
+        self.refunds: list[tuple[str, str | None, Money]] = []
 
-    def request_collection(self, *, transaction_id: str, msisdn: str, amount: Money) -> None:
-        self.collections.append((transaction_id, msisdn, amount))
+    def request_collection(
+        self, *, transaction_id: str, msisdn: str, amount: Money, provider: str
+    ) -> str | None:
+        self.collections.append((transaction_id, msisdn, amount, provider))
+        return None  # the simulator issues no op-id; outcomes arrive via on_*_result
 
-    def request_payout(self, *, transaction_id: str, msisdn: str, amount: Money) -> None:
-        self.payouts.append((transaction_id, msisdn, amount))
+    def request_payout(
+        self, *, transaction_id: str, msisdn: str, amount: Money, provider: str
+    ) -> str | None:
+        self.payouts.append((transaction_id, msisdn, amount, provider))
+        return None
 
-    def request_refund(self, *, transaction_id: str) -> None:
-        self.refunds.append(transaction_id)
+    def request_refund(
+        self, *, transaction_id: str, deposit_id: str | None, amount: Money, provider: str
+    ) -> str | None:
+        self.refunds.append((transaction_id, deposit_id, amount))
+        return None
