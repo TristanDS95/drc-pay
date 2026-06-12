@@ -24,6 +24,7 @@ import httpx
 
 from ...domains.ledger.money import Money
 from .providers import format_amount, provider_decimals
+from .status import PawaPayStatus
 
 
 @dataclass
@@ -59,6 +60,27 @@ def _ack(response: httpx.Response, id_field: str) -> PawaPayAck:
         failure_code=failure.get("failureCode"),
         failure_message=failure.get("failureMessage"),
     )
+
+
+def _status(response: httpx.Response) -> PawaPayStatus:
+    """Read an operation's status from a status-endpoint response. **Fail-safe:** any
+    response we can't read a status string out of (non-2xx, unexpected shape) yields
+    ``None``, which the reconciliation sweep treats as still-pending — we never infer a
+    terminal outcome we didn't actually see.
+
+    ⚠️ Provisional shape (Phase E): mirrors the callback object — a JSON object carrying a
+    ``status`` — and tolerates a single ``{"data": {...}}`` wrapper. This is the one spot to
+    adjust once the real status-endpoint payload is confirmed against the sandbox."""
+    if response.status_code >= 400:
+        return PawaPayStatus(status=None)
+    try:
+        data: Any = response.json()
+    except ValueError:
+        return PawaPayStatus(status=None)
+    if isinstance(data, dict) and isinstance(data.get("data"), dict):
+        data = data["data"]
+    status = data.get("status") if isinstance(data, dict) else None
+    return PawaPayStatus(status=status if isinstance(status, str) else None)
 
 
 class PawaPayClient:
@@ -144,3 +166,21 @@ class PawaPayClient:
         }
         response = self._http.post(f"{self._base}/v2/refunds", json=body, headers=self._headers)
         return _ack(response, "refundId")
+
+    # ---- status polling (reconciliation safety net) -------------------
+    # GET the current status of an operation by its op-id, to resolve a missed callback.
+    # Path follows pawaPay's v2 REST convention (the initiate endpoints' resource + /{id});
+    # the exact path + response shape are provisional until the sandbox (Phase E) — see
+    # ``_status``. The status strings are the same terminal vocabulary as the callbacks.
+
+    def get_deposit_status(self, deposit_id: str) -> PawaPayStatus:
+        response = self._http.get(f"{self._base}/v2/deposits/{deposit_id}", headers=self._headers)
+        return _status(response)
+
+    def get_payout_status(self, payout_id: str) -> PawaPayStatus:
+        response = self._http.get(f"{self._base}/v2/payouts/{payout_id}", headers=self._headers)
+        return _status(response)
+
+    def get_refund_status(self, refund_id: str) -> PawaPayStatus:
+        response = self._http.get(f"{self._base}/v2/refunds/{refund_id}", headers=self._headers)
+        return _status(response)

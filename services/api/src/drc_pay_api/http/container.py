@@ -34,6 +34,7 @@ from ..domains.transactions.ports import PaymentRail
 from ..integrations.pawapay.client import PawaPayClient, ProviderPrediction
 from ..integrations.pawapay.rail import PawaPayRail
 from ..integrations.pawapay.simulator import SimulatedPaymentRail
+from ..integrations.pawapay.status import StatusPoller
 
 
 class TxStore(Protocol):
@@ -46,6 +47,8 @@ class TxStore(Protocol):
     def find_by_idempotency_key(self, key: str) -> Transaction | None: ...
 
     def find_by_op_id(self, op_id: str) -> Transaction | None: ...
+
+    def find_pending(self) -> list[Transaction]: ...
 
 
 class LedgerStore(Protocol):
@@ -72,20 +75,22 @@ class ProviderPredictor(Protocol):
 
 
 # Demo merchants for the zero-setup (in-memory) demo and tests — a gas station and a
-# pop-up store, mirroring the initial launch set.
+# pop-up store, mirroring the initial launch set. Their settlement numbers are pawaPay
+# **sandbox payout-success** test numbers (…789), so the settle leg completes end-to-end
+# against the live sandbox; the simulator ignores them. Real merchants come via onboarding.
 _DEMO_MERCHANTS = (
     Merchant(
         id="m_alpha",
         name="Alpha Gas Station",
         short_code="1001",
-        settlement_msisdn="243810000001",
+        settlement_msisdn="243973456789",  # Airtel COD — sandbox payout-success number
         settlement_provider="AIRTEL_COD",
     ),
     Merchant(
         id="m_beta",
         name="Beta Pop-up Store",
         short_code="1002",
-        settlement_msisdn="243990000002",
+        settlement_msisdn="243893456789",  # Orange COD — sandbox payout-success number
         settlement_provider="ORANGE_COD",
     ),
 )
@@ -105,9 +110,18 @@ class Container:
     rail: PaymentRail
     predictor: ProviderPredictor | None = None
     simulated: bool = True  # True when the rail is the in-process simulator
+    environment: str = "local"  # local | sandbox | production — gates the demo/ops controls
     merchants: MerchantStore = field(default_factory=_seeded_merchant_store)
     ussd_shortcode: str = "*123#"  # the code customers dial; each merchant's till appended
     pawapay_public_key: str = ""  # PEM; verifies signed callbacks (blank → reject all)
+    poller: StatusPoller | None = None  # pawaPay status polling for reconciliation (live rail only)
+
+    @property
+    def demo_controls_enabled(self) -> bool:
+        """Whether demo/ops controls (e.g. ``POST /demo/reconcile``) may run. Allowed only OFF
+        the real-money path — the in-process simulator, or the sandbox — and **never in
+        production**, where reconciliation runs via an authenticated trigger / scheduler."""
+        return self.simulated or self.environment == "sandbox"
 
 
 def build_container(
@@ -116,16 +130,20 @@ def build_container(
     pawapay_api_token: str = "",
     ussd_shortcode: str = "*123#",
     pawapay_public_key: str = "",
+    environment: str = "local",
 ) -> Container:
     # Rail: live pawaPay when both credentials are present, else the simulator.
     if pawapay_base_url and pawapay_api_token:
         client = PawaPayClient(base_url=pawapay_base_url, api_token=pawapay_api_token)
         rail: PaymentRail = PawaPayRail(client)
         predictor: ProviderPredictor | None = client
+        poller: StatusPoller | None = client  # same client polls status for reconciliation
         simulated = False
     else:
-        rail = SimulatedPaymentRail()
+        simulator = SimulatedPaymentRail()
+        rail = simulator
         predictor = None
+        poller = simulator  # the simulator doubles as a StatusPoller — reconciliation can heal demo txns
         simulated = True
 
     # Persistence: Postgres when a URL is given (schema managed by Alembic), else memory.
@@ -149,4 +167,6 @@ def build_container(
         merchants=merchants,
         ussd_shortcode=ussd_shortcode,
         pawapay_public_key=pawapay_public_key,
+        poller=poller,
+        environment=environment,
     )

@@ -55,6 +55,13 @@ TERMINAL_STATES: frozenset[TxState] = frozenset(
     state for state, nxt in _TRANSITIONS.items() if not nxt
 )
 
+# States where we've issued a rail request and are awaiting an asynchronous outcome — a
+# callback, or (if it never arrives) the reconciliation sweep. Each maps 1:1 to an
+# outstanding pawaPay op-id on the transaction, so these are exactly the rows a sweep polls.
+PENDING_STATES: frozenset[TxState] = frozenset(
+    {TxState.COLLECTION_PENDING, TxState.PAYOUT_PENDING, TxState.REFUND_PENDING}
+)
+
 
 class IllegalTransition(Exception):
     """Raised when code attempts a transition the machine does not allow."""

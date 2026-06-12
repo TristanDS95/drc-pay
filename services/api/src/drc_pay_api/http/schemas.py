@@ -11,6 +11,10 @@ class CreateTransactionRequest(BaseModel):
     currency: str = "USD"
     # Demo control: which simulated pawaPay outcome to play out (ignored on the live rail).
     scenario: str = "success"  # success | payout_fail | collection_fail | refund_fail
+    # Demo control (simulator only): when True, do NOT play the outcome out — leave the
+    # transaction pending, as if pawaPay accepted it but its callback never arrived. Used to
+    # demonstrate the reconciliation safety net healing a "stuck" payment.
+    defer: bool = False
     # Optional customer-operator override (pawaPay provider code). When omitted, the
     # server resolves it via pawaPay predict-provider if a live rail is configured.
     customer_provider: str | None = None

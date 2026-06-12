@@ -9,6 +9,7 @@ from __future__ import annotations
 from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
+from ..domains.transactions.state_machine import PENDING_STATES
 
 
 class InMemoryMerchantStore:
@@ -55,6 +56,10 @@ class InMemoryTransactionStore:
             if op_id in (transaction.deposit_id, transaction.payout_id, transaction.refund_id):
                 return transaction
         return None
+
+    def find_pending(self) -> list[Transaction]:
+        """Transactions awaiting an async rail outcome — the reconciliation sweep's worklist."""
+        return [t for t in self._rows.values() if t.state in PENDING_STATES]
 
 
 class InMemoryLedger:

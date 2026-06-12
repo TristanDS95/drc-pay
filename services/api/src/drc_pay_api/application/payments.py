@@ -68,10 +68,16 @@ def start_merchant_payment(
     customer_provider_override: str | None = None,
     idempotency_key: str | None = None,
     scenario: str = "success",
+    defer: bool = False,
 ) -> str:
     """Resolve operators, start the transaction (collect from the customer, settle to the
     merchant), and — on the simulator — play out the demo ``scenario``. Returns the new
-    transaction id. The merchant's settlement target is server-derived, never client-set."""
+    transaction id. The merchant's settlement target is server-derived, never client-set.
+
+    ``defer`` (simulator only) skips the play-out, leaving the transaction *pending* as if
+    awaiting pawaPay's callback — used to demonstrate the reconciliation safety net healing a
+    payment whose callback never arrived. On the live rail there is no play-out regardless: the
+    real outcome always arrives asynchronously via webhook (or, failing that, reconciliation)."""
     customer_provider = resolve_provider(predictor, customer_msisdn, customer_provider_override)
     merchant_provider = resolve_provider(
         predictor, merchant.settlement_msisdn, merchant.settlement_provider
@@ -88,6 +94,6 @@ def start_merchant_payment(
         merchant_id=merchant.id,
         idempotency_key=idempotency_key,
     )
-    if simulated:
+    if simulated and not defer:
         play_out(orchestrator, transaction_id, scenario)
     return transaction_id

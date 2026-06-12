@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .http.container import build_container
+from .http.demo_routes import demo_router
 from .http.merchant_routes import merchant_router
 from .http.routes import router
 from .http.ussd_routes import ussd_router
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
         pawapay_api_token=settings.pawapay_api_token,
         ussd_shortcode=settings.ussd_shortcode,
         pawapay_public_key=settings.pawapay_public_key,
+        environment=settings.environment,
     )
     # The USSD channel is another thin caller into the same container/orchestrator.
     app.state.ussd_handler = UssdHandler(app.state.container)
@@ -46,6 +48,10 @@ def create_app() -> FastAPI:
     app.include_router(merchant_router)
     app.include_router(ussd_router)
     app.include_router(webhook_router)
+    # Demo/ops controls (e.g. trigger reconciliation) — mounted off the real-money path only
+    # (simulator or sandbox), never in production. See Container.demo_controls_enabled.
+    if app.state.container.demo_controls_enabled:
+        app.include_router(demo_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

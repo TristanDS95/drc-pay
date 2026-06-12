@@ -11,20 +11,10 @@ from collections.abc import Mapping
 from typing import Protocol
 
 from ..domains.transactions.models import Transaction
-from ..domains.transactions.orchestrator import Orchestrator
 from ..domains.transactions.ports import LedgerPort, PaymentRail
-from ..domains.transactions.state_machine import TxState
 from ..integrations.pawapay.callbacks import parse_callback
 from ..integrations.pawapay.signatures import verify_pawapay_signature
-
-# The state a transaction must be in for a given leg's callback to apply. A callback that
-# arrives when the transaction is NOT in this state is a duplicate or out-of-order resend
-# → ignored, which makes the receiver idempotent (pawaPay can and does resend callbacks).
-_AWAITING = {
-    "deposit": TxState.COLLECTION_PENDING,
-    "payout": TxState.PAYOUT_PENDING,
-    "refund": TxState.REFUND_PENDING,
-}
+from .outcomes import apply_outcome
 
 
 class WebhookStore(Protocol):
@@ -73,14 +63,13 @@ def process_pawapay_callback(
     transaction = store.find_by_op_id(event.op_id)
     if transaction is None:
         return "unmatched: no transaction for that op-id"
-    if transaction.state is not _AWAITING[event.kind]:
-        return f"ignored: already applied (state={transaction.state.value})"
-
-    orchestrator = Orchestrator(store, rail, ledger)
-    if event.kind == "deposit":
-        orchestrator.on_collection_result(transaction.id, success=event.success)
-    elif event.kind == "payout":
-        orchestrator.on_payout_result(transaction.id, success=event.success)
-    else:
-        orchestrator.on_refund_result(transaction.id, success=event.success)
-    return "applied"
+    # Hand off to the shared applier — the same code path the reconciliation sweep uses, so a
+    # callback and a polled status resolve a leg identically (state-guarded → idempotent).
+    return apply_outcome(
+        store=store,
+        rail=rail,
+        ledger=ledger,
+        transaction_id=transaction.id,
+        kind=event.kind,
+        success=event.success,
+    )

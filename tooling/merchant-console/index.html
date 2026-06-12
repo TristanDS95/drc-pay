@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#FF6B5B" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="DRC Pay" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" />
+<title>DRC Pay — Merchant Console</title>
+<style>
+  :root{
+    --coral:#FF6B5B; --coral-dark:#E2553F; --cream:#FFFCF8; --charcoal:#1A1A1A;
+    --muted:#5A5A57; --border:#ECE8E1; --surface:#FFFFFF; --bg:#1f2933;
+    --ok:#136c44; --okbg:#e7f6ee; --bad:#a5302c; --badbg:#fdeceb; --wait:#9a6b2f; --waitbg:#fff4e0;
+  }
+  *{box-sizing:border-box;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--charcoal);}
+  a{color:inherit;}
+  .topbar{display:flex;align-items:center;gap:14px;padding:14px 22px;background:#0c0f12;color:#e7edf2;
+        position:sticky;top:0;z-index:20;flex-wrap:wrap;}
+  .topbar .brand{font-weight:800;font-size:16px;letter-spacing:.01em;}
+  .topbar .brand span{color:var(--coral);}
+  .topbar .tag{font-size:10px;font-weight:700;letter-spacing:.08em;color:#9aa6b2;border:1px solid #2b3640;
+        padding:3px 8px;border-radius:6px;text-transform:uppercase;}
+  .topbar .sp{flex:1;}
+  .topbar label{font-size:11px;color:#9aa6b2;margin-right:6px;font-weight:600;}
+  .topbar select{padding:8px 10px;border-radius:10px;border:1px solid #2b3640;background:#161c22;color:#e7edf2;
+        font-size:13px;max-width:60vw;}
+  .wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;
+        padding:18px 22px 40px;max-width:1180px;margin:0 auto;}
+  @media (max-width:880px){ .wrap{grid-template-columns:1fr;} }
+  .col{display:flex;flex-direction:column;gap:16px;min-width:0;}
+  .card{background:var(--cream);border-radius:18px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.28);}
+  .card h2{margin:0 0 4px;font-size:15px;color:var(--charcoal);display:flex;align-items:center;gap:8px;}
+  .card .sub{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5;}
+  /* merchant hero */
+  .hero{display:flex;gap:16px;align-items:center;}
+  .hero .qr{width:104px;height:104px;flex:none;background:#fff;border:1px solid var(--border);border-radius:14px;
+        padding:8px;}
+  .hero .qr img{width:100%;height:100%;display:block;}
+  .hero .meta{min-width:0;}
+  .hero .name{font-size:18px;font-weight:800;}
+  .hero .till{font:700 16px "SF Mono",Menlo,Consolas,monospace;color:var(--coral-dark);margin:3px 0;}
+  .hero .line{font-size:12.5px;color:var(--muted);line-height:1.5;}
+  label.fld{display:block;font-size:11.5px;color:var(--muted);margin:11px 0 5px;font-weight:600;}
+  input,select.in{width:100%;padding:11px 13px;border:1px solid var(--border);border-radius:11px;font-size:15px;
+        background:var(--surface);color:var(--charcoal);outline:none;}
+  input:focus,select.in:focus{border-color:var(--coral);}
+  .row{display:flex;gap:10px;} .row>*{flex:1;min-width:0;}
+  button.cta{margin-top:13px;width:100%;padding:13px;border:none;border-radius:13px;background:var(--coral);
+        color:#fff;font-size:15px;font-weight:700;cursor:pointer;}
+  button.cta:active{background:var(--coral-dark);} button.cta:disabled{opacity:.55;cursor:default;}
+  button.ghost{background:var(--surface);color:var(--charcoal);border:1px solid var(--border);}
+  .out{margin-top:11px;font-size:13px;padding:10px 12px;border-radius:10px;background:#f3efe7;white-space:pre-wrap;
+        line-height:1.5;} .out.ok{background:var(--okbg);color:var(--ok);} .out.bad{background:var(--badbg);color:var(--bad);}
+  /* safety-net card */
+  .net{border:1.5px solid #f1d9a8;background:#fffaf0;}
+  .net .count{font-size:30px;font-weight:800;color:var(--wait);line-height:1;}
+  .net .count small{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:6px;}
+  .net .pendlist{margin:12px 0 0;list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;}
+  .net .pendlist li{font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;}
+  /* feed */
+  .feed-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .feed-head .t{font-weight:800;font-size:15px;} .feed-head button{font-size:15px;}
+  ul.feed{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:460px;
+        overflow:auto;}
+  ul.feed li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;
+        border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer;}
+  ul.feed li:hover{border-color:var(--coral);}
+  ul.feed .amt{font-weight:800;} ul.feed .who{font-size:11.5px;color:var(--muted);}
+  .pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+  .pill.ok{background:var(--okbg);color:var(--ok);} .pill.bad{background:var(--badbg);color:var(--bad);}
+  .pill.wait{background:var(--waitbg);color:var(--wait);} .pill.mut{background:#eee;color:#666;}
+  .empty{color:var(--muted);font-size:12.5px;font-style:italic;padding:8px 2px;}
+  /* ops console */
+  .console{background:#0b0f13;border-radius:18px;border:1px solid #1d2730;overflow:hidden;display:flex;
+        flex-direction:column;min-height:320px;box-shadow:0 12px 40px rgba(0,0,0,.28);}
+  .console .head{padding:12px 16px;border-bottom:1px solid #1d2730;display:flex;align-items:center;}
+  .console .lights{width:10px;height:10px;border-radius:50%;background:#ff5f57;
+        box-shadow:16px 0 0 #febc2e,32px 0 0 #28c840;margin-right:44px;}
+  .console .lbl{color:#9fb0bd;font:600 12px Inter,sans-serif;} .console .lbl span{color:#56646f;font-weight:400;}
+  .console .body{flex:1;margin:0;padding:13px 15px;overflow:auto;max-height:560px;
+        font:12px/1.65 "SF Mono",Menlo,Consolas,monospace;color:#cfe9da;}
+  .cl{white-space:pre-wrap;} .cl.state{color:#cfe9da;} .cl.ledger{color:#8fd0ff;} .cl.rail{color:#ffd27f;}
+  .cl.webhook{color:#c9a8ff;} .cl.ok{color:#67e0a3;font-weight:600;} .cl.bad{color:#ff9a8f;font-weight:600;}
+  .cl.recon{color:#ffb27a;font-weight:600;} .cl.meta{color:#8a98a4;} .cl.rule{color:#3a4650;}
+  .console .empty2{color:#56646f;font-style:italic;}
+  /* detail modal */
+  .scrim{position:fixed;inset:0;background:rgba(8,11,14,.6);display:none;align-items:center;justify-content:center;
+        z-index:40;padding:20px;}
+  .scrim.show{display:flex;}
+  .modal{background:var(--cream);border-radius:18px;max-width:520px;width:100%;max-height:88vh;overflow:auto;
+        padding:20px;}
+  .modal .x{float:right;border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--muted);}
+  .modal h3{margin:0 0 2px;font-size:17px;} .modal .mono{font:12px "SF Mono",Menlo,monospace;color:var(--muted);}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:12px 0;}
+  .kv .k{color:var(--muted);} .kv .v{text-align:right;font-weight:600;}
+  .chain{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0;}
+  .chain span{font-size:11px;background:#efeae1;border-radius:6px;padding:3px 7px;color:#444;}
+  table.led{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px;}
+  table.led th{text-align:left;color:var(--muted);font-weight:600;padding:5px 6px;border-bottom:1px solid var(--border);}
+  table.led td{padding:5px 6px;border-bottom:1px solid var(--border);}
+  table.led td.dr{color:var(--bad);} table.led td.cr{color:var(--ok);} table.led .num{text-align:right;font-weight:700;}
+  .err{color:#ffb3ab;font-size:12.5px;padding:6px 22px;background:#2a1310;}
+  .hidden{display:none;}
+  .sectlabel{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin:14px 0 4px;}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">DRC <span>Pay</span> — Merchant Console</div>
+    <div class="tag" id="mode">live · sandbox</div>
+    <div class="sp"></div>
+    <label for="merchant">Acting as</label>
+    <select id="merchant"></select>
+  </div>
+  <div id="err" class="err hidden"></div>
+
+  <div class="wrap">
+    <!-- LEFT: merchant + take payment + safety net + feed -->
+    <div class="col">
+      <div class="card">
+        <div class="hero">
+          <div class="qr"><img id="qr" alt="merchant QR" /></div>
+          <div class="meta">
+            <div class="name" id="m-name">—</div>
+            <div class="till" id="m-till">—</div>
+            <div class="line" id="m-settle"></div>
+            <div class="line">Customers scan or dial to pay — no app or internet needed on their side.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>💳 Take a payment</h2>
+        <p class="sub">A customer pays this merchant through pawaPay sandbox. The payment lands
+          <b>pending</b> — real money movement is never instant — then <b>Run reconciliation</b>
+          (below) completes it. The <b>customer number</b> picks the network and the outcome:
+          numbers ending <b>789</b> succeed; other endings trigger specific failures (see the
+          testing guide).</p>
+        <div class="row">
+          <div><label class="fld" for="cust">Customer number</label>
+            <input id="cust" type="tel" inputmode="numeric" value="243813456789" /></div>
+          <div><label class="fld" for="amt">Amount (USD)</label>
+            <input id="amt" type="text" inputmode="decimal" value="10.00" /></div>
+        </div>
+        <button class="cta" id="pay">Take payment</button>
+        <div id="pay-out" class="out hidden"></div>
+      </div>
+
+      <div class="card net">
+        <h2>🔁 Reconciliation — the safety net</h2>
+        <p class="sub">Payments still waiting on pawaPay's confirmation. If a confirmation is ever
+          lost, this sweep asks pawaPay directly and finishes them — nothing stays stuck.</p>
+        <div><span class="count" id="pend-count">0</span><small id="pend-cap">payments awaiting confirmation</small></div>
+        <ul class="pendlist" id="pend-list"></ul>
+        <button class="cta" id="reconcile" style="margin-top:14px;">Run reconciliation now</button>
+        <div id="rec-out" class="out hidden"></div>
+      </div>
+
+      <div class="card">
+        <div class="feed-head"><span class="t">Payments</span><button class="cta ghost" id="refresh"
+          style="width:auto;margin:0;padding:6px 12px;">⟳ Refresh</button></div>
+        <ul class="feed" id="feed"></ul>
+      </div>
+    </div>
+
+    <!-- RIGHT: live operations console -->
+    <div class="col">
+      <div class="console">
+        <div class="head"><span class="lights"></span>
+          <span class="lbl">operations <span>— live trace: collect → settle → refund · reconciliation</span></span>
+        </div>
+        <div class="body" id="cbody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- transaction detail -->
+  <div class="scrim" id="scrim">
+    <div class="modal" id="modal"></div>
+  </div>
+
+<script>
+  const API = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:8000";
+  const $ = (id) => document.getElementById(id);
+  const PENDING = new Set(["collection_pending", "payout_pending", "refund_pending"]);
+  const LABEL = {
+    initiated:"Starting", collection_pending:"Awaiting payment", collection_succeeded:"Received",
+    payout_pending:"Settling", payout_succeeded:"Paid", payout_failed:"Settle failed",
+    refund_pending:"Refunding", refunded:"Refunded", collection_failed:"Declined", manual_review:"Needs review",
+  };
+  const pillClass = (s) => s === "payout_succeeded" ? "ok"
+    : PENDING.has(s) ? "wait"
+    : (s === "refunded" || s === "initiated" || s === "collection_succeeded") ? "mut" : "bad";
+
+  let merchants = [], txns = [];
+  const current = () => merchants.find((m) => m.id === $("merchant").value) || merchants[0];
+  const showErr = (e) => { $("err").textContent = `Couldn't reach the API at ${API} — is it running? (${e})`;
+    $("err").classList.remove("hidden"); };
+  const clearErr = () => $("err").classList.add("hidden");
+
+  async function jget(path){ const r = await fetch(`${API}${path}`); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+
+  async function boot(){
+    try { merchants = await jget("/merchants"); } catch(e){ showErr(e); return; }
+    clearErr();
+    $("merchant").innerHTML = merchants.map((m)=>`<option value="${m.id}">${m.name} · ${m.ussd_string}</option>`).join("");
+    renderMerchant();
+    await refresh();
+  }
+
+  function renderMerchant(){
+    const m = current(); if(!m) return;
+    $("qr").src = `${API}${m.qr_svg_path}`;
+    $("m-name").textContent = m.name;
+    $("m-till").textContent = m.ussd_string;
+    $("m-settle").textContent = `Settles to ${m.settlement_msisdn}`;
+  }
+
+  async function refresh(){
+    try { txns = await jget("/transactions"); } catch(e){ return; }
+    clearErr();
+    renderFeed(); renderPending();
+  }
+
+  function mineNewestFirst(){
+    const m = current(); if(!m) return [];
+    return txns.filter((t)=>t.merchant_id === m.id).slice().reverse();
+  }
+
+  function renderFeed(){
+    const mine = mineNewestFirst();
+    const ul = $("feed");
+    if(!mine.length){ ul.innerHTML = `<li class="empty">No payments yet — take one above.</li>`; return; }
+    ul.innerHTML = mine.slice(0,40).map((t)=>`
+      <li data-id="${t.id}">
+        <span><span class="amt">${t.amount} ${t.currency}</span> &nbsp;
+          <span class="who">${t.customer_msisdn}</span></span>
+        <span class="pill ${pillClass(t.state)}">${LABEL[t.state]||t.state}</span>
+      </li>`).join("");
+    ul.querySelectorAll("li[data-id]").forEach((li)=>li.addEventListener("click",()=>openDetail(li.dataset.id)));
+  }
+
+  function renderPending(){
+    // Reconciliation is global, but show this merchant's share so the demo reads cleanly.
+    const pend = mineNewestFirst().filter((t)=>PENDING.has(t.state));
+    $("pend-count").textContent = pend.length;
+    $("pend-cap").textContent = pend.length === 1 ? "payment awaiting confirmation" : "payments awaiting confirmation";
+    $("pend-list").innerHTML = pend.slice(0,6).map((t)=>`
+      <li><span>${t.amount} ${t.currency} · ${t.customer_msisdn}</span>
+          <span class="pill wait">${LABEL[t.state]||t.state}</span></li>`).join("");
+    $("reconcile").disabled = pend.length === 0;
+  }
+
+  // ----- actions -----
+  async function takePayment(){
+    clearErr(); const m = current(); if(!m) return;
+    const payload = { customer_msisdn: $("cust").value.trim(), merchant_id: m.id,
+      amount: $("amt").value.trim(), currency: "USD" };
+    const out = $("pay-out"); $("pay").disabled = true;
+    let body;
+    try {
+      const r = await fetch(`${API}/transactions`, { method:"POST",
+        headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
+      body = await r.json();
+      if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
+    } catch(e){ out.className="out bad"; out.textContent=String(e); out.classList.remove("hidden");
+      $("pay").disabled=false; return; }
+    out.className = "out " + (PENDING.has(body.state) ? "" : body.state==="payout_succeeded" ? "ok" : "bad");
+    out.textContent = `${LABEL[body.state]||body.state} — sent to pawaPay. Run reconciliation below to complete it.`;
+    out.classList.remove("hidden");
+    pushTrace([`▸ POST /transactions — ${body.amount} ${body.currency} from ${body.customer_msisdn}`, ...(body.trace||[])]);
+    $("pay").disabled = false;
+    await refresh();
+  }
+
+  async function runReconcile(){
+    clearErr(); const out = $("rec-out"); $("reconcile").disabled = true;
+    let res;
+    try {
+      const r = await fetch(`${API}/demo/reconcile`, { method:"POST" });
+      res = await r.json();
+      if(!r.ok) throw new Error(res.detail || `HTTP ${r.status}`);
+    } catch(e){ out.className="out bad"; out.textContent=String(e); out.classList.remove("hidden"); return; }
+    out.className = "out " + (res.resolved ? "ok" : "");
+    out.textContent = `Swept ${res.swept} pending · healed ${res.resolved}.` +
+      (res.swept && !res.resolved ? " (still processing — try again in a moment)" : "");
+    out.classList.remove("hidden");
+    const lines = ["🔁 reconciliation sweep — polling pawaPay for missed outcomes"];
+    for(const it of res.items){ lines.push(`reconcile · ${it.kind} ${it.transaction_id.slice(0,8)}… → ${it.disposition}`); }
+    lines.push(`✓ swept ${res.swept}, healed ${res.resolved}`);
+    pushTrace(lines);
+    await refresh();
+  }
+
+  // ----- detail modal -----
+  async function openDetail(id){
+    let t; try { t = await jget(`/transactions/${id}`); } catch(e){ return; }
+    const net = (Math.round(parseFloat(t.amount)*100) - Math.round(parseFloat(t.fee)*100))/100;
+    const opid = (v) => v ? `<span class="mono">${v}</span>` : "—";
+    const led = (t.ledger||[]).map((l)=>`<tr>
+        <td>${l.account}</td>
+        <td class="${l.direction==='debit'?'dr':'cr'}">${l.direction}</td>
+        <td class="num">${l.amount} ${l.currency}</td></tr>`).join("")
+      || `<tr><td colspan="3" class="empty">No ledger postings yet (money hasn't moved).</td></tr>`;
+    $("modal").innerHTML = `
+      <button class="x" id="x">×</button>
+      <h3>${t.amount} ${t.currency} &nbsp;<span class="pill ${pillClass(t.state)}">${LABEL[t.state]||t.state}</span></h3>
+      <div class="mono">${t.id}</div>
+      <div class="kv">
+        <div class="k">Customer</div><div class="v">${t.customer_msisdn} · ${t.customer_provider||"—"}</div>
+        <div class="k">Merchant</div><div class="v">${t.merchant_name||t.merchant_id||"—"} · ${t.merchant_provider||"—"}</div>
+        <div class="k">Fee (MDR)</div><div class="v">${t.fee} ${t.currency}</div>
+        <div class="k">Merchant nets</div><div class="v">${t.state==='payout_succeeded'? net.toFixed(2): '—'} ${t.currency}</div>
+      </div>
+      <div class="sectlabel">pawaPay operation ids</div>
+      <div class="kv">
+        <div class="k">deposit</div><div class="v">${opid(t.deposit_id)}</div>
+        <div class="k">payout</div><div class="v">${opid(t.payout_id)}</div>
+        <div class="k">refund</div><div class="v">${opid(t.refund_id)}</div>
+      </div>
+      <div class="sectlabel">state history</div>
+      <div class="chain">${(t.history||[]).map((s)=>`<span>${LABEL[s]||s}</span>`).join("→ ")}</div>
+      <div class="sectlabel">ledger (double-entry — the source of truth)</div>
+      <table class="led"><thead><tr><th>Account</th><th>Dir</th><th class="num">Amount</th></tr></thead>
+        <tbody>${led}</tbody></table>`;
+    $("x").addEventListener("click", closeDetail);
+    $("scrim").classList.add("show");
+  }
+  function closeDetail(){ $("scrim").classList.remove("show"); }
+
+  // ----- ops console -----
+  function classify(line){
+    if(line.startsWith("reconcile")||line.startsWith("🔁")) return "recon";
+    if(line.startsWith("ledger")) return "ledger";
+    if(line.startsWith("state")) return "state";
+    if(line.startsWith("rail")) return "rail";
+    if(line.startsWith("webhook")) return "webhook";
+    if(line.startsWith("✓")) return "ok";
+    if(line.startsWith("✕")||line.startsWith("⚠")) return "bad";
+    if(line.startsWith("▸")) return "meta";
+    return "meta";
+  }
+  let consoleEmpty = true;
+  function pushTrace(lines){
+    const body = $("cbody");
+    if(consoleEmpty){ body.innerHTML=""; consoleEmpty=false; }
+    else { body.innerHTML += `<div class="cl rule">────────────────────────────</div>`; }
+    body.innerHTML += lines.map((l)=>`<div class="cl ${classify(l)}">${l.replace(/</g,"&lt;")}</div>`).join("");
+    body.scrollTop = body.scrollHeight;
+  }
+
+  // ----- wiring -----
+  $("merchant").addEventListener("change", () => { renderMerchant(); renderFeed(); renderPending(); });
+  $("pay").addEventListener("click", takePayment);
+  $("reconcile").addEventListener("click", runReconcile);
+  $("refresh").addEventListener("click", refresh);
+  $("scrim").addEventListener("click", (e)=>{ if(e.target.id==="scrim") closeDetail(); });
+
+  $("cbody").innerHTML = `<div class="empty2">// take a payment to trace every operation</div>`;
+  boot();
+  setInterval(refresh, 6000);
+</script>
+</body>
+</html>

@@ -113,6 +113,8 @@ def create_transaction(
         f"pricing · fee (MDR) = 1% of {body.amount} = {fee.to_major_str()} {body.currency} "
         f"· merchant nets {(amount - fee).to_major_str()} {body.currency}"
     )
+    if body.defer:
+        recorder.record("demo · deferring outcome — payment stays pending until reconciled")
 
     # The HTTP API is a thin caller: build the orchestrator, delegate to the shared
     # application service (resolve operators, start the legs, play out on the simulator).
@@ -128,6 +130,7 @@ def create_transaction(
         customer_provider_override=body.customer_provider,
         idempotency_key=idempotency_key,
         scenario=body.scenario,
+        defer=body.defer,
     )
     return _to_response(container, container.store.get(transaction_id), recorder.messages)
 

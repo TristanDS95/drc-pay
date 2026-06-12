@@ -13,6 +13,7 @@ def test_defaults_to_the_simulator() -> None:
     assert isinstance(container.rail, SimulatedPaymentRail)
     assert container.simulated is True
     assert container.predictor is None
+    assert container.poller is container.rail  # the simulator doubles as the status poller
 
 
 def test_selects_pawapay_when_credentials_are_set() -> None:
@@ -22,6 +23,7 @@ def test_selects_pawapay_when_credentials_are_set() -> None:
     assert isinstance(container.rail, PawaPayRail)
     assert container.simulated is False
     assert container.predictor is not None  # the client doubles as the provider predictor
+    assert container.poller is container.predictor  # …and as the status poller
 
 
 def test_partial_pawapay_credentials_fall_back_to_the_simulator() -> None:

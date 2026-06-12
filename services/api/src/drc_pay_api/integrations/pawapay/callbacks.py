@@ -11,10 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-# Terminal statuses → did the operation succeed? Anything else (ACCEPTED, SUBMITTED,
-# PENDING, …) is non-terminal and ignored (we wait for a later callback).
-_SUCCESS = {"COMPLETED"}
-_FAILURE = {"FAILED", "REJECTED"}
+from .status import Outcome, classify
 
 # Which op-id field identifies each leg.
 _OP_FIELDS = (("deposit", "depositId"), ("payout", "payoutId"), ("refund", "refundId"))
@@ -33,10 +30,8 @@ def parse_callback(body: dict[str, Any]) -> CallbackEvent | None:
     for kind, field in _OP_FIELDS:
         op_id = body.get(field)
         if isinstance(op_id, str) and op_id:
-            status = str(body.get("status", "")).upper()
-            if status in _SUCCESS:
-                return CallbackEvent(kind=kind, op_id=op_id, success=True)
-            if status in _FAILURE:
-                return CallbackEvent(kind=kind, op_id=op_id, success=False)
-            return None  # non-terminal status → ignore
+            outcome = classify(str(body.get("status", "")))
+            if outcome is Outcome.PENDING:
+                return None  # non-terminal status → ignore
+            return CallbackEvent(kind=kind, op_id=op_id, success=outcome is Outcome.SUCCESS)
     return None  # no recognised op-id field

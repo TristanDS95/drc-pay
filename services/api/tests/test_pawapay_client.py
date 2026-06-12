@@ -128,6 +128,47 @@ def test_rejected_ack_is_parsed() -> None:
     assert ack.failure_code == "INVALID_PHONE_NUMBER"
 
 
+def _status_client(cap: dict[str, Any], response_json: dict[str, Any], code: int = 200) -> PawaPayClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        cap["method"] = request.method
+        cap["url"] = str(request.url)
+        return httpx.Response(code, json=response_json)
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    return PawaPayClient(base_url="https://api.sandbox.pawapay.io", api_token="tkn", http=http)
+
+
+def test_get_deposit_status_path_and_parse() -> None:
+    cap: dict[str, Any] = {}
+    client = _status_client(cap, {"depositId": "dep-1", "status": "COMPLETED"})
+    status = client.get_deposit_status("dep-1")
+    assert cap["method"] == "GET"
+    assert cap["url"].endswith("/v2/deposits/dep-1")
+    assert status.status == "COMPLETED"
+
+
+def test_get_payout_and_refund_status_paths() -> None:
+    cap: dict[str, Any] = {}
+    assert _status_client(cap, {"status": "FAILED"}).get_payout_status("pay-1").status == "FAILED"
+    assert cap["url"].endswith("/v2/payouts/pay-1")
+    assert _status_client(cap, {"status": "COMPLETED"}).get_refund_status("ref-1").status == "COMPLETED"
+    assert cap["url"].endswith("/v2/refunds/ref-1")
+
+
+def test_status_tolerates_data_wrapper() -> None:
+    cap: dict[str, Any] = {}
+    client = _status_client(cap, {"data": {"depositId": "dep-1", "status": "COMPLETED"}})
+    assert client.get_deposit_status("dep-1").status == "COMPLETED"
+
+
+def test_status_unreadable_is_none() -> None:
+    # Fail-safe: a non-2xx response, or a 200 with no status field, yields None (→ treated as
+    # still-pending by the sweep — we never invent a terminal outcome).
+    cap: dict[str, Any] = {}
+    assert _status_client(cap, {"error": "not found"}, code=404).get_deposit_status("x").status is None
+    assert _status_client(cap, {"depositId": "dep-1"}).get_deposit_status("dep-1").status is None
+
+
 def _run_all() -> None:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

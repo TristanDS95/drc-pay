@@ -30,7 +30,7 @@ from ..domains.ledger.ledger import Direction, Entry, Posting
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
-from ..domains.transactions.state_machine import TxState
+from ..domains.transactions.state_machine import PENDING_STATES, TxState
 
 
 class Base(DeclarativeBase):
@@ -177,6 +177,16 @@ class SqlTransactionStore:
                 )
             ).first()
             return _to_domain(row) if row is not None else None
+
+    def find_pending(self) -> list[Transaction]:
+        """Transactions awaiting an async rail outcome — the reconciliation sweep's worklist."""
+        with self._sf() as session:
+            rows = session.scalars(
+                select(TransactionRow)
+                .where(TransactionRow.state.in_([s.value for s in PENDING_STATES]))
+                .order_by(TransactionRow.created_at)
+            ).all()
+            return [_to_domain(row) for row in rows]
 
 
 class SqlLedger:
