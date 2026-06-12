@@ -17,3 +17,6 @@ os.environ["DRCPAY_PAWAPAY_API_TOKEN"] = ""
 os.environ["DRCPAY_PAWAPAY_PUBLIC_KEY"] = ""
 os.environ["DRCPAY_DATABASE_URL"] = ""
 os.environ["DRCPAY_ENVIRONMENT"] = "local"
+# Hosting vars too — so tests never gate behind a password or try to mount a console dir.
+os.environ["DRCPAY_BASIC_AUTH_PASSWORD"] = ""
+os.environ["DRCPAY_CONSOLE_DIR"] = ""

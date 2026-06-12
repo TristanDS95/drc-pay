@@ -1,0 +1,15 @@
+# Keep the image lean and — critically — keep secrets out of it.
+**/.env
+**/.env.*
+!**/.env.example
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.DS_Store
+**/.git
+services/api/tests
+docs
+infra

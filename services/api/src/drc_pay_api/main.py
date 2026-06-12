@@ -9,8 +9,14 @@ spin up isolated instances. The module-level ``app`` is what uvicorn serves.
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+import base64
+import secrets
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .http.container import build_container
@@ -20,6 +26,20 @@ from .http.routes import router
 from .http.ussd_routes import ussd_router
 from .http.webhook_routes import webhook_router
 from .ussd.session import UssdHandler
+
+# Paths reachable WITHOUT the shared password: pawaPay's signed webhook (it can't send our
+# password — it's verified by signature instead) and the platform's health probe.
+_AUTH_EXEMPT = {"/health", "/webhooks/pawapay"}
+
+
+def _basic_auth_ok(authorization: str, password: str) -> bool:
+    if not authorization.startswith("Basic "):
+        return False
+    try:
+        user, _, supplied = base64.b64decode(authorization[6:]).decode().partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return secrets.compare_digest(user, "drcpay") and secrets.compare_digest(supplied, password)
 
 
 def create_app() -> FastAPI:
@@ -33,6 +53,20 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Optional shared-password gate for a hosted sandbox demo. Off when no password is set
+    # (local dev / tests). Exempts the webhook + health paths and CORS preflights.
+    @app.middleware("http")
+    async def _gate(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        password = settings.basic_auth_password
+        if password and request.method != "OPTIONS" and request.url.path not in _AUTH_EXEMPT:
+            if not _basic_auth_ok(request.headers.get("authorization", ""), password):
+                return Response(
+                    status_code=401, headers={"WWW-Authenticate": 'Basic realm="DRC Pay"'}
+                )
+        return await call_next(request)
 
     app.state.container = build_container(
         database_url=settings.database_url,
@@ -52,6 +86,17 @@ def create_app() -> FastAPI:
     # (simulator or sandbox), never in production. See Container.demo_controls_enabled.
     if app.state.container.demo_controls_enabled:
         app.include_router(demo_router)
+
+    # Hosted demo: also serve the static Merchant Console, same-origin with the API (so a
+    # single Basic-auth password gates both, and there's no CORS). Off in local dev.
+    if settings.console_dir:
+        app.mount(
+            "/console", StaticFiles(directory=settings.console_dir, html=True), name="console"
+        )
+
+        @app.get("/", include_in_schema=False)
+        def _root() -> RedirectResponse:
+            return RedirectResponse(url="/console/")
 
     @app.get("/health")
     def health() -> dict[str, str]:

@@ -93,6 +93,12 @@ class LedgerEntryRow(Base):
 
 
 def make_engine(url: str) -> Engine:
+    # Managed Postgres providers (Render, Railway, Heroku) hand out a `postgres://` or
+    # `postgresql://` URL; SQLAlchemy with psycopg3 needs the `postgresql+psycopg://` driver.
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            url = "postgresql+psycopg://" + url[len(prefix):]
+            break
     return create_engine(url)
 
 

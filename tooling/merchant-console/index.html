@@ -184,7 +184,10 @@
   </div>
 
 <script>
-  const API = new URLSearchParams(location.search).get("api") || "http://127.0.0.1:8000";
+  // API base: an ?api= override wins; local dev (console served on :5501) talks to the API on
+  // :8000; otherwise same-origin — the hosted build serves this console from the API itself.
+  const API = new URLSearchParams(location.search).get("api")
+    || (location.port === "5501" ? "http://127.0.0.1:8000" : location.origin);
   const $ = (id) => document.getElementById(id);
   const PENDING = new Set(["collection_pending", "payout_pending", "refund_pending"]);
   const LABEL = {

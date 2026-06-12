@@ -29,5 +29,13 @@ class Settings(BaseSettings):
     # placeholder until it's provisioned.
     ussd_shortcode: str = "*123#"
 
+    # Hosting (a deployed sandbox demo). When CONSOLE_DIR is set, the app also serves the
+    # static Merchant Console from that directory, same-origin with the API. When
+    # BASIC_AUTH_PASSWORD is set, every request is gated behind HTTP Basic auth (username
+    # ``drcpay``, this password) EXCEPT the pawaPay webhook and the health probe. Both blank
+    # in local dev → console served separately, no auth.
+    console_dir: str = ""
+    basic_auth_password: str = ""
+
 
 settings = Settings()
