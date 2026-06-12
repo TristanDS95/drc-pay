@@ -43,8 +43,8 @@ boundary clean; a new channel must not duplicate money logic.
 ## Testing
 - The **ledger and state machine carry the highest coverage** — write tests first.
 - Full happy path **and** every failure branch (collection fail, payout fail →
-  refund, timeout → reconciliation) run against `tooling/pawapay-sim`, offline and
-  deterministic.
+  refund, timeout → reconciliation) run against the in-process `SimulatedPaymentRail`
+  (`integrations/pawapay/simulator.py`), offline and deterministic.
 - Separate **sandbox vs production** pawaPay credentials and AWS accounts, always.
 
 ## Workflow & conventions

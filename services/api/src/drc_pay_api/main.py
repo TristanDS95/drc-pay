@@ -25,7 +25,7 @@ from .ussd.session import UssdHandler
 def create_app() -> FastAPI:
     app = FastAPI(title="DRC Pay — Merchant Acquiring API", version="0.0.1")
 
-    # DEV ONLY: let the local web phone-mock (a different origin) call the API.
+    # DEV ONLY: let the local web Merchant Console (a different origin) call the API.
     # Production locks this down to known origins.
     app.add_middleware(
         CORSMiddleware,

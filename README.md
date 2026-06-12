@@ -34,7 +34,8 @@ drc-pay/
 │   └── webhooks/      # pawaPay webhook receiver (separate deployable)
 ├── infra/             # Terraform — AWS Cape Town (af-south-1)
 ├── tooling/
-│   └── pawapay-sim/   # local fake of pawaPay for offline dev + tests
+│   ├── merchant-console/  # web cockpit for testing the app against the pawaPay sandbox
+│   └── pawapay-sim/       # placeholder: standalone pawaPay fake (use the in-process sim for now)
 ├── docs/              # ported spec + architecture decision records (ADRs)
 └── .github/workflows/ # CI
 ```

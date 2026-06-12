@@ -32,10 +32,9 @@ later. Initial launch: ~40 gas stations + pop-up stores. Research lives in the s
   are both thin callers into the *same* orchestrator via `application.start_merchant_payment`.
 - **Mobile app (`apps/mobile`)**: not started (only `theme/tokens.ts`). **Decision: web-first**
   for the merchant interface — native Expo Android is deferred until Phase E proves the live
-  rails. Two web tools exist: the **Merchant Console** (`tooling/merchant-console`, the current
-  dev tracker — take payments, live feed, the **reconciliation safety net** with a "run it now"
-  button, and a ledger/state-history drill-down; wired to all real endpoints) and the older
-  **phone-mock** (`tooling/phone-mock`, a bilingual customer-pay visual mock).
+  rails. The **Merchant Console** (`tooling/merchant-console`) is the web cockpit — take payments,
+  a live feed, the **reconciliation safety net** with a "run it now" button, and a
+  ledger/state-history drill-down; wired to all real endpoints (sandbox).
 - **Immediate next:** **Phase D (callbacks + reconciliation) is done** — D.1 the signed-webhook
   receiver, D.2 the reconciliation sweep (polls pawaPay status endpoints to heal *missed*
   callbacks). Next is the **real USSD aggregator** + **merchant onboarding**, and the live
@@ -177,11 +176,8 @@ the simulator) play out a demo outcome.
   per-transaction **ledger + state-history drill-down**. Responsive + a basic PWA manifest.
   To make the safety net demonstrable offline the **simulator now models pawaPay's async
   reality** (issues op-ids, implements `StatusPoller`); a `defer` flag on `POST /transactions`
-  leaves a payment pending (a stand-in for a missed callback), and the **simulator-only**
-  `POST /demo/reconcile` (mounted only when simulated; 404 on a live rail) runs the sweep.
-- **Web phone-mock** (`tooling/phone-mock`): the earlier EN/FR customer-pay visual mock — the
-  merchant's **QR + till**, a payments feed, a customer-USSD-pay simulator, charge-by-number
-  fallback; live ops console.
+  leaves a payment pending (a stand-in for a missed callback), and the **off-real-money-path**
+  `POST /demo/reconcile` (mounted on the simulator or sandbox; 404 in production) runs the sweep.
 
 ---
 
@@ -237,8 +233,8 @@ Done in four green passes (A–D):
 - **C — USSD channel scaffold:** `ussd/` session state machine + `POST /ussd` + the shared
   `application.start_merchant_payment`; the HTTP route was refactored to call it too (both
   channels now thin callers). Offline-tested end to end.
-- **D — Reframe docs/surface:** this DEVLOG, the app `CLAUDE.md`, the phone-mock (now a
-  merchant "take payment" app), and the research `00-overview/product-summary.md`.
+- **D — Reframe docs/surface:** this DEVLOG, the app `CLAUDE.md`, the web mock, and the research
+  `00-overview/product-summary.md`.
 
 Decisions taken (confirmed with the team): **instant pass-through settlement** (keeps
 "never hold funds"); **merchant absorbs the fee (MDR)**; keep the *core* ledger/state
@@ -376,9 +372,6 @@ python3 -m http.server 5501 --directory "<repo>/tooling/merchant-console"
 #   In the console: pick "Await confirmation" → Take payment (lands pending), then
 #   "Run reconciliation now" to watch the safety net heal it; click any payment for its ledger.
 #   (The console talks to the API at 127.0.0.1:8000; override with ?api=… in the URL.)
-
-# older web phone-mock (customer-pay visual mock)
-python3 -m http.server 5500 --directory "<repo>/tooling/phone-mock"   # open localhost:5500
 
 # view the DB: TablePlus → host 127.0.0.1, port 5432, user/pass/db = drcpay
 ```
