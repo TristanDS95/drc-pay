@@ -53,13 +53,14 @@ def get_merchant(merchant_id: str, request: Request) -> MerchantResponse:
 
 @merchant_router.get("/merchants/{merchant_id}/qr.svg")
 def merchant_qr(merchant_id: str, request: Request) -> Response:
-    """A scannable QR of the merchant's `tel:` USSD dial-through, as an SVG (printable)."""
+    """A scannable QR, as a printable SVG. For testing it encodes the **customer pay page** URL
+    (scan → pay from your own phone); production would carry the `tel:` USSD dial-through."""
     container = _container(request)
     try:
-        merchant = container.merchants.get(merchant_id)
+        container.merchants.get(merchant_id)  # validate it exists
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="merchant not found") from exc
-    code = merchant_payment_code(container.ussd_shortcode, merchant.short_code)
+    pay_url = f"{request.base_url}customer/?m={merchant_id}"
     buff = io.BytesIO()
-    segno.make(code.tel_uri, error="m").save(buff, kind="svg", scale=6, border=2)
+    segno.make(pay_url, error="m").save(buff, kind="svg", scale=6, border=2)
     return Response(content=buff.getvalue(), media_type="image/svg+xml")

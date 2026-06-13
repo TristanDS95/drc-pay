@@ -22,6 +22,7 @@ from .config import settings
 from .http.container import build_container
 from .http.demo_routes import demo_router
 from .http.merchant_routes import merchant_router
+from .http.public_routes import public_router
 from .http.routes import router
 from .http.ussd_routes import ussd_router
 from .http.webhook_routes import webhook_router
@@ -30,6 +31,8 @@ from .ussd.session import UssdHandler
 # Paths reachable WITHOUT the shared password: pawaPay's signed webhook (it can't send our
 # password — it's verified by signature instead) and the platform's health probe.
 _AUTH_EXEMPT = {"/health", "/webhooks/pawapay"}
+# Customer-facing paths are public — a customer who scans a merchant's QR has no login.
+_PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
 
 
 def _basic_auth_ok(authorization: str, password: str) -> bool:
@@ -61,7 +64,9 @@ def create_app() -> FastAPI:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         password = settings.basic_auth_password
-        if password and request.method != "OPTIONS" and request.url.path not in _AUTH_EXEMPT:
+        path = request.url.path
+        gated = path not in _AUTH_EXEMPT and not path.startswith(_PUBLIC_PREFIXES)
+        if password and request.method != "OPTIONS" and gated:
             if not _basic_auth_ok(request.headers.get("authorization", ""), password):
                 return Response(
                     status_code=401, headers={"WWW-Authenticate": 'Basic realm="DRC Pay"'}
@@ -82,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(merchant_router)
     app.include_router(ussd_router)
     app.include_router(webhook_router)
+    app.include_router(public_router)
     # Demo/ops controls (e.g. trigger reconciliation) — mounted off the real-money path only
     # (simulator or sandbox), never in production. See Container.demo_controls_enabled.
     if app.state.container.demo_controls_enabled:
@@ -97,6 +103,12 @@ def create_app() -> FastAPI:
         @app.get("/", include_in_schema=False)
         def _root() -> RedirectResponse:
             return RedirectResponse(url="/console/")
+
+    # Public customer pages (scan-to-pay + USSD dial simulator) — served WITHOUT the password.
+    if settings.customer_dir:
+        app.mount(
+            "/customer", StaticFiles(directory=settings.customer_dir, html=True), name="customer"
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:

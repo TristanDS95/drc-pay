@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<meta name="theme-color" content="#1f2933" />
+<title>Pay — DRC Pay</title>
+<style>
+  :root{
+    --coral:#FF6B5B; --coral-dark:#E2553F; --cream:#FFFCF8; --charcoal:#1A1A1A;
+    --muted:#5A5A57; --border:#ECE8E1; --surface:#FFFFFF; --bg:#1f2933;
+    --ok:#136c44; --okbg:#e7f6ee; --bad:#a5302c; --badbg:#fdeceb; --wait:#9a6b2f; --waitbg:#fff4e0;
+  }
+  *{box-sizing:border-box;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  body{margin:0;min-height:100vh;background:var(--bg);display:flex;justify-content:center;
+       align-items:flex-start;padding:0;color:var(--charcoal);}
+  .app{width:100%;max-width:430px;min-height:100vh;background:var(--cream);display:flex;flex-direction:column;}
+  .top{background:#0c0f12;color:#e7edf2;padding:18px 20px;}
+  .top .brand{font-size:11px;letter-spacing:.1em;color:#8aa;text-transform:uppercase;}
+  .top .name{font-size:22px;font-weight:800;margin-top:2px;}
+  .top .sub{font-size:12.5px;color:#9fb0bd;margin-top:2px;}
+  .tabs{display:flex;background:#0c0f12;}
+  .tabs button{flex:1;background:transparent;border:none;color:#9fb0bd;font-size:13px;font-weight:700;
+        padding:11px;cursor:pointer;border-bottom:2px solid transparent;}
+  .tabs button.on{color:#fff;border-bottom-color:var(--coral);}
+  .body{padding:20px;flex:1;}
+  label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:14px 0 6px;}
+  input{width:100%;padding:14px;border:1px solid var(--border);border-radius:12px;font-size:18px;
+        background:var(--surface);color:var(--charcoal);outline:none;}
+  input:focus{border-color:var(--coral);}
+  .amt-row{display:flex;align-items:center;gap:8px;}
+  .amt-row .cur{font-size:20px;font-weight:800;color:var(--muted);}
+  .seg{display:flex;border:1px solid var(--border);border-radius:11px;overflow:hidden;margin-top:6px;}
+  .seg button{flex:1;border:none;background:var(--surface);padding:9px;font-size:12px;font-weight:700;
+        color:var(--muted);cursor:pointer;}
+  .seg button.on{background:var(--coral);color:#fff;}
+  .hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4;}
+  button.cta{margin-top:20px;width:100%;padding:16px;border:none;border-radius:14px;background:var(--coral);
+        color:#fff;font-size:17px;font-weight:800;cursor:pointer;}
+  button.cta:active{background:var(--coral-dark);} button.cta:disabled{opacity:.55;}
+  .result{margin-top:18px;border-radius:14px;padding:18px;text-align:center;display:none;}
+  .result.show{display:block;}
+  .result.ok{background:var(--okbg);} .result.bad{background:var(--badbg);} .result.wait{background:var(--waitbg);}
+  .result .icon{font-size:40px;} .result .head{font-size:18px;font-weight:800;margin-top:4px;}
+  .result.ok .head{color:var(--ok);} .result.bad .head{color:var(--bad);} .result.wait .head{color:var(--wait);}
+  .result .msg{font-size:13.5px;color:var(--muted);margin-top:4px;line-height:1.5;}
+  details.trace{margin-top:14px;font-size:12px;color:var(--muted);}
+  details.trace summary{cursor:pointer;font-weight:600;}
+  details.trace pre{background:#0b0f13;color:#cfe9da;border-radius:10px;padding:10px;overflow:auto;
+        font:11px/1.6 "SF Mono",Menlo,monospace;white-space:pre-wrap;margin-top:8px;}
+  /* USSD dialog */
+  .ussd{margin-top:8px;}
+  .ussd .dialbtn{width:100%;padding:16px;border:none;border-radius:14px;background:#222;color:#fff;
+        font:700 17px "SF Mono",Menlo,monospace;cursor:pointer;}
+  .ussd-box{background:#0b0f13;color:#e7edf2;border-radius:14px;padding:18px;margin-top:14px;display:none;}
+  .ussd-box.show{display:block;}
+  .ussd-box .msg{font-size:15px;line-height:1.5;white-space:pre-wrap;}
+  .ussd-box.end .msg{color:#67e0a3;font-weight:600;}
+  .ussd-box input{margin-top:14px;background:#161c22;color:#fff;border-color:#2b3640;}
+  .ussd-box .send{margin-top:10px;width:100%;padding:12px;border:none;border-radius:10px;background:var(--coral);
+        color:#fff;font-weight:700;cursor:pointer;}
+  .err{display:none;margin:16px 20px;padding:12px;border-radius:10px;background:var(--badbg);color:var(--bad);
+        font-size:13px;}
+  .err.show{display:block;}
+  .powered{text-align:center;font-size:11px;color:#9aa;padding:14px;}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="top">
+      <div class="brand">Pay with your phone</div>
+      <div class="name" id="m-name">…</div>
+      <div class="sub">via DRC Pay · sandbox test</div>
+    </div>
+    <div class="tabs">
+      <button id="tab-pay" class="on">Scan &amp; Pay</button>
+      <button id="tab-dial">Dial (USSD)</button>
+    </div>
+    <div id="err" class="err"></div>
+
+    <!-- PAY -->
+    <div class="body" id="panel-pay">
+      <label for="amt">Amount</label>
+      <div class="amt-row"><span class="cur">$</span><input id="amt" type="text" inputmode="decimal" value="10.00" /></div>
+
+      <label>Simulated outcome <span style="font-weight:400;color:#aaa">— testing only</span></label>
+      <div class="seg" id="outcome">
+        <button data-o="success" class="on">Succeeds</button>
+        <button data-o="decline">Declined</button>
+        <button data-o="refund">Refunded</button>
+      </div>
+      <div class="hint">In real life your mobile-money wallet decides this. Here you pick it so we can
+        test the merchant's screen for each case.</div>
+
+      <button class="cta" id="pay">Pay</button>
+      <div class="result" id="result">
+        <div class="icon" id="r-icon"></div>
+        <div class="head" id="r-head"></div>
+        <div class="msg" id="r-msg"></div>
+      </div>
+      <details class="trace" id="trace"><summary>What happened (for testing)</summary><pre id="trace-pre"></pre></details>
+    </div>
+
+    <!-- DIAL / USSD -->
+    <div class="body" id="panel-dial" style="display:none;">
+      <div class="hint" style="margin-top:0;">Simulates a basic feature phone with no internet: dial the
+        merchant's code, then follow the prompts — exactly how the no-smartphone flow works.</div>
+      <div class="ussd">
+        <button class="dialbtn" id="dial">📞 Dial <span id="dial-code">…</span></button>
+        <div class="ussd-box" id="ussd-box">
+          <div class="msg" id="ussd-msg"></div>
+          <input id="ussd-input" type="text" inputmode="numeric" placeholder="Your reply" />
+          <button class="send" id="ussd-send">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="powered">DRC Pay — no app or internet needed on your side</div>
+  </div>
+
+<script>
+  const API = new URLSearchParams(location.search).get("api") || location.origin;
+  const MID = new URLSearchParams(location.search).get("m") || "";
+  const $ = (id) => document.getElementById(id);
+  const showErr = (m) => { $("err").textContent = m; $("err").classList.add("show"); };
+
+  let merchant = null, outcome = "success";
+
+  async function boot(){
+    if(!MID){ showErr("No merchant — scan a merchant's QR code to pay."); return; }
+    try { merchant = await (await fetch(`${API}/public/merchant/${MID}`)).json(); }
+    catch(e){ showErr("Couldn't load the merchant. Is the server running?"); return; }
+    if(!merchant || !merchant.id){ showErr("Merchant not found."); return; }
+    $("m-name").textContent = merchant.name;
+    $("dial-code").textContent = `*123*${merchant.short_code}#`;
+  }
+
+  // ----- tabs -----
+  $("tab-pay").addEventListener("click", () => switchTab("pay"));
+  $("tab-dial").addEventListener("click", () => switchTab("dial"));
+  function switchTab(t){
+    $("tab-pay").classList.toggle("on", t==="pay");
+    $("tab-dial").classList.toggle("on", t==="dial");
+    $("panel-pay").style.display = t==="pay" ? "block" : "none";
+    $("panel-dial").style.display = t==="dial" ? "block" : "none";
+  }
+
+  // ----- pay -----
+  document.querySelectorAll("#outcome button").forEach((b)=>b.addEventListener("click",()=>{
+    outcome = b.dataset.o;
+    document.querySelectorAll("#outcome button").forEach((x)=>x.classList.toggle("on", x===b));
+  }));
+
+  const PAY_RESULT = {
+    payout_succeeded: ["ok","✓","Paid", (a,n)=>`You paid ${a} to ${n}.`],
+    collection_failed: ["bad","✕","Declined", ()=>`Your payment was declined — nothing was charged.`],
+    refunded: ["wait","↩","Refunded", (a)=>`Settlement failed, so you were refunded ${a}. No money lost.`],
+    manual_review: ["wait","⚠","Needs review", ()=>`Something went wrong; it's been flagged for a human.`],
+    collection_pending: ["wait","⏳","Sent", (a,n)=>`${a} sent to ${n} — awaiting confirmation.`],
+    payout_pending: ["wait","⏳","Settling", (a,n)=>`Confirmed — settling to ${n}…`],
+  };
+
+  $("pay").addEventListener("click", async () => {
+    if(!merchant) return;
+    $("err").classList.remove("show"); $("pay").disabled = true;
+    let body;
+    try {
+      const r = await fetch(`${API}/pay`, { method:"POST", headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ merchant_id: merchant.id, amount: $("amt").value.trim(), outcome }) });
+      body = await r.json();
+      if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
+    } catch(e){ showErr(String(e.message||e)); $("pay").disabled=false; return; }
+    const spec = PAY_RESULT[body.state] || ["wait","•",body.state,()=>""];
+    const res = $("result");
+    res.className = "result show " + spec[0];
+    $("r-icon").textContent = spec[1]; $("r-head").textContent = spec[2];
+    $("r-msg").textContent = spec[3](`$${body.amount}`, body.merchant_name);
+    $("trace-pre").textContent = (body.trace||[]).join("\n"); $("trace").style.display = "block";
+    $("pay").disabled = false;
+  });
+
+  // ----- USSD dial simulator -----
+  let dialAccum = [], dialSession = null;
+  const DIAL_CUSTOMER = "243813456789"; // a sandbox success number
+
+  $("dial").addEventListener("click", () => {
+    dialSession = "ussd-" + Date.now();
+    dialAccum = [merchant.short_code];      // the dialed/scanned code pre-fills the till
+    sendUssd();
+  });
+  $("ussd-send").addEventListener("click", () => {
+    const v = $("ussd-input").value.trim();
+    if(v) sendUssd(v);
+  });
+
+  async function sendUssd(extra){
+    if(extra !== undefined) dialAccum.push(extra);
+    let wire;
+    try {
+      const r = await fetch(`${API}/ussd`, { method:"POST", headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ session_id: dialSession, msisdn: DIAL_CUSTOMER, text: dialAccum.join("*") }) });
+      wire = await r.text();
+    } catch(e){ showErr("USSD failed: " + e); return; }
+    const ended = wire.startsWith("END");
+    const box = $("ussd-box");
+    box.className = "ussd-box show" + (ended ? " end" : "");
+    $("ussd-msg").textContent = wire.replace(/^(CON|END)\s*/, "");
+    $("ussd-input").value = "";
+    $("ussd-input").style.display = ended ? "none" : "block";
+    $("ussd-send").style.display = ended ? "none" : "block";
+    if(!ended) $("ussd-input").focus();
+  }
+
+  boot();
+</script>
+</body>
+</html>

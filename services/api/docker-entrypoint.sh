@@ -8,4 +8,7 @@ if [ -n "$DRCPAY_DATABASE_URL" ]; then
 fi
 
 echo "[entrypoint] starting uvicorn on :${PORT:-8000}"
-exec uvicorn drc_pay_api.main:app --host 0.0.0.0 --port "${PORT:-8000}"
+# --proxy-headers so request.base_url reflects the real https host behind Railway's proxy
+# (used for the QR's pay-page URL and the callback signature's @authority).
+exec uvicorn drc_pay_api.main:app --host 0.0.0.0 --port "${PORT:-8000}" \
+  --proxy-headers --forwarded-allow-ips="*"

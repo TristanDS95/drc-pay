@@ -16,10 +16,12 @@ RUN pip install --no-cache-dir .
 COPY services/api/alembic.ini ./alembic.ini
 COPY services/api/migrations ./migrations
 COPY tooling/merchant-console ./console
+COPY tooling/customer-app ./customer-app
 COPY services/api/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
-# The app serves the console from here when DRCPAY_CONSOLE_DIR is set.
+# The app serves the (gated) console and the (public) customer pages from these dirs.
 ENV DRCPAY_CONSOLE_DIR=/app/console
+ENV DRCPAY_CUSTOMER_DIR=/app/customer-app
 EXPOSE 8000
 CMD ["./docker-entrypoint.sh"]

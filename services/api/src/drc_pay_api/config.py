@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # in local dev → console served separately, no auth.
     console_dir: str = ""
     basic_auth_password: str = ""
+    # The public customer-facing pages (scan-to-pay + USSD dial simulator) — served when set,
+    # and NOT behind the password (a customer who scans a QR has no login).
+    customer_dir: str = ""
 
 
 settings = Settings()
