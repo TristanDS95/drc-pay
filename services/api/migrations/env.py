@@ -6,7 +6,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from drc_pay_api.adapters.sql import Base
+from drc_pay_api.adapters.sql import Base, normalize_db_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -15,7 +15,11 @@ config = context.config
 # Use the same database URL the app uses (env-driven; falls back to local Docker Postgres).
 config.set_main_option(
     "sqlalchemy.url",
-    os.environ.get("DRCPAY_DATABASE_URL", "postgresql+psycopg://drcpay:drcpay@localhost:5432/drcpay"),
+    normalize_db_url(
+        os.environ.get(
+            "DRCPAY_DATABASE_URL", "postgresql+psycopg://drcpay:drcpay@localhost:5432/drcpay"
+        )
+    ),
 )
 
 # Interpret the config file for Python logging.

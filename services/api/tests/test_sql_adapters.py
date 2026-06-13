@@ -9,7 +9,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from drc_pay_api.adapters.sql import Base, SqlLedger, SqlMerchantStore, SqlTransactionStore
+from drc_pay_api.adapters.sql import (
+    Base,
+    SqlLedger,
+    SqlMerchantStore,
+    SqlTransactionStore,
+    normalize_db_url,
+)
 from drc_pay_api.domains.ledger.ledger import Direction, Entry, Posting
 from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.domains.merchants.models import Merchant
@@ -156,6 +162,14 @@ def test_find_by_op_id() -> None:
     assert found is not None and found.id == "t7"
     assert store.find_by_op_id("pay-xyz") is not None  # matches any of deposit/payout/refund
     assert store.find_by_op_id("nope") is None
+
+
+def test_normalize_db_url() -> None:
+    # Managed providers hand out postgres:// or postgresql://; SQLAlchemy needs +psycopg.
+    assert normalize_db_url("postgres://u:p@h:5432/db") == "postgresql+psycopg://u:p@h:5432/db"
+    assert normalize_db_url("postgresql://u:p@h:5432/db") == "postgresql+psycopg://u:p@h:5432/db"
+    assert normalize_db_url("postgresql+psycopg://u:p@h/db") == "postgresql+psycopg://u:p@h/db"
+    assert normalize_db_url("sqlite://") == "sqlite://"
 
 
 def _run_all() -> None:

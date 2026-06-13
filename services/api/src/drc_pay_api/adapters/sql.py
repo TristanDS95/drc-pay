@@ -92,14 +92,18 @@ class LedgerEntryRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
-def make_engine(url: str) -> Engine:
-    # Managed Postgres providers (Render, Railway, Heroku) hand out a `postgres://` or
-    # `postgresql://` URL; SQLAlchemy with psycopg3 needs the `postgresql+psycopg://` driver.
+def normalize_db_url(url: str) -> str:
+    """Managed Postgres providers (Railway, Render, Heroku) hand out a ``postgres://`` or
+    ``postgresql://`` URL; SQLAlchemy with psycopg3 needs the ``postgresql+psycopg://`` driver.
+    Shared by the app engine and the Alembic migrations (``migrations/env.py``)."""
     for prefix in ("postgresql://", "postgres://"):
         if url.startswith(prefix):
-            url = "postgresql+psycopg://" + url[len(prefix):]
-            break
-    return create_engine(url)
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
+def make_engine(url: str) -> Engine:
+    return create_engine(normalize_db_url(url))
 
 
 # Note: the schema is created/evolved by Alembic migrations (`alembic upgrade head`),
