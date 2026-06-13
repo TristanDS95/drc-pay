@@ -71,12 +71,6 @@ class Money:
         self._check_same_currency(other)
         return Money(self.amount_minor - other.amount_minor, self.currency)
 
-    def times(self, factor: int) -> Money:
-        """Multiply by an integer (e.g. a quantity). No fractional factors."""
-        if isinstance(factor, bool) or not isinstance(factor, int):
-            raise TypeError("factor must be an int")
-        return Money(self.amount_minor * factor, self.currency)
-
     @property
     def is_positive(self) -> bool:
         return self.amount_minor > 0

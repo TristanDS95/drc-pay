@@ -30,10 +30,6 @@ def test_addition_and_subtraction() -> None:
     assert Money(1050, "USD") - Money(50, "USD") == Money(1000, "USD")
 
 
-def test_times_integer_factor() -> None:
-    assert Money(250, "USD").times(3) == Money(750, "USD")
-
-
 def test_currency_mismatch_raises() -> None:
     try:
         Money(100, "USD") + Money(100, "CDF")

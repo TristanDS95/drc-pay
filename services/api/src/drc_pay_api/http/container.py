@@ -30,8 +30,9 @@ from ..adapters.sql import SqlLedger, SqlMerchantStore, SqlTransactionStore, mak
 from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
+from ..application.payments import Predictor
 from ..domains.transactions.ports import PaymentRail
-from ..integrations.pawapay.client import PawaPayClient, ProviderPrediction
+from ..integrations.pawapay.client import PawaPayClient
 from ..integrations.pawapay.rail import PawaPayRail
 from ..integrations.pawapay.simulator import SimulatedPaymentRail
 from ..integrations.pawapay.status import StatusPoller
@@ -65,13 +66,6 @@ class MerchantStore(Protocol):
     def save(self, merchant: Merchant) -> None: ...
 
     def all(self) -> list[Merchant]: ...
-
-
-class ProviderPredictor(Protocol):
-    """Resolves a phone number to its mobile-money operator (pawaPay predict-provider).
-    Present only when a live pawaPay rail is configured."""
-
-    def predict_provider(self, phone_number: str) -> ProviderPrediction: ...
 
 
 # Demo merchants for the zero-setup (in-memory) demo and tests — a gas station and a
@@ -108,7 +102,7 @@ class Container:
     store: TxStore
     ledger: LedgerStore
     rail: PaymentRail
-    predictor: ProviderPredictor | None = None
+    predictor: Predictor | None = None
     simulated: bool = True  # True when the rail is the in-process simulator
     environment: str = "local"  # local | sandbox | production — gates the demo/ops controls
     merchants: MerchantStore = field(default_factory=_seeded_merchant_store)
@@ -136,7 +130,7 @@ def build_container(
     if pawapay_base_url and pawapay_api_token:
         client = PawaPayClient(base_url=pawapay_base_url, api_token=pawapay_api_token)
         rail: PaymentRail = PawaPayRail(client)
-        predictor: ProviderPredictor | None = client
+        predictor: Predictor | None = client
         poller: StatusPoller | None = client  # same client polls status for reconciliation
         simulated = False
     else:

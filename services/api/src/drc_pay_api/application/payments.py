@@ -27,6 +27,9 @@ DEMO_PROVIDER = "VODACOM_MPESA_COD"
 
 
 class Predictor(Protocol):
+    """Resolves a phone number to its mobile-money operator (pawaPay predict-provider).
+    Present only when a live pawaPay rail is configured."""
+
     def predict_provider(self, phone_number: str) -> ProviderPrediction: ...
 
 

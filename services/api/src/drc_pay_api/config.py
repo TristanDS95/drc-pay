@@ -14,7 +14,6 @@ class Settings(BaseSettings):
     environment: str = "local"  # local | sandbox | production
 
     database_url: str = ""
-    redis_url: str = ""
 
     # pawaPay — base URL + token are set per environment from pawaPay's docs and the
     # secret store. No default URL here, so we never accidentally point at the wrong one.
