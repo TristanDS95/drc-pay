@@ -36,6 +36,7 @@ from ..integrations.pawapay.client import PawaPayClient
 from ..integrations.pawapay.rail import PawaPayRail
 from ..integrations.pawapay.simulator import SimulatedPaymentRail
 from ..integrations.pawapay.status import StatusPoller
+from ..seed import seed_demo_merchants
 
 
 class TxStore(Protocol):
@@ -68,32 +69,11 @@ class MerchantStore(Protocol):
     def all(self) -> list[Merchant]: ...
 
 
-# Demo merchants for the zero-setup (in-memory) demo and tests — a gas station and a
-# pop-up store, mirroring the initial launch set. Their settlement numbers are pawaPay
-# **sandbox payout-success** test numbers (…789), so the settle leg completes end-to-end
-# against the live sandbox; the simulator ignores them. Real merchants come via onboarding.
-_DEMO_MERCHANTS = (
-    Merchant(
-        id="m_alpha",
-        name="Alpha Gas Station",
-        short_code="1001",
-        settlement_msisdn="243973456789",  # Airtel COD — sandbox payout-success number
-        settlement_provider="AIRTEL_COD",
-    ),
-    Merchant(
-        id="m_beta",
-        name="Beta Pop-up Store",
-        short_code="1002",
-        settlement_msisdn="243893456789",  # Orange COD — sandbox payout-success number
-        settlement_provider="ORANGE_COD",
-    ),
-)
-
-
 def _seeded_merchant_store() -> InMemoryMerchantStore:
+    # Zero-setup demo + tests: seed the demo merchants (defined once in ``seed.py``). The
+    # Postgres path starts empty and is seeded off-production from the entrypoint instead.
     store = InMemoryMerchantStore()
-    for merchant in _DEMO_MERCHANTS:
-        store.save(merchant)
+    seed_demo_merchants(store)
     return store
 
 

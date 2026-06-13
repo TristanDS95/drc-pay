@@ -30,8 +30,11 @@ billed per-second beyond that, so a small sandbox demo sits right around the $5 
    (`DRCPAY_CONSOLE_DIR` is already baked into the image — don't set it.)
 5. **Get a URL:** service → **Settings → Networking → Generate Domain** → e.g.
    `drc-pay-production.up.railway.app`.
-6. **Open it** → log in with `drcpay` + your password → the Merchant Console. Migrations ran
-   automatically on deploy (the container entrypoint).
+6. **Open it** → log in with `drcpay` + your password → the Merchant Console. On deploy the
+   container entrypoint ran the migrations **and seeded the two demo merchants** (Alpha Gas
+   Station / Beta Pop-up Store) — so the console has tills to take payments and the QR codes
+   work immediately. (Seeding runs only when `DRCPAY_ENVIRONMENT` is `sandbox`/`local`; a
+   `production` deploy starts empty, with merchants added via onboarding.)
 
 ## Wire real-time callbacks (closes the last Phase E gap)
 1. **pawaPay dashboard → Developers → Callback URLs:** set all three to
