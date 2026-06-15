@@ -69,7 +69,7 @@ services/api/src/drc_pay_api/
 tooling/  merchant-console/   # gated web cockpit (merchant side)
           customer-app/       # public scan-to-pay + USSD dial simulator (customer side)
           pawapay-sim/        # placeholder (use the in-process simulator)
-Dockerfile · render.yaml · docs/deploy-{railway,render}.md     # deploy
+Dockerfile · docs/deploy-railway.md     # deploy (single container)
 ```
 
 **Layering:** dependencies point inward; `domains/` + `application/` never import a channel.
