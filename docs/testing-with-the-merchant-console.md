@@ -95,9 +95,10 @@ the payment moves to **Declined** and no money moves. (Source for these numbers:
 
 ## 5. Things to know
 
-- **Nothing is instant on the live rail.** Every payment lands pending and is completed by
-  reconciliation (or, later, by a pawaPay callback once we wire the webhook tunnel). That's real
-  asynchronous behaviour, not a quirk of the demo.
+- **Nothing is instant on the live rail.** Every payment lands pending, then confirms
+  automatically via pawaPay's **signed callback** (now live). "Run reconciliation" remains a
+  manual sandbox convenience for watching each leg heal. That's real asynchronous behaviour, not
+  a quirk of the demo.
 - **The merchants always settle successfully** in this demo — their numbers are sandbox
   *payout-success* numbers. Testing a *settlement* failure (which triggers an auto-refund to the
   customer) means pointing a merchant at a payout-failure number; ask and we can wire a quick way
