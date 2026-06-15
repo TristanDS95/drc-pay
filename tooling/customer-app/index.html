@@ -160,6 +160,32 @@
     payout_pending: ["wait","⏳","Settling", (a,n)=>`Confirmed — settling to ${n}…`],
   };
 
+  // Once the state is one of these the payment is resolved; until then we keep polling.
+  const TERMINAL = new Set(["payout_succeeded", "collection_failed", "refunded", "manual_review"]);
+
+  function showResult(state, amountStr, merchantName){
+    const spec = PAY_RESULT[state] || ["wait", "•", state, () => ""];
+    const res = $("result");
+    res.className = "result show " + spec[0];
+    $("r-icon").textContent = spec[1];
+    $("r-head").textContent = spec[2];
+    $("r-msg").textContent = spec[3](amountStr, merchantName);
+  }
+
+  async function pollStatus(txId, amountStr, merchantName){
+    // The live rail confirms asynchronously (pawaPay's callback), so the first /pay response is
+    // usually "pending". Poll the public status until it resolves, updating the card in place.
+    for(let i = 0; i < 20; i++){              // ~20 × 2s ≈ 40s, then give up quietly
+      await new Promise((r) => setTimeout(r, 2000));
+      let t;
+      try { const r = await fetch(`${API}/public/transaction/${txId}`); if(!r.ok) continue; t = await r.json(); }
+      catch(e){ continue; }
+      if(!t || !t.state) continue;
+      showResult(t.state, `$${t.amount}`, t.merchant_name || merchantName);
+      if(TERMINAL.has(t.state)) return;
+    }
+  }
+
   $("pay").addEventListener("click", async () => {
     if(!merchant) return;
     $("err").classList.remove("show"); $("pay").disabled = true;
@@ -170,13 +196,11 @@
       body = await r.json();
       if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
     } catch(e){ showErr(String(e.message||e)); $("pay").disabled=false; return; }
-    const spec = PAY_RESULT[body.state] || ["wait","•",body.state,()=>""];
-    const res = $("result");
-    res.className = "result show " + spec[0];
-    $("r-icon").textContent = spec[1]; $("r-head").textContent = spec[2];
-    $("r-msg").textContent = spec[3](`$${body.amount}`, body.merchant_name);
+    showResult(body.state, `$${body.amount}`, body.merchant_name);
     $("trace-pre").textContent = (body.trace||[]).join("\n"); $("trace").style.display = "block";
     $("pay").disabled = false;
+    // If pawaPay hasn't confirmed yet (live rail), keep checking until the card shows the outcome.
+    if(!TERMINAL.has(body.state)) pollStatus(body.transaction_id, `$${body.amount}`, body.merchant_name);
   });
 
   // ----- USSD dial simulator -----

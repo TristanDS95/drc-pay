@@ -51,6 +51,17 @@ class PayResponse(BaseModel):
     trace: list[str]
 
 
+class PublicTransaction(BaseModel):
+    """The minimal status a payer's page needs to poll until a payment resolves — no settlement
+    number, no ledger, no counterparties."""
+
+    transaction_id: str
+    state: str
+    amount: str
+    currency: str
+    merchant_name: str | None = None
+
+
 def _container(request: Request) -> Container:
     container: Container = request.app.state.container
     return container
@@ -64,6 +75,34 @@ def public_merchant(merchant_id: str, request: Request) -> PublicMerchant:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="merchant not found") from exc
     return PublicMerchant(id=merchant.id, name=merchant.name, short_code=merchant.short_code)
+
+
+@public_router.get("/public/transaction/{transaction_id}", response_model=PublicTransaction)
+def public_transaction(transaction_id: str, request: Request) -> PublicTransaction:
+    """Read-only status of a payment so the payer's page can poll until it confirms. On the live
+    rail ``/pay`` returns while the deposit is still pending; the final outcome lands via pawaPay's
+    callback moments later, and the page polls this to catch up. Sandbox/simulator only (like
+    ``/pay``); exposes no settlement number, ledger, or counterparty details."""
+    container = _container(request)
+    if not container.demo_controls_enabled:
+        raise HTTPException(status_code=404, detail="not found")
+    try:
+        tx = container.store.get(transaction_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="transaction not found") from exc
+    merchant_name: str | None = None
+    if tx.merchant_id:
+        try:
+            merchant_name = container.merchants.get(tx.merchant_id).name
+        except KeyError:
+            merchant_name = None
+    return PublicTransaction(
+        transaction_id=tx.id,
+        state=tx.state.value,
+        amount=tx.amount.to_major_str(),
+        currency=tx.amount.currency,
+        merchant_name=merchant_name,
+    )
 
 
 @public_router.post("/pay", response_model=PayResponse)

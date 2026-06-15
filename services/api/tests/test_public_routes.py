@@ -45,6 +45,36 @@ def test_pay_refund_makes_the_customer_whole() -> None:
     assert body["state"] == "refunded"
 
 
+def test_public_transaction_returns_minimal_status() -> None:
+    client = _client()
+    paid = client.post("/pay", json={"merchant_id": "m_alpha", "amount": "10.00"}).json()
+    status = client.get(f"/public/transaction/{paid['transaction_id']}").json()
+    assert status["transaction_id"] == paid["transaction_id"]
+    assert status["state"] == "payout_succeeded"
+    assert status["amount"] == "10.00"
+    assert status["merchant_name"] == "Alpha Gas Station"
+    # The payer's status view must never leak settlement details or the ledger.
+    assert "settlement_msisdn" not in status
+    assert "ledger" not in status
+
+
+def test_public_transaction_404_for_missing() -> None:
+    assert _client().get("/public/transaction/does-not-exist").status_code == 404
+
+
+def test_public_transaction_blocked_in_production() -> None:
+    # Like /pay, the public status view is sandbox/simulator only — a production container 404s it.
+    app = create_app()
+    app.state.container = Container(
+        store=InMemoryTransactionStore(),
+        ledger=InMemoryLedger(),
+        rail=FakePaymentRail(),
+        simulated=False,
+        environment="production",
+    )
+    assert TestClient(app).get("/public/transaction/anything").status_code == 404
+
+
 def test_pay_rejects_bad_outcome_and_merchant() -> None:
     client = _client()
     bad_outcome = client.post(
