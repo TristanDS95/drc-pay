@@ -172,9 +172,27 @@
     $("r-msg").textContent = spec[3](amountStr, merchantName);
   }
 
+  // The "What happened" log: the detailed steps from /pay, plus a friendly line for each
+  // lifecycle milestone the payment reaches afterwards (the async deposit/settle confirmations).
+  let payTrace = [];
+  const TRACE_STEP = {
+    collection_succeeded: "✓ payment collected from your wallet",
+    payout_pending: "→ settling to the merchant…",
+    payout_succeeded: "✓ settled — merchant paid",
+    refunded: "↩ settlement failed — you were refunded in full",
+    collection_failed: "✕ payment declined — nothing was charged",
+    manual_review: "⚠ flagged for manual review",
+  };
+  function renderTrace(history){
+    const lines = payTrace.slice();
+    (history || []).forEach((s) => { if(TRACE_STEP[s]) lines.push(TRACE_STEP[s]); });
+    $("trace-pre").textContent = lines.join("\n");
+    $("trace").style.display = "block";
+  }
+
   async function pollStatus(txId, amountStr, merchantName){
     // The live rail confirms asynchronously (pawaPay's callback), so the first /pay response is
-    // usually "pending". Poll the public status until it resolves, updating the card in place.
+    // usually "pending". Poll the public status until it resolves, updating the card AND the log.
     for(let i = 0; i < 20; i++){              // ~20 × 2s ≈ 40s, then give up quietly
       await new Promise((r) => setTimeout(r, 2000));
       let t;
@@ -182,6 +200,7 @@
       catch(e){ continue; }
       if(!t || !t.state) continue;
       showResult(t.state, `$${t.amount}`, t.merchant_name || merchantName);
+      renderTrace(t.history);
       if(TERMINAL.has(t.state)) return;
     }
   }
@@ -197,7 +216,8 @@
       if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
     } catch(e){ showErr(String(e.message||e)); $("pay").disabled=false; return; }
     showResult(body.state, `$${body.amount}`, body.merchant_name);
-    $("trace-pre").textContent = (body.trace||[]).join("\n"); $("trace").style.display = "block";
+    payTrace = (body.trace || []);            // the detailed steps from /pay
+    renderTrace([]);                          // show them now; polling appends the rest live
     $("pay").disabled = false;
     // If pawaPay hasn't confirmed yet (live rail), keep checking until the card shows the outcome.
     if(!TERMINAL.has(body.state)) pollStatus(body.transaction_id, `$${body.amount}`, body.merchant_name);

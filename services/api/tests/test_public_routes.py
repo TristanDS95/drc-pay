@@ -53,6 +53,9 @@ def test_public_transaction_returns_minimal_status() -> None:
     assert status["state"] == "payout_succeeded"
     assert status["amount"] == "10.00"
     assert status["merchant_name"] == "Alpha Gas Station"
+    # The history drives the customer page's live "what happened" log.
+    assert status["history"][-1] == "payout_succeeded"
+    assert "collection_succeeded" in status["history"]
     # The payer's status view must never leak settlement details or the ledger.
     assert "settlement_msisdn" not in status
     assert "ledger" not in status

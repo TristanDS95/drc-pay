@@ -8,7 +8,7 @@ in production (see ``Container.demo_controls_enabled``).
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..adapters.memory import ListRecorder
 from ..application.payments import start_merchant_payment
@@ -60,6 +60,7 @@ class PublicTransaction(BaseModel):
     amount: str
     currency: str
     merchant_name: str | None = None
+    history: list[str] = Field(default_factory=list)  # ordered states, so the page can show progress
 
 
 def _container(request: Request) -> Container:
@@ -102,6 +103,7 @@ def public_transaction(transaction_id: str, request: Request) -> PublicTransacti
         amount=tx.amount.to_major_str(),
         currency=tx.amount.currency,
         merchant_name=merchant_name,
+        history=[s.value for s in tx.history],
     )
 
 
