@@ -6,14 +6,15 @@ The backend — **Python / FastAPI**. This is where the money logic lives.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install ".[dev]"
 ```
 
 ## Run
 
 ```bash
-# --app-dir src puts the package on the import path. (This repo sits under a path
-# containing a space, which breaks pip editable installs; --app-dir sidesteps that.)
+# --app-dir src puts the package on the import path and runs straight from source. (This repo
+# sits under a path containing a space, which breaks pip *editable* installs; --app-dir sidesteps
+# that — and lets edits take effect without reinstalling.)
 uvicorn --app-dir src drc_pay_api.main:app --reload
 ```
 
@@ -21,11 +22,12 @@ Then open **http://127.0.0.1:8000/docs** — FastAPI's auto-generated interactiv
 and try `POST /transactions`, e.g.:
 
 ```json
-{"payer_msisdn": "243800000001", "payee_msisdn": "243810000002", "amount": "10.00", "scenario": "success"}
+{"customer_msisdn": "243813456789", "merchant_id": "m_alpha", "amount": "10.00", "scenario": "success"}
 ```
 
-`scenario` can be `success`, `payout_fail`, `collection_fail`, or `refund_fail`. The
-response shows the final state, the full state history, and the ledger entries.
+`scenario` can be `success`, `payout_fail`, `collection_fail`, or `refund_fail` — it plays out a
+simulated outcome on the in-process rail (and is ignored on the live pawaPay rail). The response
+shows the final state, the full state history, and the ledger entries.
 
 ## Database
 
@@ -65,19 +67,20 @@ mypy src          # types (strict)
 
 ```
 src/drc_pay_api/
-├── main.py              # FastAPI app (thin HTTP layer)
-├── config.py           # 12-factor settings from env
-├── domains/            # the framework-agnostic core (reused by the future USSD gateway)
-│   ├── ledger/         # money.py (integer minor units) + ledger.py (double-entry) — SOURCE OF TRUTH
-│   ├── transactions/   # state_machine.py (the 10-state machine)
-│   ├── auth/           # OTP + PIN (to build)
-│   └── recipients/     # recipient lookup / Hakikisha name preview (to build)
-├── integrations/
-│   └── pawapay/        # the ONLY module that knows pawaPay's wire format
-├── jobs/
-│   └── reconciliation/ # the self-healing sweep for stuck transactions (to build)
-└── http/               # routes + middleware: idempotency, rate-limit, auth (to build)
+├── main.py               # FastAPI app factory + middleware (thin HTTP layer)
+├── config.py             # 12-factor settings from env
+├── seed.py               # demo-merchant seeding (sandbox/local)
+├── domains/              # framework-agnostic core — SOURCE OF TRUTH
+│   ├── ledger/           # money.py (integer minor units) + ledger.py (double-entry)
+│   ├── transactions/     # state_machine.py + orchestrator.py (the payment spine)
+│   └── merchants/        # the Merchant entity
+├── application/          # shared services: start_merchant_payment, apply_outcome, webhooks
+├── adapters/             # in-memory + SQLAlchemy/Postgres stores
+├── integrations/pawapay/ # the ONLY module that knows pawaPay's wire format
+├── ussd/                 # the feature-phone (USSD) channel
+├── jobs/reconciliation/  # the self-healing sweep for stuck transactions
+└── http/                 # routes + middleware (gated console, public customer paths, webhook)
 ```
 
-Principle: **`domains/` knows nothing about HTTP or pawaPay's wire format.** The HTTP
-layer and the future USSD gateway are both thin callers into the same domain services.
+Principle: **`domains/` knows nothing about HTTP or pawaPay's wire format.** The HTTP API and
+the USSD channel are both thin callers into the same domain services.
