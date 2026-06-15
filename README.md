@@ -6,12 +6,13 @@ A **merchant-facing** app for the DRC: merchants accept mobile-money payments fr
 **any** network (Vodacom M-Pesa, Airtel, Orange), bridged behind the scenes, on rented rails
 (**pawaPay**) as a **pure pass-through** (we never hold funds). The customer pays the sticker price and
 the **merchant absorbs our fee (MDR)**; settlement to the merchant follows automatically, with an
-automatic refund if it can't complete. **Customers need no app or internet** — they scan the merchant's
-QR or dial a USSD till — so **USSD is a first-class MVP channel, not a later phase**. A consumer-facing
+automatic refund if it can't complete. 
+
+**Customers need no app or internet** — they scan the merchant's QR or dial a USSD till. A consumer-facing
 app may follow later.
 
 > Research, product spec, and decision reports live in the sibling
-> [`../drc-mvp-research/`](../drc-mvp-research/). Start there for the **why**; this repo is the **how**.
+> [`../drc-mvp-research/`](../drc-mvp-research/). Start there for the "why's"; this repo is "how"
 
 ## Status
 
@@ -27,9 +28,6 @@ real time** on both the payer's screen and the Merchant Console, driven by pawaP
 - **Not started:** the native mobile app (`apps/mobile`, React Native/Expo — deliberately web-first for
   now) and merchant onboarding/KYC.
 
-See [`docs/DEVLOG.md`](./docs/DEVLOG.md) for the current state and what's next, and
-[`docs/DRC-Pay-Architecture-Guide.docx`](./docs/DRC-Pay-Architecture-Guide.docx) for a plain-language
-tour of the whole system.
 
 ## Live demo (sandbox)
 
@@ -75,12 +73,14 @@ uvicorn --app-dir src drc_pay_api.main:app --reload
 #   customer:  http://localhost:8000/customer/?m=m_alpha
 ```
 
-With no credentials set it runs fully offline on an **in-process pawaPay simulator** with seeded demo
-merchants — zero setup. Point it at the live sandbox by putting `DRCPAY_PAWAPAY_BASE_URL` +
-`DRCPAY_PAWAPAY_API_TOKEN` in `services/api/.env`. Postgres is optional locally (`docker compose up -d`
-then set `DRCPAY_DATABASE_URL`); without it the app uses an in-memory store.
+With no credentials set it runs fully offline on a pawaPay simulator with seeded demo
+merchants. Point it at the live sandbox by putting `DRCPAY_PAWAPAY_BASE_URL` +
+`DRCPAY_PAWAPAY_API_TOKEN` in `services/api/.env`. 
 
-**Gotcha:** always run uvicorn with `--app-dir src` — the repo path contains a space, which breaks pip's
+Postgres is optional locally (`docker compose up -d` then set `DRCPAY_DATABASE_URL`); 
+without it the app uses an in-memory store.
+
+NOTE: always run uvicorn with `--app-dir src` — the repo path contains a space, which breaks pip's
 *editable* install, so we run from `src` instead (tests do the same via `pythonpath=src`).
 
 The whole thing also runs as one Docker image; see [`docs/deploy-railway.md`](./docs/deploy-railway.md).
@@ -99,6 +99,5 @@ These are non-negotiable because bugs here move real money:
 - **No secrets in the repo** — config via environment variables; `.env` is git-ignored.
 - **ruff + `mypy --strict` + pytest** must all pass; the ledger and state machine carry the most tests.
 
-Significant decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/). The full local engineering
-standards live in `CLAUDE.md` (kept on the developer's machine, not committed); the plain-language
-architecture guide is [`docs/DRC-Pay-Architecture-Guide.docx`](./docs/DRC-Pay-Architecture-Guide.docx).
+Significant decisions are recorded as ADRs (architectural decision record) in [`docs/adr/`](./docs/adr/). 
+The plain-language architecture guide is [`docs/DRC-Pay-Architecture-Guide.docx`](./docs/DRC-Pay-Architecture-Guide.docx).
