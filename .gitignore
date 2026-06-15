@@ -31,3 +31,6 @@ web-build/
 .DS_Store
 .idea/
 .vscode/
+
+# Local-only — kept on the developer's machine, never pushed to GitHub
+CLAUDE.md

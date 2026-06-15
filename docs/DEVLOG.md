@@ -1,6 +1,6 @@
 # DRC Pay — Development Log & Handoff
 
-**Last updated:** 2026-06-13 · **Read this first to resume work.**
+**Last updated:** 2026-06-15 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC that lets merchants **accept mobile-money payments
 across networks** (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure
@@ -11,27 +11,35 @@ pass-through** (we never hold funds). Customers pay by scanning the merchant's Q
 ---
 
 ## TL;DR — where we are
-- **Backend (`services/api`)** — fully green: ruff + mypy --strict clean, **118 tests**. Built: the
-  payment spine (collect → settle → auto-refund), double-entry ledger, 10-state machine, idempotency,
-  Merchant domain, 1% MDR fee model, Postgres + Alembic, the pawaPay client/rail, the **USSD channel**,
-  the **signed callback receiver** (D.1) and the **reconciliation sweep** (D.2).
-- **Live pawaPay sandbox PROVEN (2026-06-13):** a real cross-network payment ran end-to-end on
-  `api.sandbox.pawapay.io` — Vodacom deposit → Airtel payout → fee booked — healed by polling.
-- **Web UI (both sides built + verified):** the **Merchant Console** (`tooling/merchant-console`,
-  password-gated) — take payments, live feed, "Run reconciliation" safety net, ledger drill-down; and
-  the **Customer app** (`tooling/customer-app`, public) — scan-to-pay with an outcome toggle
-  (success/decline/refund) + an operations trace, plus a **USSD dial simulator**.
-- **Deploy: ready, not yet live.** One `Dockerfile` serves the API + both web apps as a single
-  container, behind an optional shared password, with Postgres-URL handling and Alembic-on-start.
+- **🟢 LIVE on Railway (2026-06-15):** the whole app is deployed and working end-to-end on real pawaPay
+  **sandbox** rails at `https://drc-pay-sandbox-production.up.railway.app` (Postgres + demo merchants
+  auto-seeded). A real phone scans a merchant QR → pays → it confirms **in real time** on both the
+  payer's screen and the Merchant Console.
+- **Real-time callbacks wired — last Phase-E gap CLOSED.** pawaPay's **signed callbacks** (RFC-9421) are
+  configured and verifying, so deposit + payout outcomes arrive by push (not just polling). The v2
+  callback/status/signature contract is **confirmed against pawaPay's docs and real callbacks** (see the
+  pawaPay section).
+- **Backend (`services/api`)** — fully green: ruff + mypy --strict clean, **130 tests**. The payment
+  spine (collect → settle → auto-refund), double-entry ledger, 10-state machine, idempotency, Merchant
+  domain, 1% MDR fee model, Postgres + Alembic, the pawaPay client/rail, the **USSD channel**, the
+  signed callback receiver, and the reconciliation sweep.
+- **Web UI (both sides live):** the **Merchant Console** (`tooling/merchant-console`, password-gated) —
+  take payments, live feed, "Run reconciliation" safety net, ledger drill-down; and the **Customer app**
+  (`tooling/customer-app`, public) — scan-to-pay that now **polls to confirm in real time** with a live
+  "what happened" log, plus a **USSD dial simulator**.
 
-## ▶ NEXT GOAL: stand the live webpage up on Railway
-Deploy the container to **Railway** (Hobby $5/mo) per **`docs/deploy-railway.md`**: connect the GitHub
-repo (Railway builds the `Dockerfile`), add Postgres (`DRCPAY_DATABASE_URL=${{Postgres.DATABASE_URL}}`),
-set the secrets (`DRCPAY_PAWAPAY_API_TOKEN`, a `DRCPAY_BASIC_AUTH_PASSWORD`), generate a public URL.
-Then a real phone can scan a merchant's QR → pay → watch it land in the console. The token + dashboard
-steps are the **human's** (nothing secret in the repo); I need only the public URL back, to point
-pawaPay's **callbacks** at it — which closes the last Phase-E gap (real-time confirmations vs. manual
-reconcile, and confirms the provisional callback body shape).
+## ▶ STATUS: live & end-to-end. Candidate next steps
+The Railway deploy + real-time callbacks are **done** (see TL;DR) — a working live demo on sandbox rails.
+Biggest open rocks, in rough priority:
+1. **Pricing — the decision this all serves.** The 1% MDR is a placeholder **below cost** (pawaPay
+   round-trips ≈3.5–5%, so the real MDR must be ≈5–7%+). Resolve and wire it (ADR 0005; research
+   `fees-and-costs.md`).
+2. **Merchant onboarding.** Demo merchants are auto-seeded; real merchants need a create/manage flow +
+   KYC (no onboarding UI/API yet; no DB FK on `merchant_id`).
+3. **Real USSD aggregator** — rent Africa's Talking / Infobip and wire the shortcode + MNO PIN; our
+   `/ussd` handler is provider-neutral and ready.
+4. **Production hardening** — move to AWS (`infra/` Terraform, `af-south-1`, Secrets Manager), lock CORS
+   to known origins, put reconciliation on an authenticated schedule.
 
 ---
 
@@ -56,8 +64,8 @@ services/api/src/drc_pay_api/
 ├── http/   routes.py schemas.py container.py   (container.py = composition root)
 │           merchant_routes.py ussd_routes.py webhook_routes.py
 │           demo_routes.py      # /demo/reconcile  — off-real-money-path only (404 in prod)
-│           public_routes.py    # /public/merchant, /pay — public customer endpoints (404 in prod)
-├── main.py · config.py
+│           public_routes.py    # /public/{merchant,transaction}, /pay — public customer endpoints (404 in prod)
+├── main.py · config.py · seed.py   # seed.py = demo-merchant seeding (run from the entrypoint, sandbox/local)
 tooling/  merchant-console/   # gated web cockpit (merchant side)
           customer-app/       # public scan-to-pay + USSD dial simulator (customer side)
           pawapay-sim/        # placeholder (use the in-process simulator)
@@ -77,12 +85,25 @@ double-entry ledger is the source of truth (every posting must balance).
 ⚠️ **Pricing unresolved — the 1% MDR is a placeholder BELOW cost.** pawaPay round-trip ≈ 3.5–5%, so the
 real MDR must be ≈5–7%+. Decision pending (ADR 0005; research `fees-and-costs.md`).
 
-## pawaPay — the integration (sandbox-verified 2026-06-13)
+## pawaPay — the integration (live-callback-verified 2026-06-15)
 - **Async:** `POST /v2/{deposits,payouts,refunds}` return ACCEPTED/REJECTED; the final outcome arrives
-  via a **signed callback (RFC-9421)** or by polling `GET /v2/{deposits,payouts,refunds}/{id}` →
-  `{"data":{…,"status":…},"status":"FOUND"}` (shape **confirmed**; `client._status` parses it). Push
-  (D.1 webhook) and poll (D.2 sweep) both resolve a leg through one `apply_outcome` (state-guarded,
-  idempotent). The simulator now mirrors this (issues op-ids, implements `StatusPoller`).
+  via a **signed callback (RFC-9421)** or by polling `GET /v2/{deposits,payouts,refunds}/{id}`. Push
+  (webhook) and poll (sweep) both resolve a leg through one `apply_outcome` (state-guarded, idempotent).
+  The simulator mirrors this (issues op-ids, implements `StatusPoller`).
+- **v2 contract — CONFIRMED (pawaPay docs + real sandbox callbacks):**
+  - **Callback body is FLAT** — top-level `depositId`/`payoutId`/`refundId` + top-level `status`
+    (`callbacks.parse_callback`). The **status endpoint** differs: it wraps the object under
+    `{"status":"FOUND","data":{…,"status":…}}` (`client._status`). Don't conflate the two.
+  - **Terminal statuses:** `COMPLETED` (success) / `FAILED` (failure); `ACCEPTED`/`ENQUEUED`/`PROCESSING`/
+    `IN_RECONCILIATION` are non-terminal → PENDING (`status.classify`, fail-safe).
+  - **Signatures:** RFC-9421 / ECDSA-P256, six covered components (`@method @authority @path
+    signature-date content-digest content-type`), `sig-pp` label. pawaPay sends a **DER-encoded**
+    signature (~70 bytes) — `signatures.py` accepts **both** DER and raw-64. `@authority` = the request
+    Host (Railway proxy headers handle it).
+  - **Public key auto-fetched** at startup from `GET /v2/public-key/http` (the EC/P-256 key) using the
+    API token — no key to paste. `DRCPAY_PAWAPAY_PUBLIC_KEY` overrides if set.
+- ⚠️ **Token gotcha:** the API token must be a **sandbox** token (matches `api.sandbox.pawapay.io`); a
+  live/production token reads as "invalid". Set it cleanly in Railway (no quotes/whitespace/`Bearer `).
 - **DRC providers:** `VODACOM_MPESA_COD`, `AIRTEL_COD`, `ORANGE_COD`. USD = 2 decimals everywhere;
   **Vodacom CDF = NONE decimals** (`providers.format_amount`). No Afrimoney.
 - **Sandbox test numbers** (success ends `789`): Vodacom `243813456789`, Airtel `243973456789`, Orange
@@ -91,36 +112,37 @@ real MDR must be ≈5–7%+. Decision pending (ADR 0005; research `fees-and-cost
 - `predict-provider` maps a phone → operator (allow override). `active-conf` carries live limits (USD
   min Vodacom 0.5 / Airtel 0.1 / Orange 0.01, max 2500) — replace the static `_DECIMALS` map with it.
 
-## Deploy (built; `docs/deploy-railway.md`)
-- **One container** (`Dockerfile`): installs the API, runs `alembic upgrade head` then uvicorn
-  (`--proxy-headers`), serving the API + the gated console (`/console`) + the public customer app
+## Deploy — 🟢 LIVE on Railway (`docs/deploy-railway.md`)
+- **Live URL:** `https://drc-pay-sandbox-production.up.railway.app` (env `sandbox`, Postgres add-on
+  `drc-pay-db`, Hobby $5/mo). Console at `/console/`; customer pay at `/customer/?m=m_alpha`.
+- **One container** (`Dockerfile`): installs the API, runs `alembic upgrade head`, **seeds the demo
+  merchants** (`python -m drc_pay_api.seed` — sandbox/local only; **production starts empty**), then
+  uvicorn (`--proxy-headers`), serving the API + the gated console (`/console`) + the public customer app
   (`/customer`). `DRCPAY_BASIC_AUTH_PASSWORD` gates everything except the customer paths, the webhook,
-  and `/health`. `adapters.sql.normalize_db_url` makes a managed `postgres://` URL work for both the
-  app engine and the migrations.
-- **Railway** is the pick (cheap, simple; the Docker image is portable). **AWS is the eventual
-  *production* target** (`infra/` Terraform, `af-south-1`, Secrets Manager — per `CLAUDE.md`).
+  and `/health`. `adapters.sql.normalize_db_url` makes a managed `postgres://` URL work for the app and
+  the migrations.
+- **AWS is the eventual *production* target** (`infra/` Terraform, `af-south-1`, Secrets Manager — per
+  `CLAUDE.md`); the Docker image is portable, so the move is straightforward.
 
 ---
 
 ## Open items / TODOs (still relevant)
-- **pawaPay callback BODY shape** is still provisional — we proved the loop by *polling*, not
-  callbacks. Wiring callbacks (needs the Railway public URL) confirms it; `callbacks.py` is the one
-  place to adjust. Signature `@authority` = the `Host` header (proxy headers handle this behind Railway).
+- **Pricing** — the 1% MDR is below cost; resolve the real MDR (≈5–7%+). *The decision this serves.*
+- **Merchant onboarding** — demo merchants are auto-seeded (`seed.py`); real merchants need a
+  create/manage flow + KYC. No DB FK on `merchant_id` yet.
 - **Real USSD aggregator** — rent Africa's Talking / Infobip (don't self-host); wire format + shortcode
   + MNO PIN. Our `/ussd` handler is provider-neutral and ready. *(Team action.)*
-- **Merchant onboarding** — merchants are seeded; need create/manage + KYC (flag). No DB FK on
-  `merchant_id` yet; Postgres `merchants` start empty.
 - **Reconciliation scheduling** — the sweep works but isn't on a timer/authenticated trigger (ops
   task); no age/grace filter (would need a per-tx timestamp on the domain `Transaction`).
-- **Pricing** (above) · **merchant auth** (`domains/auth/` empty) · **native mobile app** (deferred,
-  web-first for now) · **Legal/licensing (BCC)** — standing flag.
+- **merchant auth** (`domains/auth/` empty) · **native mobile app** (deferred, web-first) · **lock CORS**
+  to known origins before production · **Legal/licensing (BCC)** — standing flag.
 
 ---
 
 ## How to run
 ```bash
 cd services/api && source .venv/bin/activate
-ruff check . && mypy src && pytest                          # all green (118)
+ruff check . && mypy src && pytest                          # all green (130)
 uvicorn --app-dir src drc_pay_api.main:app --reload         # IMPORTANT: --app-dir src
 
 # serve the web apps from the API (set the static dirs), then open the URLs:
@@ -139,8 +161,10 @@ editable install; tests dodge it via `pythonpath=src`).
 
 ## Git & conventions
 Repo **github.com/TristanDS95/drc-pay** (`main`); **the human pushes**; commits use **no** Claude
-co-author trailer. Standards in `CLAUDE.md`; ADRs in `docs/adr/` (0004 merchant-acquiring, 0005
-merchant-absorbs-MDR, 0006 USSD/QR channel). Simplicity discipline: `docs/simplicity-review.md`.
+co-author trailer. Standards in **`CLAUDE.md`** — **kept local only (gitignored, not on GitHub)**, so a
+fresh clone won't have it. Plain-language full-stack overview: `docs/stack.md`. ADRs in `docs/adr/`
+(0004 merchant-acquiring, 0005 merchant-absorbs-MDR, 0006 USSD/QR channel). Simplicity discipline:
+`docs/simplicity-review.md`.
 
 ## Carry-forward insights
 1. **The money core is role-agnostic** — the consumer→merchant pivot reused ledger/state-machine/
