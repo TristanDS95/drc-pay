@@ -5,7 +5,7 @@ Confirmed against pawaPay's v2 docs (2026-06): a callback body is **flat** — t
 object at the top level, carrying the op-id (``depositId`` / ``payoutId`` / ``refundId``) and a
 top-level ``status``. (The GET status endpoints differ: they wrap the object under ``data`` —
 see ``client._status``; don't confuse the two.) Terminal statuses are classified by
-``status.classify``. Worth a final eyeball against the first real callback.
+``status.classify`` and confirmed against real sandbox callbacks.
 Source: https://docs.pawapay.io/v2/docs/deposits
 """
 from __future__ import annotations

@@ -133,7 +133,7 @@ def test_live_rail_leaves_transaction_pending_and_resolves_provider() -> None:
         json={"customer_msisdn": "243a", "merchant_id": "m_alpha", "amount": "10.00"},
     ).json()
     # No demo play-out on the live rail: it stops after the collection request, awaiting
-    # the async callback (Phase D). The customer operator was resolved via predict-provider.
+    # the async signed callback. The customer operator was resolved via predict-provider.
     assert body["state"] == "collection_pending"
     assert body["customer_provider"] == "AIRTEL_COD"
     assert body["deposit_id"] == f"dep-{body['id']}"  # op-id persisted

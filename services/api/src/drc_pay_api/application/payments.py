@@ -47,7 +47,7 @@ def resolve_provider(predictor: Predictor | None, msisdn: str, override: str | N
 def play_out(orchestrator: Orchestrator, transaction_id: str, scenario: str) -> None:
     """Drive the simulated pawaPay callbacks for a scenario — the same handlers the real
     webhooks call. Used by channels when the in-process simulator rail is active; the live
-    rail's outcome arrives via webhook (Phase D) instead."""
+    rail's outcome arrives via the signed callback instead."""
     if scenario == "collection_fail":
         orchestrator.on_collection_result(transaction_id, success=False)
         return
