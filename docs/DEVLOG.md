@@ -162,7 +162,7 @@ editable install; tests dodge it via `pythonpath=src`).
 ## Git & conventions
 Repo **github.com/TristanDS95/drc-pay** (`main`); **the human pushes**; commits use **no** Claude
 co-author trailer. Standards in **`CLAUDE.md`** — **kept local only (gitignored, not on GitHub)**, so a
-fresh clone won't have it. Plain-language full-stack overview: `docs/stack.md`. ADRs in `docs/adr/`
+fresh clone won't have it. Plain-language architecture guide: `docs/DRC-Pay-Architecture-Guide.docx`. ADRs in `docs/adr/`
 (0004 merchant-acquiring, 0005 merchant-absorbs-MDR, 0006 USSD/QR channel). Simplicity discipline:
 `docs/simplicity-review.md`.
 
