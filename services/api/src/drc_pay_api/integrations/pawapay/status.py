@@ -2,9 +2,11 @@
 status *means*, shared by the callback receiver (a *pushed* outcome) and the reconciliation
 sweep (a *polled* outcome) so the two can never drift on which statuses are terminal.
 
-⚠️ Provisional (confirm in Phase E): the terminal status *strings* mirror the callback shape
-verified in Phase D.1; the status-endpoint path/response shape is likewise provisional — see
-``client.get_*_status``. Source: https://docs.pawapay.io/using_the_api
+Confirmed against pawaPay's v2 docs (2026-06): terminal statuses are ``COMPLETED`` (success) and
+``FAILED`` (failure); ``ACCEPTED`` / ``ENQUEUED`` / ``PROCESSING`` / ``IN_RECONCILIATION`` are
+non-terminal → ``PENDING`` (fail-safe). The status endpoint wraps the operation under ``data``
+(``client._status``); the callback body is flat (``callbacks.parse_callback``).
+Source: https://docs.pawapay.io/v2/docs/deposits
 """
 from __future__ import annotations
 

@@ -1,10 +1,12 @@
 """Parse a pawaPay callback body into a neutral ``CallbackEvent`` the webhook handler can
 act on. pawaPay delivers the *final* outcome of a deposit/payout/refund here.
 
-⚠️ Provisional: the exact callback JSON is an open item until sandbox access (Phase E).
-This maps the documented shape — an object carrying the op-id (``depositId`` /
-``payoutId`` / ``refundId``) and a terminal status — and is structured so the field
-mapping is easy to adjust once confirmed. Source: https://docs.pawapay.io/using_the_api
+Confirmed against pawaPay's v2 docs (2026-06): a callback body is **flat** — the operation
+object at the top level, carrying the op-id (``depositId`` / ``payoutId`` / ``refundId``) and a
+top-level ``status``. (The GET status endpoints differ: they wrap the object under ``data`` —
+see ``client._status``; don't confuse the two.) Terminal statuses are classified by
+``status.classify``. Worth a final eyeball against the first real callback.
+Source: https://docs.pawapay.io/v2/docs/deposits
 """
 from __future__ import annotations
 

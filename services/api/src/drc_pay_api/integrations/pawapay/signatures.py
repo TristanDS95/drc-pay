@@ -9,11 +9,12 @@ pawaPay signs callbacks with a **public-key** signature (not HMAC). We verify:
 
 Anything missing, malformed, stale, tampered, or unverifiable raises ``SignatureError``.
 
-⚠️ Provisional: this implements the ``ecdsa-p256-sha256`` profile of RFC-9421 for the
-component set pawaPay is expected to cover (``@method``, ``@authority``, ``@path``,
-``content-digest``), but it is driven by the *received* ``Signature-Input``, so it adapts
-to whatever components pawaPay actually signs. The exact covered components and header
-casing must be confirmed against real sandbox callbacks (Phase E).
+Confirmed against pawaPay's v2 docs (2026-06): callbacks cover six components — ``@method``,
+``@authority``, ``@path``, ``signature-date``, ``content-digest``, ``content-type`` — under the
+``sig-pp`` label with ``ecdsa-p256-sha256``. Verification is driven by the *received*
+``Signature-Input`` (so it adapts to whatever components are listed), and accepts both the
+RFC-9421 raw-64 (r‖s) and pawaPay's DER signature encodings. The ``@authority`` value is the
+request Host (set by Railway's proxy headers); confirm it matches on the first real callback.
 Source: https://docs.pawapay.io/v2/docs/signatures
 """
 from __future__ import annotations
@@ -139,8 +140,6 @@ def verify_pawapay_signature(
         covered, params_value, method=method, host=host, path=path, headers=headers
     )
     raw_sig = _parse_signature(_get(headers, "signature"), label)
-    if len(raw_sig) != 64:
-        raise SignatureError("unexpected signature length (expected 64 bytes for P-256)")
 
     try:
         public_key = serialization.load_pem_public_key(public_key_pem.encode())
@@ -149,10 +148,17 @@ def verify_pawapay_signature(
     if not isinstance(public_key, ec.EllipticCurvePublicKey):
         raise SignatureError("pawaPay public key is not an EC key")
 
-    der = encode_dss_signature(
-        int.from_bytes(raw_sig[:32], "big"), int.from_bytes(raw_sig[32:], "big")
-    )
+    # ``cryptography`` verifies a DER-encoded ECDSA signature. RFC-9421's ``ecdsa-p256-sha256``
+    # mandates the raw 64-byte (r‖s, IEEE-P1363) form, but pawaPay's own v2 docs example sends a
+    # DER signature (~70 bytes, leading 0x30 SEQUENCE). Accept either: a 64-byte value is r‖s →
+    # re-encode to DER; anything else is assumed already-DER and passed through as-is.
+    if len(raw_sig) == 64:
+        der_sig = encode_dss_signature(
+            int.from_bytes(raw_sig[:32], "big"), int.from_bytes(raw_sig[32:], "big")
+        )
+    else:
+        der_sig = raw_sig
     try:
-        public_key.verify(der, signature_base.encode(), ec.ECDSA(hashes.SHA256()))
+        public_key.verify(der_sig, signature_base.encode(), ec.ECDSA(hashes.SHA256()))
     except InvalidSignature as exc:
         raise SignatureError("signature does not verify") from exc
