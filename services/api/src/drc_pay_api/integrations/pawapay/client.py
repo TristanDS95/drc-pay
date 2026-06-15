@@ -68,9 +68,8 @@ def _status(response: httpx.Response) -> PawaPayStatus:
     ``None``, which the reconciliation sweep treats as still-pending — we never infer a
     terminal outcome we didn't actually see.
 
-    ⚠️ Provisional shape (Phase E): mirrors the callback object — a JSON object carrying a
-    ``status`` — and tolerates a single ``{"data": {...}}`` wrapper. This is the one spot to
-    adjust once the real status-endpoint payload is confirmed against the sandbox."""
+    Confirmed (pawaPay v2): the status endpoint returns a ``{"status":"FOUND","data":{…}}``
+    envelope, so we unwrap the single ``{"data": {...}}`` layer and read its ``status``."""
     if response.status_code >= 400:
         return PawaPayStatus(status=None)
     try:
@@ -170,8 +169,8 @@ class PawaPayClient:
     # ---- status polling (reconciliation safety net) -------------------
     # GET the current status of an operation by its op-id, to resolve a missed callback.
     # Path follows pawaPay's v2 REST convention (the initiate endpoints' resource + /{id});
-    # the exact path + response shape are provisional until the sandbox (Phase E) — see
-    # ``_status``. The status strings are the same terminal vocabulary as the callbacks.
+    # the response is the confirmed ``{"status":"FOUND","data":{…}}`` envelope — see ``_status``.
+    # The status strings are the same terminal vocabulary as the callbacks.
 
     def get_deposit_status(self, deposit_id: str) -> PawaPayStatus:
         response = self._http.get(f"{self._base}/v2/deposits/{deposit_id}", headers=self._headers)

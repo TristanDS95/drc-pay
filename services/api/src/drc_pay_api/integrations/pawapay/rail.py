@@ -5,11 +5,11 @@ For each leg it generates a UUIDv4 operation id (pawaPay is idempotent on these 
 echoes them back), issues the outbound call, and returns the id so the orchestrator can
 persist it for callback correlation and refunds. pawaPay is **asynchronous**: a value
 returned here means only that pawaPay *accepted* the request — the final outcome arrives
-later via a signed callback (handled by the webhook receiver, Phase D).
+later via a signed callback (handled by the receiver in ``http/webhook_routes.py``).
 
 A synchronous, non-``ACCEPTED`` ack raises ``PawaPayRailError`` (a domain ``RailRejected``);
 the orchestrator maps that to an immediate failure of the leg. The async *callbacks* are
-handled by the Phase D webhook receiver.
+handled by the signed-callback receiver (``http/webhook_routes.py``).
 """
 from __future__ import annotations
 
