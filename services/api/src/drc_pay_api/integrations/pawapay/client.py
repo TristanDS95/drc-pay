@@ -184,3 +184,27 @@ class PawaPayClient:
     def get_refund_status(self, refund_id: str) -> PawaPayStatus:
         response = self._http.get(f"{self._base}/v2/refunds/{refund_id}", headers=self._headers)
         return _status(response)
+
+    # ---- callback signature-verification key --------------------------
+    def get_callback_public_key(self) -> str | None:
+        """pawaPay's public key (PEM) for verifying signed callbacks. The endpoint returns an
+        array of ``{"id", "key"}``; we pick the EC / P-256 key (what our ECDSA-P256 verifier
+        uses), falling back to the first. Returns ``None`` if it can't be retrieved, so startup
+        never crashes — signed callbacks then 401 until a key is available.
+        Source: https://docs.pawapay.io/v2/api-reference/toolkit/public-keys."""
+        try:
+            response = self._http.get(f"{self._base}/v2/public-key/http", headers=self._headers)
+            if response.status_code >= 400:
+                return None
+            data: Any = response.json()
+        except (httpx.HTTPError, ValueError):
+            return None
+        keys = [
+            key
+            for key in (data if isinstance(data, list) else [data])
+            if isinstance(key, dict) and isinstance(key.get("key"), str)
+        ]
+        for key in keys:  # prefer the ECDSA P-256 key our verifier handles
+            if "P256" in str(key.get("id", "")).upper() or "EC" in str(key.get("id", "")).upper():
+                return str(key["key"])
+        return str(keys[0]["key"]) if keys else None

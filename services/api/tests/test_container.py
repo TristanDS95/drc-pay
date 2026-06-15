@@ -3,7 +3,10 @@ credentials are present, otherwise the in-process simulator.
 """
 from __future__ import annotations
 
+import httpx
+
 from drc_pay_api.http.container import build_container
+from drc_pay_api.integrations.pawapay.client import PawaPayClient
 from drc_pay_api.integrations.pawapay.rail import PawaPayRail
 from drc_pay_api.integrations.pawapay.simulator import SimulatedPaymentRail
 
@@ -37,6 +40,31 @@ def test_seeds_demo_merchants() -> None:
     container = build_container()
     assert container.merchants.get_by_short_code("1001") is not None
     assert {m.id for m in container.merchants.all()} == {"m_alpha", "m_beta"}
+
+
+def test_ensure_callback_public_key_fetches_when_live_and_unset() -> None:
+    pem = "-----BEGIN PUBLIC KEY-----\nMFkwEC...\n-----END PUBLIC KEY-----\n"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[{"id": "HTTP_EC_P256_KEY:1", "key": pem}])
+
+    client = PawaPayClient(
+        base_url="https://x", api_token="t",
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    container = build_container()  # simulated, no key
+    container.pawapay_client = client
+    container.pawapay_public_key = ""
+    container.ensure_callback_public_key()
+    assert container.pawapay_public_key == pem
+
+
+def test_ensure_callback_public_key_is_noop_when_already_set() -> None:
+    # A statically-supplied key wins; no client call, no overwrite, no crash.
+    container = build_container()
+    container.pawapay_public_key = "EXISTING-PEM"
+    container.ensure_callback_public_key()
+    assert container.pawapay_public_key == "EXISTING-PEM"
 
 
 def _run_all() -> None:

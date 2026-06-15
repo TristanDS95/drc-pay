@@ -23,7 +23,7 @@ billed per-second beyond that, so a small sandbox demo sits right around the $5 
    | `DRCPAY_ENVIRONMENT` | `sandbox` |
    | `DRCPAY_PAWAPAY_BASE_URL` | `https://api.sandbox.pawapay.io` |
    | `DRCPAY_PAWAPAY_API_TOKEN` | *your sandbox token* — paste it **here in Railway**, not in chat |
-   | `DRCPAY_PAWAPAY_PUBLIC_KEY` | *for callbacks* (secret; you can add this later) |
+   | `DRCPAY_PAWAPAY_PUBLIC_KEY` | *optional* — leave unset; the app auto-fetches pawaPay's callback key (set only to override) |
    | `DRCPAY_BASIC_AUTH_PASSWORD` | *a password you choose* — testers log in with user `drcpay` + this |
    | `DRCPAY_DATABASE_URL` | `${{Postgres.DATABASE_URL}}` ← **this reference wires the database in** |
 
@@ -37,10 +37,14 @@ billed per-second beyond that, so a small sandbox demo sits right around the $5 
    `production` deploy starts empty, with merchants added via onboarding.)
 
 ## Wire real-time callbacks (closes the last Phase E gap)
-1. **pawaPay dashboard → Developers → Callback URLs:** set all three to
+1. **pawaPay dashboard → System configuration → Callback URLs:** set deposits/payouts/refunds to
    `https://<your-app>.up.railway.app/webhooks/pawapay`.
-2. **Enable signed callbacks**, copy the **public key** → set it as `DRCPAY_PAWAPAY_PUBLIC_KEY`.
-   Payments then confirm in real time — no manual reconciliation.
+2. **pawaPay dashboard → System configuration → API tokens → "Signed callbacks": toggle ON.**
+   That's it — the app fetches pawaPay's verification public key from their API
+   (`GET /v2/public-key/http`) on startup using the token, so there's **no key to copy**. (Set
+   `DRCPAY_PAWAPAY_PUBLIC_KEY` only if you want to pin a specific key and skip the fetch.)
+   Payments then confirm in real time — no manual reconciliation. *(The "Add public key" button on
+   that page is the reverse direction — uploading your key to sign your requests — not this.)*
 
 ## What I need from you
 **Nothing secret.** You set the token + password in Railway's dashboard yourself; they never touch

@@ -89,6 +89,7 @@ class Container:
     ussd_shortcode: str = "*123#"  # the code customers dial; each merchant's till appended
     pawapay_public_key: str = ""  # PEM; verifies signed callbacks (blank → reject all)
     poller: StatusPoller | None = None  # pawaPay status polling for reconciliation (live rail only)
+    pawapay_client: PawaPayClient | None = None  # the live client, for the startup key fetch below
 
     @property
     def demo_controls_enabled(self) -> bool:
@@ -96,6 +97,21 @@ class Container:
         the real-money path — the in-process simulator, or the sandbox — and **never in
         production**, where reconciliation runs via an authenticated trigger / scheduler."""
         return self.simulated or self.environment == "sandbox"
+
+    def ensure_callback_public_key(self) -> None:
+        """If a live pawaPay rail is configured but no callback public key was supplied, fetch
+        pawaPay's verification key from their API. Called once at startup (``create_app``), not
+        in ``build_container`` — so the offline test suite never makes a network call. Best-effort:
+        on failure the key stays blank and signed callbacks 401 until one is available; we never
+        crash boot. A statically-set ``DRCPAY_PAWAPAY_PUBLIC_KEY`` takes precedence (skips fetch)."""
+        if self.pawapay_public_key or self.pawapay_client is None:
+            return
+        fetched = self.pawapay_client.get_callback_public_key()
+        if fetched:
+            self.pawapay_public_key = fetched
+            print("[container] fetched pawaPay callback public key for signature verification")
+        else:
+            print("[container] WARNING: could not fetch pawaPay public key — signed callbacks will 401")
 
 
 def build_container(
@@ -109,12 +125,14 @@ def build_container(
     # Rail: live pawaPay when both credentials are present, else the simulator.
     if pawapay_base_url and pawapay_api_token:
         client = PawaPayClient(base_url=pawapay_base_url, api_token=pawapay_api_token)
+        pawapay_client: PawaPayClient | None = client  # for the startup callback-key fetch
         rail: PaymentRail = PawaPayRail(client)
         predictor: Predictor | None = client
         poller: StatusPoller | None = client  # same client polls status for reconciliation
         simulated = False
     else:
         simulator = SimulatedPaymentRail()
+        pawapay_client = None
         rail = simulator
         predictor = None
         poller = simulator  # the simulator doubles as a StatusPoller — reconciliation can heal demo txns
@@ -142,5 +160,6 @@ def build_container(
         ussd_shortcode=ussd_shortcode,
         pawapay_public_key=pawapay_public_key,
         poller=poller,
+        pawapay_client=pawapay_client,
         environment=environment,
     )

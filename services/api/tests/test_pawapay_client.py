@@ -169,6 +169,36 @@ def test_status_unreadable_is_none() -> None:
     assert _status_client(cap, {"depositId": "dep-1"}).get_deposit_status("dep-1").status is None
 
 
+def test_get_callback_public_key_prefers_ec_p256() -> None:
+    cap: dict[str, Any] = {}
+    pem = "-----BEGIN PUBLIC KEY-----\nMFkwEC...\n-----END PUBLIC KEY-----\n"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        cap["method"] = request.method
+        cap["url"] = str(request.url)
+        return httpx.Response(200, json=[
+            {"id": "HTTP_RSA_KEY:1", "key": "rsa-pem"},
+            {"id": "HTTP_EC_P256_KEY:1", "key": pem},
+        ])
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = PawaPayClient(base_url="https://api.sandbox.pawapay.io", api_token="tkn", http=http)
+    key = client.get_callback_public_key()
+    assert cap["method"] == "GET"
+    assert cap["url"].endswith("/v2/public-key/http")
+    assert key == pem  # the EC P-256 key, not the RSA one
+
+
+def test_get_callback_public_key_none_on_error() -> None:
+    # Fail-safe: a non-2xx (or unreadable) response yields None, so startup never crashes.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"error": "nope"})
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = PawaPayClient(base_url="https://x", api_token="t", http=http)
+    assert client.get_callback_public_key() is None
+
+
 def _run_all() -> None:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

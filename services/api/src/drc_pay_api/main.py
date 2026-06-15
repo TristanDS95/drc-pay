@@ -81,6 +81,9 @@ def create_app() -> FastAPI:
         pawapay_public_key=settings.pawapay_public_key,
         environment=settings.environment,
     )
+    # On a live rail with no statically-set key, fetch pawaPay's callback-verification public
+    # key from their API now (best-effort; a no-op on the simulator, so tests stay offline).
+    app.state.container.ensure_callback_public_key()
     # The USSD channel is another thin caller into the same container/orchestrator.
     app.state.ussd_handler = UssdHandler(app.state.container)
     app.include_router(router)
