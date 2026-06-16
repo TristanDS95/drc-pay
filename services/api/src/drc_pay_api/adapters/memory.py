@@ -6,6 +6,7 @@ unchanged.
 """
 from __future__ import annotations
 
+from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
@@ -29,6 +30,20 @@ class InMemoryMerchantStore:
         self._rows[merchant.id] = merchant
 
     def all(self) -> list[Merchant]:
+        return list(self._rows.values())
+
+
+class InMemoryChargeStore:
+    def __init__(self) -> None:
+        self._rows: dict[str, Charge] = {}
+
+    def get(self, charge_id: str) -> Charge:
+        return self._rows[charge_id]
+
+    def save(self, charge: Charge) -> None:
+        self._rows[charge.id] = charge
+
+    def all(self) -> list[Charge]:
         return list(self._rows.values())
 
 
