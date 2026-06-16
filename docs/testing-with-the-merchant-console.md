@@ -107,3 +107,27 @@ the payment moves to **Declined** and no money moves. (Source for these numbers:
   one you just made.
 - **This control is sandbox-only.** `POST /demo/reconcile` is blocked in production by design;
   there, reconciliation runs from an authenticated scheduler instead.
+
+## 6. Picking networks & test numbers
+
+Both legs of a payment are selectable for testing:
+
+- **Merchant payout network = which merchant you pay:** Alpha Gas Station = Airtel · Beta Pop-up
+  Store = Orange · Gamma Market = Vodacom.
+- **Payer network = the "Your mobile-money network" toggle** on the Customer page (Vodacom /
+  Airtel / Orange).
+
+You never type a phone number — the app sends the right pawaPay sandbox number. The sandbox encodes
+everything in the number: the **operator prefix** picks the network, the **last 3 digits** pick the
+outcome.
+
+| Network | Number pattern | Success | Insufficient funds (declined) |
+|---|---|---|---|
+| Vodacom M-Pesa | `243 813456 ___` | `243813456789` | `243813456049` |
+| Airtel | `243 973456 ___` | `243973456789` | `243973456049` |
+| Orange | `243 893456 ___` | `243893456789` | `243893456049` |
+
+The **fee follows the pair** (real pawaPay cost, pass-through, no margin yet): e.g. Vodacom→Orange =
+3.5%, Airtel→Vodacom = 5.0%. The Customer page shows it on the result; the Console shows the fee and
+ledger on each transaction. Source: pawaPay's published DRC rates
+(`../drc-mvp-research/02-findings/cross-cutting/fees-and-costs.md`) and test-number docs.

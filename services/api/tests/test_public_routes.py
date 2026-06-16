@@ -110,6 +110,23 @@ def test_pay_blocked_in_production() -> None:
     assert resp.status_code == 404
 
 
+def test_pay_payer_network_drives_the_per_pair_fee() -> None:
+    # Vodacom payer → Orange merchant (m_beta): collect 2.5% + payout 1.0% = 3.5% of 10.00.
+    body = _client().post(
+        "/pay", json={"merchant_id": "m_beta", "amount": "10.00", "payer_network": "vodacom"}
+    ).json()
+    assert body["customer_provider"] == "VODACOM_MPESA_COD"
+    assert body["merchant_provider"] == "ORANGE_COD"
+    assert body["fee"] == "0.35"
+
+
+def test_pay_rejects_unknown_payer_network() -> None:
+    resp = _client().post(
+        "/pay", json={"merchant_id": "m_alpha", "amount": "10", "payer_network": "mtn"}
+    )
+    assert resp.status_code == 422
+
+
 def _run_all() -> None:
     skip = {test_public_endpoints_bypass_the_password}
     for name, fn in sorted(globals().items()):
