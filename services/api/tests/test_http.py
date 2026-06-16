@@ -40,12 +40,14 @@ def test_successful_payment_settles_merchant_net_of_fee() -> None:
     assert body["state"] == "payout_succeeded"
     assert body["merchant_id"] == "m_alpha"
     assert body["merchant_name"] == "Alpha Gas Station"
-    assert body["fee"] == "0.10"  # 1% of 10.00 (MDR)
-    # The customer paid 10.00; the merchant nets 9.90; we keep 0.10.
+    # On the simulator the payer falls back to Vodacom (no predictor); m_alpha settles to Airtel.
+    # Fee = Vodacom collect 2.5% + Airtel payout 2.0% = 4.5% of 10.00 (real pawaPay cost, no margin).
+    assert body["fee"] == "0.45"
+    # The customer paid 10.00; the merchant nets 9.55; we keep 0.45.
     merchant = [line for line in body["ledger"] if line["account"] == "merchant:external"]
     revenue = [line for line in body["ledger"] if line["account"] == "revenue:fees"]
-    assert merchant and merchant[0]["amount"] == "9.90"
-    assert revenue and revenue[0]["amount"] == "0.10"
+    assert merchant and merchant[0]["amount"] == "9.55"
+    assert revenue and revenue[0]["amount"] == "0.45"
     assert client.get(f"/transactions/{body['id']}").json()["state"] == "payout_succeeded"
 
 

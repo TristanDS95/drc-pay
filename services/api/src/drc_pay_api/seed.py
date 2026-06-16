@@ -33,6 +33,13 @@ DEMO_MERCHANTS: tuple[Merchant, ...] = (
         settlement_msisdn="243893456789",  # Orange COD — sandbox payout-success number
         settlement_provider="ORANGE_COD",
     ),
+    Merchant(
+        id="m_gamma",
+        name="Gamma Market",
+        short_code="1003",
+        settlement_msisdn="243813456789",  # Vodacom M-Pesa COD — sandbox payout-success number
+        settlement_provider="VODACOM_MPESA_COD",
+    ),
 )
 
 

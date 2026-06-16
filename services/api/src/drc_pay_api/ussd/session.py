@@ -23,7 +23,6 @@ from ..application.payments import start_merchant_payment
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.orchestrator import Orchestrator
-from ..domains.transactions.pricing import default_fee
 from ..http.container import Container
 
 _CURRENCY = "USD"  # MVP: the USSD flow is single-currency for now
@@ -108,7 +107,6 @@ class UssdHandler:
             customer_msisdn=customer_msisdn,
             merchant=merchant,
             amount=amount,
-            fee=default_fee(amount),
         )
 
 

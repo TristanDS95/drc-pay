@@ -14,7 +14,6 @@ from ..application.payments import start_merchant_payment
 from ..domains.ledger.money import Money
 from ..domains.transactions.models import Transaction
 from ..domains.transactions.orchestrator import Orchestrator
-from ..domains.transactions.pricing import default_fee
 from .container import Container
 from .schemas import CreateTransactionRequest, LedgerLine, TransactionResponse
 
@@ -105,14 +104,9 @@ def create_transaction(
                 container, existing, ["idempotent replay · key already processed; original returned"]
             )
 
-    fee = default_fee(amount)
     recorder = ListRecorder()
     recorder.record(f"POST /transactions · {body.amount} {body.currency} · scenario={body.scenario}")
     recorder.record(f"merchant · {merchant.name} ({merchant.id}) · settle → {merchant.settlement_msisdn}")
-    recorder.record(
-        f"pricing · fee (MDR) = 1% of {body.amount} = {fee.to_major_str()} {body.currency} "
-        f"· merchant nets {(amount - fee).to_major_str()} {body.currency}"
-    )
     if body.defer:
         recorder.record("demo · deferring outcome — payment stays pending until reconciled")
 
@@ -126,7 +120,6 @@ def create_transaction(
         customer_msisdn=body.customer_msisdn,
         merchant=merchant,
         amount=amount,
-        fee=fee,
         customer_provider_override=body.customer_provider,
         idempotency_key=idempotency_key,
         scenario=body.scenario,

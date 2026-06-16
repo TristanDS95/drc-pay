@@ -14,7 +14,6 @@ from ..adapters.memory import ListRecorder
 from ..application.payments import start_merchant_payment
 from ..domains.ledger.money import Money
 from ..domains.transactions.orchestrator import Orchestrator
-from ..domains.transactions.pricing import default_fee
 from .container import Container
 
 public_router = APIRouter()
@@ -140,7 +139,6 @@ def pay(body: PayRequest, request: Request) -> PayResponse:
         customer_msisdn=customer_msisdn,
         merchant=merchant,
         amount=amount,
-        fee=default_fee(amount),
         scenario=scenario,
     )
     tx = container.store.get(transaction_id)

@@ -39,7 +39,7 @@ def test_partial_pawapay_credentials_fall_back_to_the_simulator() -> None:
 def test_seeds_demo_merchants() -> None:
     container = build_container()
     assert container.merchants.get_by_short_code("1001") is not None
-    assert {m.id for m in container.merchants.all()} == {"m_alpha", "m_beta"}
+    assert {m.id for m in container.merchants.all()} == {"m_alpha", "m_beta", "m_gamma"}
 
 
 def test_ensure_callback_public_key_fetches_when_live_and_unset() -> None:
