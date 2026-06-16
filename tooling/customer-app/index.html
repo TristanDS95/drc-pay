@@ -83,6 +83,13 @@
       <label for="amt">Amount</label>
       <div class="amt-row"><span class="cur">$</span><input id="amt" type="text" inputmode="decimal" value="10.00" /></div>
 
+      <label>Your mobile-money network <span style="font-weight:400;color:#aaa">— testing only</span></label>
+      <div class="seg" id="network">
+        <button data-n="vodacom" class="on">Vodacom</button>
+        <button data-n="airtel">Airtel</button>
+        <button data-n="orange">Orange</button>
+      </div>
+
       <label>Simulated outcome <span style="font-weight:400;color:#aaa">— testing only</span></label>
       <div class="seg" id="outcome">
         <button data-o="success" class="on">Succeeds</button>
@@ -97,8 +104,20 @@
         <div class="icon" id="r-icon"></div>
         <div class="head" id="r-head"></div>
         <div class="msg" id="r-msg"></div>
+        <div class="msg" id="r-fee" style="font-size:12px;margin-top:8px;color:var(--muted);"></div>
       </div>
       <details class="trace" id="trace"><summary>What happened (for testing)</summary><pre id="trace-pre"></pre></details>
+      <details class="trace"><summary>Sandbox test numbers</summary><pre>Network sets the prefix · outcome sets the last 3 digits —
+pick from the menus above; the app sends the right number.
+
+  Vodacom   243 813456 _ _ _
+  Airtel    243 973456 _ _ _
+  Orange    243 893456 _ _ _
+
+  …789 = success      …049 = insufficient funds (declined)
+
+Merchant payout network = which merchant you open:
+  Alpha = Airtel · Beta = Orange · Gamma = Vodacom</pre></details>
     </div>
 
     <!-- DIAL / USSD -->
@@ -124,7 +143,7 @@
   const $ = (id) => document.getElementById(id);
   const showErr = (m) => { $("err").textContent = m; $("err").classList.add("show"); };
 
-  let merchant = null, outcome = "success";
+  let merchant = null, outcome = "success", network = "vodacom";
 
   async function boot(){
     if(!MID){ showErr("No merchant — scan a merchant's QR code to pay."); return; }
@@ -150,6 +169,10 @@
     outcome = b.dataset.o;
     document.querySelectorAll("#outcome button").forEach((x)=>x.classList.toggle("on", x===b));
   }));
+  document.querySelectorAll("#network button").forEach((b)=>b.addEventListener("click",()=>{
+    network = b.dataset.n;
+    document.querySelectorAll("#network button").forEach((x)=>x.classList.toggle("on", x===b));
+  }));
 
   const PAY_RESULT = {
     payout_succeeded: ["ok","✓","Paid", (a,n)=>`You paid ${a} to ${n}.`],
@@ -170,6 +193,17 @@
     $("r-icon").textContent = spec[1];
     $("r-head").textContent = spec[2];
     $("r-msg").textContent = spec[3](amountStr, merchantName);
+  }
+
+  // The fee depends on the network pair (payer's operator → merchant's operator); /pay returns it.
+  const NET = { VODACOM_MPESA_COD: "Vodacom", AIRTEL_COD: "Airtel", ORANGE_COD: "Orange" };
+  function showFee(body){
+    if(body.fee == null){ return; }
+    const amt = parseFloat(body.amount), fee = parseFloat(body.fee);
+    const pct = amt > 0 ? (fee / amt * 100).toFixed(1) : "0";
+    const net = ((Math.round(amt * 100) - Math.round(fee * 100)) / 100).toFixed(2);
+    const pair = `${NET[body.customer_provider] || body.customer_provider} → ${NET[body.merchant_provider] || body.merchant_provider}`;
+    $("r-fee").textContent = `${pair} · fee ${pct}% = $${body.fee} · merchant nets $${net}`;
   }
 
   // The "What happened" log: the detailed steps from /pay, plus a friendly line for each
@@ -211,11 +245,12 @@
     let body;
     try {
       const r = await fetch(`${API}/pay`, { method:"POST", headers:{ "content-type":"application/json" },
-        body: JSON.stringify({ merchant_id: merchant.id, amount: $("amt").value.trim(), outcome }) });
+        body: JSON.stringify({ merchant_id: merchant.id, amount: $("amt").value.trim(), outcome, payer_network: network }) });
       body = await r.json();
       if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
     } catch(e){ showErr(String(e.message||e)); $("pay").disabled=false; return; }
     showResult(body.state, `$${body.amount}`, body.merchant_name);
+    showFee(body);                            // network pair + per-pair fee
     payTrace = (body.trace || []);            // the detailed steps from /pay
     renderTrace([]);                          // show them now; polling appends the rest live
     $("pay").disabled = false;

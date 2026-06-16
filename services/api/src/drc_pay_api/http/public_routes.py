@@ -18,14 +18,25 @@ from .container import Container
 
 public_router = APIRouter()
 
-# Outcome → (customer test MSISDN for the live sandbox, scenario for the simulator). On the
-# simulator the scenario drives the result; on the live sandbox rail the test number does (…789
-# succeeds, …049 = insufficient balance). "refund" (collect succeeds, settle fails) plays out
-# fully on the simulator.
+# pawaPay DRC sandbox test numbers: the operator prefix picks the PAYER's network, and the last
+# three digits pick the OUTCOME (789 = success, 049 = insufficient funds). On the simulator the
+# scenario string drives the result instead. Source: docs.pawapay.io/v2/docs/test_numbers.
+_NETWORKS: dict[str, str] = {  # UI value → pawaPay provider code
+    "vodacom": "VODACOM_MPESA_COD",
+    "airtel": "AIRTEL_COD",
+    "orange": "ORANGE_COD",
+}
+_NETWORK_BASE: dict[str, str] = {  # everything but the final 3-digit outcome suffix
+    "vodacom": "243813456",
+    "airtel": "243973456",
+    "orange": "243893456",
+}
+# Outcome → (deposit suffix, simulator scenario). "refund" (collect ok, settle fails) only plays
+# out on the simulator — a live refund needs a payout-failing merchant, not a payer number.
 _OUTCOMES: dict[str, tuple[str, str]] = {
-    "success": ("243813456789", "success"),
-    "decline": ("243813456049", "collection_fail"),
-    "refund": ("243813456789", "payout_fail"),
+    "success": ("789", "success"),
+    "decline": ("049", "collection_fail"),
+    "refund": ("789", "payout_fail"),
 }
 
 
@@ -39,6 +50,7 @@ class PayRequest(BaseModel):
     merchant_id: str
     amount: str
     outcome: str = "success"  # success | decline | refund
+    payer_network: str = "vodacom"  # vodacom | airtel | orange — the customer's operator
 
 
 class PayResponse(BaseModel):
@@ -46,6 +58,9 @@ class PayResponse(BaseModel):
     state: str
     amount: str
     currency: str
+    fee: str  # the per-network-pair fee the merchant absorbs
+    customer_provider: str | None = None  # resolved payer operator
+    merchant_provider: str | None = None  # resolved merchant (payout) operator
     merchant_name: str
     trace: list[str]
 
@@ -115,6 +130,8 @@ def pay(body: PayRequest, request: Request) -> PayResponse:
         raise HTTPException(status_code=404, detail="customer pay is sandbox/simulator only")
     if body.outcome not in _OUTCOMES:
         raise HTTPException(status_code=422, detail=f"unknown outcome: {body.outcome}")
+    if body.payer_network not in _NETWORKS:
+        raise HTTPException(status_code=422, detail=f"unknown payer network: {body.payer_network}")
     try:
         amount = Money.from_major(body.amount, "USD")
     except (ValueError, ArithmeticError) as exc:
@@ -126,10 +143,13 @@ def pay(body: PayRequest, request: Request) -> PayResponse:
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="merchant not found") from exc
 
-    customer_msisdn, scenario = _OUTCOMES[body.outcome]
+    suffix, scenario = _OUTCOMES[body.outcome]
+    customer_msisdn = _NETWORK_BASE[body.payer_network] + suffix
+    customer_provider = _NETWORKS[body.payer_network]
     recorder = ListRecorder()
     recorder.record(
-        f"customer scanned {merchant.name}'s QR · pays {body.amount} USD · outcome={body.outcome}"
+        f"customer scanned {merchant.name}'s QR · pays {body.amount} USD "
+        f"· network={body.payer_network} · outcome={body.outcome}"
     )
     orchestrator = Orchestrator(container.store, container.rail, container.ledger, recorder)
     transaction_id = start_merchant_payment(
@@ -139,6 +159,7 @@ def pay(body: PayRequest, request: Request) -> PayResponse:
         customer_msisdn=customer_msisdn,
         merchant=merchant,
         amount=amount,
+        customer_provider_override=customer_provider,
         scenario=scenario,
     )
     tx = container.store.get(transaction_id)
@@ -147,6 +168,9 @@ def pay(body: PayRequest, request: Request) -> PayResponse:
         state=tx.state.value,
         amount=tx.amount.to_major_str(),
         currency=tx.amount.currency,
+        fee=tx.fee.to_major_str(),
+        customer_provider=tx.customer_provider,
+        merchant_provider=tx.merchant_provider,
         merchant_name=merchant.name,
         trace=recorder.messages,
     )
