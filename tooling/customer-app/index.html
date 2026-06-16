@@ -80,24 +80,14 @@
 
     <!-- PAY -->
     <div class="body" id="panel-pay">
-      <label for="amt">Amount</label>
-      <div class="amt-row"><span class="cur">$</span><input id="amt" type="text" inputmode="decimal" value="10.00" /></div>
+      <div id="amount-due" style="font-size:30px;font-weight:800;margin:4px 0 16px;">…</div>
 
-      <label>Your mobile-money network <span style="font-weight:400;color:#aaa">— testing only</span></label>
+      <label>Your mobile-money network</label>
       <div class="seg" id="network">
         <button data-n="vodacom" class="on">Vodacom</button>
         <button data-n="airtel">Airtel</button>
         <button data-n="orange">Orange</button>
       </div>
-
-      <label>Simulated outcome <span style="font-weight:400;color:#aaa">— testing only</span></label>
-      <div class="seg" id="outcome">
-        <button data-o="success" class="on">Succeeds</button>
-        <button data-o="decline">Declined</button>
-        <button data-o="refund">Refunded</button>
-      </div>
-      <div class="hint">In real life your mobile-money wallet decides this. Here you pick it so we can
-        test the merchant's screen for each case.</div>
 
       <button class="cta" id="pay">Pay</button>
       <div class="result" id="result">
@@ -107,6 +97,15 @@
         <div class="msg" id="r-fee" style="font-size:12px;margin-top:8px;color:var(--muted);"></div>
       </div>
       <details class="trace" id="trace"><summary>What happened (for testing)</summary><pre id="trace-pre"></pre></details>
+      <details class="trace"><summary>Testing options</summary>
+        <label style="margin-top:10px;">Simulated outcome</label>
+        <div class="seg" id="outcome">
+          <button data-o="success" class="on">Succeeds</button>
+          <button data-o="decline">Declined</button>
+          <button data-o="refund">Refunded</button>
+        </div>
+        <div class="hint">In real life your wallet decides this; here you pick it to test each case.</div>
+      </details>
       <details class="trace"><summary>Sandbox test numbers</summary><pre>Network sets the prefix · outcome sets the last 3 digits —
 pick from the menus above; the app sends the right number.
 
@@ -138,20 +137,28 @@ Merchant payout network = which merchant you open:
   </div>
 
 <script>
-  const API = new URLSearchParams(location.search).get("api") || location.origin;
-  const MID = new URLSearchParams(location.search).get("m") || "";
+  const params = new URLSearchParams(location.search);
+  const API = params.get("api") || location.origin;
+  const CHARGE_ID = params.get("charge") || "";
   const $ = (id) => document.getElementById(id);
   const showErr = (m) => { $("err").textContent = m; $("err").classList.add("show"); };
 
-  let merchant = null, outcome = "success", network = "vodacom";
+  let charge = null, outcome = "success", network = "vodacom";
 
   async function boot(){
-    if(!MID){ showErr("No merchant — scan a merchant's QR code to pay."); return; }
-    try { merchant = await (await fetch(`${API}/public/merchant/${MID}`)).json(); }
-    catch(e){ showErr("Couldn't load the merchant. Is the server running?"); return; }
-    if(!merchant || !merchant.id){ showErr("Merchant not found."); return; }
-    $("m-name").textContent = merchant.name;
-    $("dial-code").textContent = `*123*${merchant.short_code}#`;
+    if(!CHARGE_ID){ showErr("Scan a merchant's charge QR to pay."); return; }
+    try { charge = await (await fetch(`${API}/public/charge/${CHARGE_ID}`)).json(); }
+    catch(e){ showErr("Couldn't load this charge. Is the server running?"); return; }
+    if(!charge || !charge.charge_id){ showErr("Charge not found."); return; }
+    $("m-name").textContent = charge.merchant_name;
+    $("amount-due").textContent = `Pay $${charge.amount}`;
+    $("dial-code").textContent = `*123*${charge.short_code}#`;
+    // If the charge was already paid (or is mid-flight), reflect it and lock the button.
+    if(charge.status && charge.status !== "awaiting_payment" && charge.status !== "declined"){
+      showResult(charge.status === "paid" ? "payout_succeeded" : "payout_pending",
+                 `$${charge.amount}`, charge.merchant_name);
+      $("pay").disabled = true;
+    }
   }
 
   // ----- tabs -----
@@ -240,12 +247,12 @@ Merchant payout network = which merchant you open:
   }
 
   $("pay").addEventListener("click", async () => {
-    if(!merchant) return;
+    if(!charge) return;
     $("err").classList.remove("show"); $("pay").disabled = true;
     let body;
     try {
       const r = await fetch(`${API}/pay`, { method:"POST", headers:{ "content-type":"application/json" },
-        body: JSON.stringify({ merchant_id: merchant.id, amount: $("amt").value.trim(), outcome, payer_network: network }) });
+        body: JSON.stringify({ charge_id: charge.charge_id, outcome, payer_network: network }) });
       body = await r.json();
       if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
     } catch(e){ showErr(String(e.message||e)); $("pay").disabled=false; return; }
@@ -253,7 +260,8 @@ Merchant payout network = which merchant you open:
     showFee(body);                            // network pair + per-pair fee
     payTrace = (body.trace || []);            // the detailed steps from /pay
     renderTrace([]);                          // show them now; polling appends the rest live
-    $("pay").disabled = false;
+    // A charge is paid once: keep the button disabled unless the payment was declined (retryable).
+    $("pay").disabled = body.state !== "collection_failed";
     // If pawaPay hasn't confirmed yet (live rail), keep checking until the card shows the outcome.
     if(!TERMINAL.has(body.state)) pollStatus(body.transaction_id, `$${body.amount}`, body.merchant_name);
   });
@@ -263,8 +271,9 @@ Merchant payout network = which merchant you open:
   const DIAL_CUSTOMER = "243813456789"; // a sandbox success number
 
   $("dial").addEventListener("click", () => {
+    if(!charge) return;
     dialSession = "ussd-" + Date.now();
-    dialAccum = [merchant.short_code];      // the dialed/scanned code pre-fills the till
+    dialAccum = [charge.short_code];      // the dialed/scanned code pre-fills the till
     sendUssd();
   });
   $("ussd-send").addEventListener("click", () => {

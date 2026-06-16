@@ -56,5 +56,4 @@ class MerchantResponse(BaseModel):
     settlement_msisdn: str
     status: str
     ussd_string: str  # "*123*1001#" — what the customer dials
-    tel_uri: str  # "tel:*123*1001%23" — the scannable QR payload
-    qr_svg_path: str  # "/merchants/{id}/qr.svg" — printable QR image
+    tel_uri: str  # "tel:*123*1001%23" — the USSD dial-through (the eventual static-till QR payload)

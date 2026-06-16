@@ -1,13 +1,9 @@
-"""HTTP endpoints for merchants — list tills, serve each merchant's payment codes, and a
-printable QR. The QR carries a `tel:` USSD dial-through, so a scan (Android) or a manual
-dial both land in the `ussd/` channel pre-filled with the merchant's till.
+"""HTTP endpoints for merchants — list tills and serve each merchant's payment codes (the USSD
+string / tel URI). Scan-to-pay QRs are per-charge now (see ``charge_routes``), not per-merchant.
 """
 from __future__ import annotations
 
-import io
-
-import segno
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request
 
 from ..application.payment_codes import merchant_payment_code
 from .container import Container
@@ -32,7 +28,6 @@ def _merchant_response(container: Container, merchant_id: str) -> MerchantRespon
         status=merchant.status,
         ussd_string=code.ussd_string,
         tel_uri=code.tel_uri,
-        qr_svg_path=f"/merchants/{merchant.id}/qr.svg",
     )
 
 
@@ -49,18 +44,3 @@ def get_merchant(merchant_id: str, request: Request) -> MerchantResponse:
         return _merchant_response(container, merchant_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="merchant not found") from exc
-
-
-@merchant_router.get("/merchants/{merchant_id}/qr.svg")
-def merchant_qr(merchant_id: str, request: Request) -> Response:
-    """A scannable QR, as a printable SVG. For testing it encodes the **customer pay page** URL
-    (scan → pay from your own phone); production would carry the `tel:` USSD dial-through."""
-    container = _container(request)
-    try:
-        container.merchants.get(merchant_id)  # validate it exists
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="merchant not found") from exc
-    pay_url = f"{request.base_url}customer/?m={merchant_id}"
-    buff = io.BytesIO()
-    segno.make(pay_url, error="m").save(buff, kind="svg", scale=6, border=2)
-    return Response(content=buff.getvalue(), media_type="image/svg+xml")

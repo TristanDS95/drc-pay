@@ -1,5 +1,5 @@
-"""Merchant endpoints: the customer-facing payment codes (USSD string / tel URI) and the
-printable QR SVG. Uses the seeded demo merchants (m_alpha till 1001, m_beta till 1002).
+"""Merchant endpoints: the customer-facing payment codes (USSD string / tel URI). Uses the seeded
+demo merchants (m_alpha till 1001, m_beta till 1002).
 """
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ def test_list_merchants_exposes_codes() -> None:
     by_id = {m["id"]: m for m in body}
     assert by_id["m_alpha"]["ussd_string"] == "*123*1001#"
     assert by_id["m_alpha"]["tel_uri"] == "tel:*123*1001%23"
-    assert by_id["m_alpha"]["qr_svg_path"] == "/merchants/m_alpha/qr.svg"
     assert by_id["m_beta"]["ussd_string"] == "*123*1002#"
 
 
@@ -36,17 +35,6 @@ def test_get_merchant() -> None:
 
 def test_get_unknown_merchant_404() -> None:
     assert _client().get("/merchants/nope").status_code == 404
-
-
-def test_merchant_qr_svg() -> None:
-    resp = _client().get("/merchants/m_alpha/qr.svg")
-    assert resp.status_code == 200
-    assert resp.headers["content-type"].startswith("image/svg+xml")
-    assert "<svg" in resp.text
-
-
-def test_qr_for_unknown_merchant_404() -> None:
-    assert _client().get("/merchants/nope/qr.svg").status_code == 404
 
 
 def _run_all() -> None:

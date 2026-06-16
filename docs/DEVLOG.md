@@ -114,7 +114,8 @@ real MDR must be ≈5–7%+. Decision pending (ADR 0005; research `fees-and-cost
 
 ## Deploy — 🟢 LIVE on Railway (`docs/deploy-railway.md`)
 - **Live URL:** `https://drc-pay-sandbox-production.up.railway.app` (env `sandbox`, Postgres add-on
-  `drc-pay-db`, Hobby $5/mo). Console at `/console/`; customer pay at `/customer/?m=m_alpha`.
+  `drc-pay-db`, Hobby $5/mo). Console at `/console/`; customers pay by scanning a charge's QR
+  (Console → "Charge by QR" → it opens `/customer/?charge=…` with the amount locked).
 - **One container** (`Dockerfile`): installs the API, runs `alembic upgrade head`, **seeds the demo
   merchants** (`python -m drc_pay_api.seed` — sandbox/local only; **production starts empty**), then
   uvicorn (`--proxy-headers`), serving the API + the gated console (`/console`) + the public customer app
@@ -150,7 +151,7 @@ export DRCPAY_CONSOLE_DIR="$PWD/../../tooling/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../../tooling/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app
 #   merchant console: http://localhost:8000/console/
-#   customer pay:     http://localhost:8000/customer/?m=m_alpha   (the merchant QR opens this)
+#   customer pay:     open /console/ → "Charge by QR" → scan it → /customer/?charge=<id>
 
 # live sandbox rail: put the token in services/api/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN); the
 #   app auto-switches off the simulator. scripts/pawapay_smoke.py is a read-only connectivity check.
