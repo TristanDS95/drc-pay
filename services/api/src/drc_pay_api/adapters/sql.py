@@ -26,6 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
+from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Direction, Entry, Posting
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
@@ -46,6 +47,20 @@ class MerchantRow(Base):
     settlement_msisdn: Mapped[str] = mapped_column(String)
     settlement_provider: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ChargeRow(Base):
+    """A merchant-posted charge (checkout). Its status is derived from the linked transaction, so
+    no status column here — only the link."""
+
+    __tablename__ = "charges"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(String)
+    amount_minor: Mapped[int] = mapped_column(BigInteger)
+    currency: Mapped[str] = mapped_column(String)
+    transaction_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -284,3 +299,41 @@ class SqlMerchantStore:
         with self._sf() as session:
             rows = session.scalars(select(MerchantRow).order_by(MerchantRow.created_at)).all()
             return [_merchant_to_domain(row) for row in rows]
+
+
+def _charge_to_domain(row: ChargeRow) -> Charge:
+    return Charge(
+        id=row.id,
+        merchant_id=row.merchant_id,
+        amount=Money(row.amount_minor, row.currency),
+        transaction_id=row.transaction_id,
+    )
+
+
+class SqlChargeStore:
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._sf = session_factory
+
+    def get(self, charge_id: str) -> Charge:
+        with self._sf() as session:
+            row = session.get(ChargeRow, charge_id)
+            if row is None:
+                raise KeyError(charge_id)
+            return _charge_to_domain(row)
+
+    def save(self, charge: Charge) -> None:
+        with self._sf() as session:
+            row = session.get(ChargeRow, charge.id)
+            if row is None:
+                row = ChargeRow(id=charge.id)
+                session.add(row)
+            row.merchant_id = charge.merchant_id
+            row.amount_minor = charge.amount.amount_minor
+            row.currency = charge.amount.currency
+            row.transaction_id = charge.transaction_id
+            session.commit()
+
+    def all(self) -> list[Charge]:
+        with self._sf() as session:
+            rows = session.scalars(select(ChargeRow).order_by(ChargeRow.created_at)).all()
+            return [_charge_to_domain(row) for row in rows]

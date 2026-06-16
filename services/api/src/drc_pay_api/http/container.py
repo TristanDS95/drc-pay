@@ -22,11 +22,19 @@ from typing import Protocol
 from sqlalchemy.orm import sessionmaker
 
 from ..adapters.memory import (
+    InMemoryChargeStore,
     InMemoryLedger,
     InMemoryMerchantStore,
     InMemoryTransactionStore,
 )
-from ..adapters.sql import SqlLedger, SqlMerchantStore, SqlTransactionStore, make_engine
+from ..adapters.sql import (
+    SqlChargeStore,
+    SqlLedger,
+    SqlMerchantStore,
+    SqlTransactionStore,
+    make_engine,
+)
+from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
@@ -69,6 +77,14 @@ class MerchantStore(Protocol):
     def all(self) -> list[Merchant]: ...
 
 
+class ChargeStore(Protocol):
+    def get(self, charge_id: str) -> Charge: ...
+
+    def save(self, charge: Charge) -> None: ...
+
+    def all(self) -> list[Charge]: ...
+
+
 def _seeded_merchant_store() -> InMemoryMerchantStore:
     # Zero-setup demo + tests: seed the demo merchants (defined once in ``seed.py``). The
     # Postgres path starts empty and is seeded off-production from the entrypoint instead.
@@ -86,6 +102,7 @@ class Container:
     simulated: bool = True  # True when the rail is the in-process simulator
     environment: str = "local"  # local | sandbox | production — gates the demo/ops controls
     merchants: MerchantStore = field(default_factory=_seeded_merchant_store)
+    charges: ChargeStore = field(default_factory=InMemoryChargeStore)
     ussd_shortcode: str = "*123#"  # the code customers dial; each merchant's till appended
     pawapay_public_key: str = ""  # PEM; verifies signed callbacks (blank → reject all)
     poller: StatusPoller | None = None  # pawaPay status polling for reconciliation (live rail only)
@@ -145,10 +162,12 @@ def build_container(
         store: TxStore = SqlTransactionStore(session_factory)
         ledger: LedgerStore = SqlLedger(session_factory)
         merchants: MerchantStore = SqlMerchantStore(session_factory)
+        charges: ChargeStore = SqlChargeStore(session_factory)
     else:
         store = InMemoryTransactionStore()
         ledger = InMemoryLedger()
         merchants = _seeded_merchant_store()
+        charges = InMemoryChargeStore()
 
     return Container(
         store=store,
@@ -157,6 +176,7 @@ def build_container(
         predictor=predictor,
         simulated=simulated,
         merchants=merchants,
+        charges=charges,
         ussd_shortcode=ussd_shortcode,
         pawapay_public_key=pawapay_public_key,
         poller=poller,

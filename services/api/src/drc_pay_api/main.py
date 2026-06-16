@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .http.container import build_container
+from .http.charge_routes import charge_router
 from .http.demo_routes import demo_router
 from .http.merchant_routes import merchant_router
 from .http.public_routes import public_router
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.state.ussd_handler = UssdHandler(app.state.container)
     app.include_router(router)
     app.include_router(merchant_router)
+    app.include_router(charge_router)
     app.include_router(ussd_router)
     app.include_router(webhook_router)
     app.include_router(public_router)

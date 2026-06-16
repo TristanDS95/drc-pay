@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from ..adapters.memory import ListRecorder
 from ..application.payments import start_merchant_payment
+from ..domains.charges.models import charge_status, is_payable
 from ..domains.ledger.money import Money
 from ..domains.transactions.orchestrator import Orchestrator
 from .container import Container
@@ -47,8 +48,11 @@ class PublicMerchant(BaseModel):
 
 
 class PayRequest(BaseModel):
-    merchant_id: str
-    amount: str
+    # Either pay a specific charge (amount + merchant come from it, server-authoritative)…
+    charge_id: str | None = None
+    # …or pay a merchant a client-supplied amount directly (the no-charge fallback / direct API).
+    merchant_id: str = ""
+    amount: str = ""
     outcome: str = "success"  # success | decline | refund
     payer_network: str = "vodacom"  # vodacom | airtel | orange — the customer's operator
 
@@ -75,6 +79,17 @@ class PublicTransaction(BaseModel):
     currency: str
     merchant_name: str | None = None
     history: list[str] = Field(default_factory=list)  # ordered states, so the page can show progress
+
+
+class PublicCharge(BaseModel):
+    """What the payer's page needs to pay a charge — merchant + the locked amount + live status."""
+
+    charge_id: str
+    merchant_name: str
+    short_code: str
+    amount: str
+    currency: str
+    status: str
 
 
 def _container(request: Request) -> Container:
@@ -121,6 +136,31 @@ def public_transaction(transaction_id: str, request: Request) -> PublicTransacti
     )
 
 
+@public_router.get("/public/charge/{charge_id}", response_model=PublicCharge)
+def public_charge(charge_id: str, request: Request) -> PublicCharge:
+    """Minimal, public info for paying a charge: merchant, the locked amount, and live status."""
+    container = _container(request)
+    try:
+        charge = container.charges.get(charge_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="charge not found") from exc
+    merchant = container.merchants.get(charge.merchant_id)
+    tx_state = None
+    if charge.transaction_id is not None:
+        try:
+            tx_state = container.store.get(charge.transaction_id).state
+        except KeyError:
+            tx_state = None
+    return PublicCharge(
+        charge_id=charge.id,
+        merchant_name=merchant.name,
+        short_code=merchant.short_code,
+        amount=charge.amount.to_major_str(),
+        currency=charge.amount.currency,
+        status=charge_status(charge, tx_state),
+    )
+
+
 @public_router.post("/pay", response_model=PayResponse)
 def pay(body: PayRequest, request: Request) -> PayResponse:
     """A customer pays a merchant (sandbox/simulator only). ``outcome`` chooses the happy path or a
@@ -132,23 +172,41 @@ def pay(body: PayRequest, request: Request) -> PayResponse:
         raise HTTPException(status_code=422, detail=f"unknown outcome: {body.outcome}")
     if body.payer_network not in _NETWORKS:
         raise HTTPException(status_code=422, detail=f"unknown payer network: {body.payer_network}")
-    try:
-        amount = Money.from_major(body.amount, "USD")
-    except (ValueError, ArithmeticError) as exc:
-        raise HTTPException(status_code=422, detail=f"invalid amount: {exc}") from exc
-    if not amount.is_positive:
-        raise HTTPException(status_code=422, detail="amount must be positive")
-    try:
-        merchant = container.merchants.get(body.merchant_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="merchant not found") from exc
+    # Resolve the merchant + amount: from a charge (server-authoritative) or directly.
+    charge = None
+    if body.charge_id:
+        try:
+            charge = container.charges.get(body.charge_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="charge not found") from exc
+        charge_tx_state = None
+        if charge.transaction_id is not None:
+            try:
+                charge_tx_state = container.store.get(charge.transaction_id).state
+            except KeyError:
+                charge_tx_state = None
+        if not is_payable(charge, charge_tx_state):
+            raise HTTPException(status_code=409, detail="this charge has already been paid")
+        merchant = container.merchants.get(charge.merchant_id)
+        amount = charge.amount
+    else:
+        try:
+            amount = Money.from_major(body.amount, "USD")
+        except (ValueError, ArithmeticError) as exc:
+            raise HTTPException(status_code=422, detail=f"invalid amount: {exc}") from exc
+        if not amount.is_positive:
+            raise HTTPException(status_code=422, detail="amount must be positive")
+        try:
+            merchant = container.merchants.get(body.merchant_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="merchant not found") from exc
 
     suffix, scenario = _OUTCOMES[body.outcome]
     customer_msisdn = _NETWORK_BASE[body.payer_network] + suffix
     customer_provider = _NETWORKS[body.payer_network]
     recorder = ListRecorder()
     recorder.record(
-        f"customer scanned {merchant.name}'s QR · pays {body.amount} USD "
+        f"customer scanned {merchant.name}'s QR · pays {amount.to_major_str()} USD "
         f"· network={body.payer_network} · outcome={body.outcome}"
     )
     orchestrator = Orchestrator(container.store, container.rail, container.ledger, recorder)
@@ -162,6 +220,9 @@ def pay(body: PayRequest, request: Request) -> PayResponse:
         customer_provider_override=customer_provider,
         scenario=scenario,
     )
+    if charge is not None:
+        charge.transaction_id = transaction_id
+        container.charges.save(charge)
     tx = container.store.get(transaction_id)
     return PayResponse(
         transaction_id=tx.id,
