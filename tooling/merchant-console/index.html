@@ -136,10 +136,10 @@
       <div class="card">
         <h2>💳 Take a payment</h2>
         <p class="sub">A customer pays this merchant through pawaPay sandbox. The payment lands
-          <b>pending</b> — real money movement is never instant — then <b>Run reconciliation</b>
-          (below) completes it. The <b>customer number</b> picks the network and the outcome:
-          numbers ending <b>789</b> succeed; other endings trigger specific failures (see the
-          testing guide).</p>
+          <b>pending</b> — real money movement is never instant — then <b>confirms automatically</b>
+          via pawaPay's signed callback, usually within seconds. The <b>customer number</b> picks the
+          network and the outcome: numbers ending <b>789</b> succeed; other endings trigger specific
+          failures (see the testing guide).</p>
         <div class="row">
           <div><label class="fld" for="cust">Customer number</label>
             <input id="cust" type="tel" inputmode="numeric" value="243813456789" /></div>
@@ -151,12 +151,13 @@
       </div>
 
       <div class="card net">
-        <h2>🔁 Reconciliation — the safety net</h2>
-        <p class="sub">Payments still waiting on pawaPay's confirmation. If a confirmation is ever
-          lost, this sweep asks pawaPay directly and finishes them — nothing stays stuck.</p>
+        <h2>🔁 Pending payments — safety net</h2>
+        <p class="sub">Payments confirm <b>automatically</b> via pawaPay's signed callback, so you
+          rarely need this. It's a manual fallback: if a payment is stuck below, it asks pawaPay
+          directly for that payment's status and finishes it — so nothing stays stuck.</p>
         <div><span class="count" id="pend-count">0</span><small id="pend-cap">payments awaiting confirmation</small></div>
         <ul class="pendlist" id="pend-list"></ul>
-        <button class="cta" id="reconcile" style="margin-top:14px;">Run reconciliation now</button>
+        <button class="cta ghost" id="reconcile" style="margin-top:14px;font-size:13px;padding:10px 14px;">Force-check pending with pawaPay</button>
         <div id="rec-out" class="out hidden"></div>
       </div>
 
@@ -273,7 +274,9 @@
     } catch(e){ out.className="out bad"; out.textContent=String(e); out.classList.remove("hidden");
       $("pay").disabled=false; return; }
     out.className = "out " + (PENDING.has(body.state) ? "" : body.state==="payout_succeeded" ? "ok" : "bad");
-    out.textContent = `${LABEL[body.state]||body.state} — sent to pawaPay. Run reconciliation below to complete it.`;
+    out.textContent = PENDING.has(body.state)
+      ? `${LABEL[body.state]||body.state} — sent to pawaPay; it confirms automatically in a few seconds.`
+      : `${LABEL[body.state]||body.state}.`;
     out.classList.remove("hidden");
     pushTrace([`▸ POST /transactions — ${body.amount} ${body.currency} from ${body.customer_msisdn}`, ...(body.trace||[])]);
     $("pay").disabled = false;
