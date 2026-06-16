@@ -28,8 +28,8 @@ def test_seed_populates_empty_store() -> None:
 
     seeded = seed_demo_merchants(store)
 
-    assert set(seeded) == {"m_alpha", "m_beta"}
-    assert {m.id for m in store.all()} == {"m_alpha", "m_beta"}
+    assert set(seeded) == {"m_alpha", "m_beta", "m_gamma"}
+    assert {m.id for m in store.all()} == {"m_alpha", "m_beta", "m_gamma"}
     # The QR/pay path looks merchants up by id and till — both must resolve.
     alpha = store.get("m_alpha")
     assert alpha.name == "Alpha Gas Station"

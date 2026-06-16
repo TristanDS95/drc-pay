@@ -37,7 +37,6 @@ def _pending_app():
         customer_msisdn="243800000001",
         merchant=merchant,
         amount=Money.from_major("10.00", "USD"),
-        fee=Money.from_major("0.10", "USD"),
     )
     app = create_app()
     app.state.container = container

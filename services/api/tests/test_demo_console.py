@@ -48,7 +48,7 @@ def test_reconciliation_heals_a_stuck_payment_leg_by_leg() -> None:
     paid = client.get(f"/transactions/{tid}").json()
     assert paid["state"] == "payout_succeeded"
     merchant = [line for line in paid["ledger"] if line["account"] == "merchant:external"]
-    assert merchant and merchant[0]["amount"] == "9.90"  # net of the 1% MDR, fully settled
+    assert merchant and merchant[0]["amount"] == "9.55"  # net of the 4.5% cost (Vodacom→Airtel)
 
 
 def test_reconcile_is_a_noop_when_nothing_is_pending() -> None:

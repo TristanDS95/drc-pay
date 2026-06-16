@@ -18,6 +18,7 @@ from typing import Protocol
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.orchestrator import Orchestrator
+from ..domains.transactions.pricing import default_fee
 from ..integrations.pawapay.client import ProviderPrediction
 
 # Demo fallback operator: used only when no override is given and no live predictor is
@@ -67,7 +68,6 @@ def start_merchant_payment(
     customer_msisdn: str,
     merchant: Merchant,
     amount: Money,
-    fee: Money,
     customer_provider_override: str | None = None,
     idempotency_key: str | None = None,
     scenario: str = "success",
@@ -85,6 +85,9 @@ def start_merchant_payment(
     merchant_provider = resolve_provider(
         predictor, merchant.settlement_msisdn, merchant.settlement_provider
     )
+    # Fee = the real pawaPay round-trip cost for this network pair (pass-through, no margin yet),
+    # so it can only be derived once both operators are known — never trusted from the client.
+    fee = default_fee(amount, customer_provider, merchant_provider)
     transaction_id = uuid.uuid4().hex
     orchestrator.start_transaction(
         transaction_id=transaction_id,

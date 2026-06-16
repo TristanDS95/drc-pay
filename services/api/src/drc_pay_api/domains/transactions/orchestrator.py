@@ -88,6 +88,10 @@ class Orchestrator:
         if fee.amount_minor >= amount.amount_minor:
             raise ValueError("fee must be less than the amount")
         self._rec("check · amount > 0, fee < amount, currencies match — OK")
+        self._rec(
+            f"pricing · fee = {fee.to_major_str()} {amount.currency} "
+            f"· merchant nets {(amount - fee).to_major_str()} {amount.currency}"
+        )
         transaction = Transaction(
             id=transaction_id,
             customer_msisdn=customer_msisdn,
