@@ -123,13 +123,27 @@
     <div class="col">
       <div class="card">
         <div class="hero">
-          <div class="qr"><img id="qr" alt="merchant QR" /></div>
           <div class="meta">
             <div class="name" id="m-name">—</div>
             <div class="till" id="m-till">—</div>
             <div class="line" id="m-settle"></div>
-            <div class="line">Customers scan or dial to pay — no app or internet needed on their side.</div>
+            <div class="line">Pick a merchant above, then create a charge below for a specific amount.</div>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🧾 Charge by QR</h2>
+        <p class="sub">Post an amount → get a QR for it. The customer scans it and is charged exactly
+          that — their phone never types the amount.</p>
+        <div class="row">
+          <div><label class="fld" for="charge-amt">Amount (USD)</label>
+            <input id="charge-amt" type="text" inputmode="decimal" value="10.00" /></div>
+        </div>
+        <button class="cta" id="charge-make">Create QR</button>
+        <div id="charge-box" class="hidden" style="margin-top:14px;text-align:center;">
+          <img id="charge-qr" alt="charge QR" style="width:200px;height:200px;" />
+          <div id="charge-status" class="out" style="margin-top:10px;"></div>
         </div>
       </div>
 
@@ -218,7 +232,6 @@
 
   function renderMerchant(){
     const m = current(); if(!m) return;
-    $("qr").src = `${API}${m.qr_svg_path}`;
     $("m-name").textContent = m.name;
     $("m-till").textContent = m.ussd_string;
     $("m-settle").textContent = `Settles to ${m.settlement_msisdn}`;
@@ -302,6 +315,39 @@
     await refresh();
   }
 
+  // ----- charge by QR -----
+  let chargeTimer = null;
+  const CHARGE_LABEL = { awaiting_payment:"awaiting payment — scan the QR to pay", processing:"processing…",
+    paid:"✓ paid", declined:"declined", refunded:"refunded", review:"needs review" };
+  const CHARGE_TERMINAL = new Set(["paid","declined","refunded","review"]);
+
+  async function createCharge(){
+    clearErr(); const m = current(); if(!m) return;
+    $("charge-make").disabled = true;
+    let charge;
+    try {
+      const r = await fetch(`${API}/charges`, { method:"POST", headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ merchant_id: m.id, amount: $("charge-amt").value.trim() }) });
+      charge = await r.json();
+      if(!r.ok) throw new Error(charge.detail || `HTTP ${r.status}`);
+    } catch(e){ showErr(String(e.message||e)); $("charge-make").disabled=false; return; }
+    $("charge-make").disabled = false;
+    $("charge-qr").src = `${API}${charge.qr_svg_path}`;
+    $("charge-box").classList.remove("hidden");
+    $("charge-status").className = "out";
+    $("charge-status").textContent = `Charge for $${charge.amount} · ${CHARGE_LABEL[charge.status]||charge.status}`;
+    if(chargeTimer) clearInterval(chargeTimer);
+    chargeTimer = setInterval(() => chargePoll(charge.id), 3000);
+  }
+
+  async function chargePoll(id){
+    let c; try { c = await jget(`/charges/${id}`); } catch(e){ return; }
+    const cls = c.status==="paid" ? "ok" : (c.status==="declined"||c.status==="review") ? "bad" : "";
+    $("charge-status").className = "out " + cls;
+    $("charge-status").textContent = `Charge for $${c.amount} · ${CHARGE_LABEL[c.status]||c.status}`;
+    if(CHARGE_TERMINAL.has(c.status) && chargeTimer){ clearInterval(chargeTimer); chargeTimer = null; refresh(); }
+  }
+
   // ----- detail modal -----
   async function openDetail(id){
     let t; try { t = await jget(`/transactions/${id}`); } catch(e){ return; }
@@ -363,6 +409,7 @@
   $("merchant").addEventListener("change", () => { renderMerchant(); renderFeed(); renderPending(); });
   $("pay").addEventListener("click", takePayment);
   $("reconcile").addEventListener("click", runReconcile);
+  $("charge-make").addEventListener("click", createCharge);
   $("refresh").addEventListener("click", refresh);
   $("scrim").addEventListener("click", (e)=>{ if(e.target.id==="scrim") closeDetail(); });
 
