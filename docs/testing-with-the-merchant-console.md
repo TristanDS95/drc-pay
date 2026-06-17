@@ -38,9 +38,10 @@ health check (`http://localhost:8000/health`) should say `"environment":"sandbox
 | **Payments** | The live feed of this merchant's payments. **Click any row** to see its full detail. |
 | **Operations console** (right) | A live trace of every step — collect, settle, ledger postings, reconciliation. |
 
-Click a payment in the feed to open its **detail**: the money breakdown (customer paid, our fee,
+Click a payment in the feed to open its **detail**: the money breakdown (customer paid, the fee/MDR,
 merchant nets), the pawaPay operation ids, the **state history**, and the **double-entry ledger**
-(the real source of truth).
+(the real source of truth — now showing pawaPay's cost as `expense:pawapay` and our margin, currently 0,
+as `revenue:fees`).
 
 ---
 
@@ -55,7 +56,8 @@ merchant nets), the pawaPay operation ids, the **state history**, and the **doub
 4. Press **Run reconciliation now** again. The settlement confirms → **Paid**. The counter is back
    to **0**.
 5. Click the payment in the feed. You'll see the full ledger: customer −10.00 → clearing → merchant
-   +9.90 and our fee +0.10. That's a complete cross-network payment on real sandbox rails.
+   +9.55, with pawaPay's 0.45 round-trip cost booked to `expense:pawapay` and `revenue:fees` at 0 (no
+   margin yet). That's a complete cross-network payment on real sandbox rails.
 
 > **Why two clicks?** Each sweep advances one leg (collect, then settle). In production a callback
 > or a scheduled sweep does this automatically — here you click it so you can *watch* it happen.
@@ -128,6 +130,7 @@ outcome.
 | Orange | `243 893456 ___` | `243893456789` | `243893456049` |
 
 The **fee follows the pair** (real pawaPay cost, pass-through, no margin yet): e.g. Vodacom→Orange =
-3.5%, Airtel→Vodacom = 5.0%. The Customer page shows it on the result; the Console shows the fee and
-ledger on each transaction. Source: pawaPay's published DRC rates
+3.5%, Airtel→Vodacom = 5.0%. That fee is **pure pawaPay cost** today — booked to `expense:pawapay`, with
+`revenue:fees` at 0 until a margin is set. The Customer page shows it on the result; the Console shows
+the fee and ledger on each transaction. Source: pawaPay's published DRC rates
 (`../drc-mvp-research/02-findings/cross-cutting/fees-and-costs.md`) and test-number docs.

@@ -4,6 +4,8 @@ Uses the seeded demo merchant ``m_alpha`` (Alpha Gas Station, settles to AIRTEL)
 """
 from __future__ import annotations
 
+from decimal import Decimal
+
 from fastapi.testclient import TestClient
 
 from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
@@ -42,12 +44,16 @@ def test_successful_payment_settles_merchant_net_of_fee() -> None:
     assert body["merchant_name"] == "Alpha Gas Station"
     # On the simulator the payer falls back to Vodacom (no predictor); m_alpha settles to Airtel.
     # Fee = Vodacom collect 2.5% + Airtel payout 2.0% = 4.5% of 10.00 (real pawaPay cost, no margin).
-    assert body["fee"] == "0.45"
-    # The customer paid 10.00; the merchant nets 9.55; we keep 0.45.
+    assert body["fee"] == "0.45"  # the MDR shown to the merchant — unchanged
+    # The customer paid 10.00; the merchant nets 9.55. The 0.45 fee is pure pawaPay cost
+    # (Vodacom collect 0.25 + Airtel payout 0.20), so it is booked to expense, not revenue —
+    # with no margin yet, we keep nothing.
     merchant = [line for line in body["ledger"] if line["account"] == "merchant:external"]
     revenue = [line for line in body["ledger"] if line["account"] == "revenue:fees"]
+    expense = [line for line in body["ledger"] if line["account"] == "expense:pawapay"]
     assert merchant and merchant[0]["amount"] == "9.55"
-    assert revenue and revenue[0]["amount"] == "0.45"
+    assert not revenue  # zero margin → no revenue line
+    assert sum(Decimal(line["amount"]) for line in expense) == Decimal("0.45")
     assert client.get(f"/transactions/{body['id']}").json()["state"] == "payout_succeeded"
 
 

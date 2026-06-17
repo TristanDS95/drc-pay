@@ -31,16 +31,24 @@ _DEFAULT_COLLECT_BPS = 300
 _DEFAULT_PAYOUT_BPS = 200
 
 
-def fee_basis_points(payer_provider: str, merchant_provider: str) -> int:
-    """Round-trip cost in basis points: collect on the payer's operator + pay out on the
-    merchant's operator (e.g. VODACOM→ORANGE = 250 + 100 = 350 bps = 3.5%)."""
-    return _COLLECT_BPS.get(payer_provider, _DEFAULT_COLLECT_BPS) + _PAYOUT_BPS.get(
-        merchant_provider, _DEFAULT_PAYOUT_BPS
-    )
+def collection_cost(amount: Money, payer_provider: str) -> Money:
+    """pawaPay's collection (deposit) fee on the *payer's* operator — our cost for the collect
+    leg, booked as an expense. Estimated from pawaPay's published per-leg rate; their callback
+    doesn't return the exact figure, so reconcile against pawaPay's settlement statements."""
+    bps = _COLLECT_BPS.get(payer_provider, _DEFAULT_COLLECT_BPS)
+    return Money(amount.amount_minor * bps // 10_000, amount.currency)
+
+
+def payout_cost(amount: Money, merchant_provider: str) -> Money:
+    """pawaPay's payout (disbursement) fee on the *merchant's* operator — our cost for the
+    payout leg, booked as an expense. Estimated from the published per-leg rate (see above)."""
+    bps = _PAYOUT_BPS.get(merchant_provider, _DEFAULT_PAYOUT_BPS)
+    return Money(amount.amount_minor * bps // 10_000, amount.currency)
 
 
 def default_fee(amount: Money, payer_provider: str, merchant_provider: str) -> Money:
-    """The fee the merchant absorbs: the real pawaPay round-trip cost for this network pair
-    (pass-through, no margin yet), floored to the minor unit."""
-    bps = fee_basis_points(payer_provider, merchant_provider)
-    return Money(amount.amount_minor * bps // 10_000, amount.currency)
+    """The fee the merchant absorbs (MDR). Today it is *exactly* the pawaPay round-trip cost —
+    the collection fee on the payer's operator plus the payout fee on the merchant's
+    (pass-through, no margin yet). Margin is the open pricing decision (ADR 0005): when set,
+    add it here on top of the two leg costs, and the orchestrator books the surplus to revenue."""
+    return collection_cost(amount, payer_provider) + payout_cost(amount, merchant_provider)

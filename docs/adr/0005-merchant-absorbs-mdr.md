@@ -1,7 +1,9 @@
 # ADR 0005 — Fee model: the merchant absorbs the MDR
 
 - **Status:** Accepted (2026-06-11). Replaces the earlier consumer "fee added on top of the
-  payer's debit" model.
+  payer's debit" model. **Ledger consequences refined by [ADR 0007](0007-pawapay-cost-is-an-expense.md)
+  (2026-06-17): pawaPay's cost is booked to `expense:pawapay` and `revenue:fees` holds only the margin.
+  The "1% placeholder" noted below is superseded — `pricing.py` books the real per-leg cost.**
 - **Context:** In merchant acquiring the customer pays the **sticker price** and the merchant
   bears the **merchant discount rate (MDR)** — the same shape as card/MM acquiring. Our earlier
   consumer framing charged the payer `amount + fee`, which is unusual for in-person retail and
