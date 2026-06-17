@@ -24,6 +24,7 @@ from ..ledger.ledger import Direction, Entry, Posting
 from ..ledger.money import Money
 from .models import Transaction
 from .ports import LedgerPort, PaymentRail, RailRejected, Recorder, TransactionStore
+from .pricing import collection_cost, payout_cost
 from .state_machine import TxState, assert_transition
 
 # Ledger account names. The persistent ledger will formalize these; here they are
@@ -31,7 +32,8 @@ from .state_machine import TxState, assert_transition
 CUSTOMER = "customer:external"  # the customer's mobile-money wallet (outside our system)
 MERCHANT = "merchant:external"  # the merchant's settlement wallet (outside our system)
 CLEARING = "pawapay:clearing"  # funds held at pawaPay mid-transfer
-REVENUE = "revenue:fees"  # our fee income
+REVENUE = "revenue:fees"  # our margin: the MDR left over after pawaPay's cost
+EXPENSE = "expense:pawapay"  # what pawaPay charges us to move the money (cost of the rails)
 
 
 def _require_provider(provider: str | None, *, leg: str) -> str:
@@ -134,16 +136,21 @@ class Orchestrator:
             self._rec("✕ ended — collection failed, no money moved")
             return
         self._transition(transaction, TxState.COLLECTION_SUCCEEDED)
-        # The customer's funds are now held at pawaPay.
-        self._post(
-            Posting(
-                transaction_id=transaction.id,
-                entries=(
-                    Entry(CUSTOMER, Direction.DEBIT, transaction.amount),
-                    Entry(CLEARING, Direction.CREDIT, transaction.amount),
-                ),
-            )
+        # The customer's funds land at pawaPay, less pawaPay's collection fee — which it deducts
+        # right after collection (their docs: "fees will be deducted from that amount after the
+        # collection has completed"). We book that fee as our cost — an expense, never revenue —
+        # estimated from pawaPay's published per-leg rate. If the payout later fails and we
+        # refund, this fee is already booked, so the refund correctly shows it as a real loss.
+        collect_cost = collection_cost(
+            transaction.amount, _require_provider(transaction.customer_provider, leg="customer")
         )
+        entries = [
+            Entry(CUSTOMER, Direction.DEBIT, transaction.amount),
+            Entry(CLEARING, Direction.CREDIT, transaction.amount - collect_cost),
+        ]
+        if collect_cost.is_positive:
+            entries.append(Entry(EXPENSE, Direction.CREDIT, collect_cost))
+        self._post(Posting(transaction_id=transaction.id, entries=tuple(entries)))
         self._begin_payout(transaction)
 
     def _begin_payout(self, transaction: Transaction) -> None:
@@ -177,16 +184,28 @@ class Orchestrator:
             self._begin_refund(transaction)
             return
         self._transition(transaction, TxState.PAYOUT_SUCCEEDED)
-        # Settle amount − fee to the merchant; keep fee as revenue. Clearing drains to zero.
+        # Settle amount − fee (the MDR) to the merchant. The fee splits two ways: pawaPay's
+        # payout-leg cost (an expense) and whatever is left over — our margin — booked to
+        # revenue. Clearing holds the post-collection-fee balance and drains to zero across the
+        # two legs. With no margin set, the MDR equals cost, so revenue is zero (we keep nothing).
+        collect_cost = collection_cost(
+            transaction.amount, _require_provider(transaction.customer_provider, leg="customer")
+        )
+        pay_cost = payout_cost(
+            transaction.amount, _require_provider(transaction.merchant_provider, leg="merchant")
+        )
         merchant_amount = transaction.amount - transaction.fee
+        margin = transaction.fee - collect_cost - pay_cost  # MDR − round-trip cost
         entries = [
-            Entry(CLEARING, Direction.DEBIT, transaction.amount),
+            Entry(CLEARING, Direction.DEBIT, transaction.amount - collect_cost),
             Entry(MERCHANT, Direction.CREDIT, merchant_amount),
         ]
-        if transaction.fee.is_positive:
-            entries.append(Entry(REVENUE, Direction.CREDIT, transaction.fee))
+        if pay_cost.is_positive:
+            entries.append(Entry(EXPENSE, Direction.CREDIT, pay_cost))
+        if margin.is_positive:
+            entries.append(Entry(REVENUE, Direction.CREDIT, margin))
         self._post(Posting(transaction_id=transaction.id, entries=tuple(entries)))
-        self._rec("✓ complete — merchant settled, fee booked")
+        self._rec("✓ complete — merchant settled · rails cost → expense · margin → revenue")
 
     # ---- refund -------------------------------------------------------
     def _begin_refund(self, transaction: Transaction) -> None:

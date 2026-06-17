@@ -13,10 +13,12 @@ from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.domains.transactions.orchestrator import (
     CLEARING,
     CUSTOMER,
+    EXPENSE,
     MERCHANT,
     REVENUE,
     Orchestrator,
 )
+from drc_pay_api.domains.transactions.pricing import collection_cost, payout_cost
 from drc_pay_api.domains.transactions.state_machine import TxState
 
 from fakes import FakePaymentRail
@@ -84,13 +86,29 @@ def test_happy_path_settles_merchant_net_of_fee() -> None:
     orch.on_payout_result("t1", success=True)
     final = store.get("t1")
     assert final.state is TxState.PAYOUT_SUCCEEDED
-    assert len(ledger.postings) == 2  # collection + settlement
+    assert len(ledger.postings) == 2  # collection + settlement (expense folded into each)
     assert _credit_total(ledger.postings, MERCHANT) == net.amount_minor
-    assert _credit_total(ledger.postings, REVENUE) == fee.amount_minor
+    # The fee (MDR) splits into pawaPay's round-trip cost (expense) and our margin (revenue).
+    cost = collection_cost(amount, CUSTOMER_PROV) + payout_cost(amount, MERCHANT_PROV)
+    assert _credit_total(ledger.postings, EXPENSE) == cost.amount_minor  # 0.40 rails cost
+    assert _credit_total(ledger.postings, REVENUE) == (fee - cost).amount_minor  # 0.10 margin
     # Providers, merchant link, and op-ids are persisted on the transaction.
     assert (final.customer_provider, final.merchant_provider) == (CUSTOMER_PROV, MERCHANT_PROV)
     assert final.merchant_id == "m_demo"
     assert (final.deposit_id, final.payout_id) == ("dep-t1", "pay-t1")
+
+
+def test_pawapay_cost_is_expense_not_revenue() -> None:
+    # No-margin pass-through (the MDR equals cost): the whole fee is pawaPay's, so it lands in
+    # expense and revenue is zero — the books stop counting the rails cost as our income.
+    orch, _, _, ledger = _make()
+    amount = Money.from_major("10.00", USD)
+    cost = collection_cost(amount, CUSTOMER_PROV) + payout_cost(amount, MERCHANT_PROV)
+    _start(orch, "e1", amount, cost)  # fee == cost → zero margin
+    orch.on_collection_result("e1", success=True)
+    orch.on_payout_result("e1", success=True)
+    assert _credit_total(ledger.postings, EXPENSE) == cost.amount_minor
+    assert _credit_total(ledger.postings, REVENUE) == 0  # we keep nothing until the MDR is marked up
 
 
 def test_settlement_failure_refunds_the_customer() -> None:
@@ -109,9 +127,12 @@ def test_settlement_failure_refunds_the_customer() -> None:
     refunded = store.get("t2")
     assert refunded.state is TxState.REFUNDED
     assert refunded.refund_id == "ref-t2"
-    assert _credit_total(ledger.postings, REVENUE) == 0  # no fee on a refunded transaction
-    assert _net_debit(ledger.postings, CUSTOMER) == 0  # customer made whole
-    assert _net_debit(ledger.postings, CLEARING) == 0  # nothing left held
+    assert _credit_total(ledger.postings, REVENUE) == 0  # nothing earned on a refunded transaction
+    assert _net_debit(ledger.postings, CUSTOMER) == 0  # customer made whole (full amount back)
+    # But pawaPay kept its collection fee: a real loss, booked as expense, leaving clearing short.
+    sunk = collection_cost(amount, CUSTOMER_PROV)
+    assert _credit_total(ledger.postings, EXPENSE) == sunk.amount_minor
+    assert _net_debit(ledger.postings, CLEARING) == sunk.amount_minor
 
 
 def test_collection_failure_moves_no_money() -> None:

@@ -1,6 +1,6 @@
 # DRC Pay — Development Log & Handoff
 
-**Last updated:** 2026-06-16 · **Read this first to resume work.**
+**Last updated:** 2026-06-17 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC: merchants accept mobile-money payments across
 networks (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure pass-through**
@@ -18,7 +18,8 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
 - **Scan-to-pay is a "charge" (checkout):** merchant posts an amount → a QR carries the charge id →
   the customer is charged exactly that (server-authoritative). The old static per-merchant QR is gone.
 - **Real per-network-pair fees** (pawaPay published cost, **pass-through, no margin yet**) replaced the
-  flat 1% — see "How the money works".
+  flat 1%; pawaPay's cost is now booked to **`expense:pawapay`** and `revenue:fees` holds only the
+  **margin** (0 today) — ADR 0007. See "How the money works".
 - **Backend green:** ruff + mypy --strict clean, **135 tests**. Payment spine (collect → settle →
   auto-refund), double-entry ledger, 10-state machine, idempotency, Merchant + Charge domains, Postgres
   + Alembic, pawaPay client/rail, signed-callback receiver, reconciliation sweep, USSD channel.
@@ -27,9 +28,11 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
   pay, confirms live with the fee shown.
 
 ## ▶ NEXT — biggest open rocks (rough priority; confirm the pick before building)
-1. **Pricing — the decision this all serves.** Fees now reflect *real pawaPay cost* per network pair
-   (3.5–5%), pass-through with **no margin**. Decide the MDR margin/model and wire it (ADR 0005;
-   research `fees-and-costs.md`).
+1. **Pricing — the decision this all serves.** The ledger now splits cost from revenue (**ADR 0007**):
+   pawaPay's per-pair cost (3.5–5%) → `expense:pawapay`, and `revenue:fees` holds the **margin** — which
+   is **0 today** (MDR == cost). The remaining decision is the **MDR margin/model**: set `mdr = cost +
+   margin` in `pricing.py` and the surplus flows to revenue automatically (ADR 0005; research
+   `fees-and-costs.md`).
 2. **Merchant onboarding** — merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
    onboarding UI/API; no DB FK on `merchant_id`).
 3. **Real USSD aggregator** — rent Africa's Talking / Infobip; wire shortcode + MNO PIN. Our
@@ -72,15 +75,18 @@ Dockerfile · docs/deploy-railway.md     # deploy (single container)
 ---
 
 ## How the money works (verified by tests)
-Customer pays the sticker `amount`; merchant **absorbs the fee**, nets `amount − fee`; we keep `fee`
-(booked to revenue only on a successful settlement). Post-collection failure **refunds the customer in
-full**; a failed refund → `manual_review`. Money is **integer minor units**; the double-entry ledger is
-the source of truth (every posting balances).
+Customer pays the sticker `amount`; the merchant **absorbs the fee (MDR)** and nets `amount − fee`.
+pawaPay's round-trip cost is booked to **`expense:pawapay`** (per leg, as each completes); whatever is
+left of the MDR after cost — the **margin** — goes to **`revenue:fees`**. With **no margin set yet the
+MDR equals cost, so revenue is exactly 0** and expense carries the whole fee (we keep nothing). A
+post-collection failure **refunds the customer in full** — the sunk collection fee stays in expense, a
+real loss; a failed refund → `manual_review`. Money is **integer minor units**; the double-entry ledger
+is the source of truth (every posting balances). See **ADR 0007** (cost is an expense, not revenue).
 
 **Fee = real pawaPay round-trip cost for the network pair** (`pricing.py`): collect fee on the payer's
 operator + payout fee on the merchant's (Vodacom 2.5/2.0, Airtel 3.0/2.0, Orange 3.0/1.0 — collect/payout
-%), i.e. 3.5–5.0% per pair. **Pass-through, no margin yet** — margin is the open pricing decision
-(ADR 0005; research `fees-and-costs.md`).
+%), i.e. 3.5–5.0% per pair. The MDR **passes that cost straight through — no margin yet**; margin is the
+open pricing decision (ADR 0005; research `fees-and-costs.md`).
 
 ## Charges (checkout) — the scan-to-pay path
 Merchant posts an amount → `POST /charges` → a `Charge` + a QR encoding `/customer/?charge=<id>`. The
@@ -124,8 +130,10 @@ payer page.
 **Pricing margin** (above — the decision this serves) · **merchant onboarding + KYC** · **real USSD
 aggregator** · **reconciliation on a schedule** (sweep exists; no timer/auth trigger; no age filter) ·
 **merchant auth** (`domains/auth/` empty) · **lock CORS** before prod · **native mobile app** (deferred,
-web-first) · **charge expiry** (none — charges stay payable until paid) · **Legal/licensing (BCC)** —
-standing flag.
+web-first) · **charge expiry** (none — charges stay payable until paid) · **refund-leg fee** (pawaPay bills refunds ≈
+the disbursement rate — Plans page; our refund path books only the sunk collection fee, and whether
+pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md`) ·
+**Legal/licensing (BCC)** — standing flag.
 
 ## How to run
 ```bash
