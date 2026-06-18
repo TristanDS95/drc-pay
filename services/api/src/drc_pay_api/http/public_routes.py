@@ -7,7 +7,7 @@ in production (see ``Container.demo_controls_enabled``).
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..adapters.memory import ListRecorder
@@ -15,7 +15,7 @@ from ..application.payments import start_merchant_payment
 from ..domains.charges.models import charge_status, is_payable
 from ..domains.ledger.money import Money
 from ..domains.transactions.orchestrator import Orchestrator
-from .container import Container
+from .container import ContainerDep
 
 public_router = APIRouter()
 
@@ -92,28 +92,22 @@ class PublicCharge(BaseModel):
     status: str
 
 
-def _container(request: Request) -> Container:
-    container: Container = request.app.state.container
-    return container
-
-
 @public_router.get("/public/merchant/{merchant_id}", response_model=PublicMerchant)
-def public_merchant(merchant_id: str, request: Request) -> PublicMerchant:
+def public_merchant(merchant_id: str, container: ContainerDep) -> PublicMerchant:
     """The minimal merchant info a customer needs to pay — name + till, no settlement details."""
     try:
-        merchant = _container(request).merchants.get(merchant_id)
+        merchant = container.merchants.get(merchant_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="merchant not found") from exc
     return PublicMerchant(id=merchant.id, name=merchant.name, short_code=merchant.short_code)
 
 
 @public_router.get("/public/transaction/{transaction_id}", response_model=PublicTransaction)
-def public_transaction(transaction_id: str, request: Request) -> PublicTransaction:
+def public_transaction(transaction_id: str, container: ContainerDep) -> PublicTransaction:
     """Read-only status of a payment so the payer's page can poll until it confirms. On the live
     rail ``/pay`` returns while the deposit is still pending; the final outcome lands via pawaPay's
     callback moments later, and the page polls this to catch up. Sandbox/simulator only (like
     ``/pay``); exposes no settlement number, ledger, or counterparty details."""
-    container = _container(request)
     if not container.demo_controls_enabled:
         raise HTTPException(status_code=404, detail="not found")
     try:
@@ -137,9 +131,8 @@ def public_transaction(transaction_id: str, request: Request) -> PublicTransacti
 
 
 @public_router.get("/public/charge/{charge_id}", response_model=PublicCharge)
-def public_charge(charge_id: str, request: Request) -> PublicCharge:
+def public_charge(charge_id: str, container: ContainerDep) -> PublicCharge:
     """Minimal, public info for paying a charge: merchant, the locked amount, and live status."""
-    container = _container(request)
     try:
         charge = container.charges.get(charge_id)
     except KeyError as exc:
@@ -162,10 +155,9 @@ def public_charge(charge_id: str, request: Request) -> PublicCharge:
 
 
 @public_router.post("/pay", response_model=PayResponse)
-def pay(body: PayRequest, request: Request) -> PayResponse:
+def pay(body: PayRequest, container: ContainerDep) -> PayResponse:
     """A customer pays a merchant (sandbox/simulator only). ``outcome`` chooses the happy path or a
     failure, so the whole merchant-side flow can be exercised end to end."""
-    container = _container(request)
     if not container.demo_controls_enabled:
         raise HTTPException(status_code=404, detail="customer pay is sandbox/simulator only")
     if body.outcome not in _OUTCOMES:

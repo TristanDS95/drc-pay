@@ -20,11 +20,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .http.container import build_container
-from .http.charge_routes import charge_router
 from .http.demo_routes import demo_router
-from .http.merchant_routes import merchant_router
+from .http.merchant_api import merchant_api_router
 from .http.public_routes import public_router
-from .http.routes import router
 from .http.ussd_routes import ussd_router
 from .http.webhook_routes import webhook_router
 from .ussd.session import UssdHandler
@@ -87,9 +85,7 @@ def create_app() -> FastAPI:
     app.state.container.ensure_callback_public_key()
     # The USSD channel is another thin caller into the same container/orchestrator.
     app.state.ussd_handler = UssdHandler(app.state.container)
-    app.include_router(router)
-    app.include_router(merchant_router)
-    app.include_router(charge_router)
+    app.include_router(merchant_api_router)
     app.include_router(ussd_router)
     app.include_router(webhook_router)
     app.include_router(public_router)

@@ -17,8 +17,9 @@ so each call can return its own operations log.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Annotated, Protocol
 
+from fastapi import Depends, Request
 from sqlalchemy.orm import sessionmaker
 
 from ..adapters.memory import (
@@ -183,3 +184,14 @@ def build_container(
         pawapay_client=pawapay_client,
         environment=environment,
     )
+
+
+def get_container(request: Request) -> Container:
+    """The shared :class:`Container`, built once at startup and kept on ``app.state``."""
+    container: Container = request.app.state.container
+    return container
+
+
+# FastAPI dependency: a route writes ``container: ContainerDep`` and FastAPI injects the shared
+# container — replacing the per-file ``_container(request)`` helper that used to be copy-pasted.
+ContainerDep = Annotated[Container, Depends(get_container)]

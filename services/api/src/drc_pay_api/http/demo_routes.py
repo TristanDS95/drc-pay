@@ -10,11 +10,11 @@ or a scheduled worker) is a separate, flagged ops task.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..jobs.reconciliation.sweep import run_reconciliation
-from .container import Container
+from .container import ContainerDep
 
 demo_router = APIRouter()
 
@@ -32,9 +32,8 @@ class ReconcileResponse(BaseModel):
 
 
 @demo_router.post("/demo/reconcile", response_model=ReconcileResponse)
-def demo_reconcile(request: Request) -> ReconcileResponse:
+def demo_reconcile(container: ContainerDep) -> ReconcileResponse:
     """Run one reconciliation sweep against the simulator and report what it healed."""
-    container: Container = request.app.state.container
     if not container.demo_controls_enabled:
         raise HTTPException(status_code=404, detail="demo controls are disabled in production")
     summary = run_reconciliation(
