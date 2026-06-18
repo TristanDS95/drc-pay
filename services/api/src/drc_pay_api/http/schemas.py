@@ -54,6 +54,7 @@ class MerchantResponse(BaseModel):
     name: str
     short_code: str
     settlement_msisdn: str
+    settlement_provider: str  # pawaPay operator code, e.g. "AIRTEL_COD" — the operator the merchant uses
     status: str
     ussd_string: str  # "*123*1001#" — what the customer dials
     tel_uri: str  # "tel:*123*1001%23" — the USSD dial-through (the eventual static-till QR payload)

@@ -214,6 +214,10 @@
     : PENDING.has(s) ? "wait"
     : (s === "refunded" || s === "initiated" || s === "collection_succeeded") ? "mut" : "bad";
 
+  // pawaPay operator code -> friendly mobile-money name, for the picker + merchant card.
+  const NETWORK = { VODACOM_MPESA_COD:"Vodacom M-Pesa", AIRTEL_COD:"Airtel", ORANGE_COD:"Orange" };
+  const opName = (code) => NETWORK[code] || code || "—";
+
   let merchants = [], txns = [];
   const current = () => merchants.find((m) => m.id === $("merchant").value) || merchants[0];
   const showErr = (e) => { $("err").textContent = `Couldn't reach the API at ${API} — is it running? (${e})`;
@@ -225,7 +229,7 @@
   async function boot(){
     try { merchants = await jget("/merchants"); } catch(e){ showErr(e); return; }
     clearErr();
-    $("merchant").innerHTML = merchants.map((m)=>`<option value="${m.id}">${m.name} · ${m.ussd_string}</option>`).join("");
+    $("merchant").innerHTML = merchants.map((m)=>`<option value="${m.id}">${m.name} (${opName(m.settlement_provider)}) · ${m.ussd_string}</option>`).join("");
     renderMerchant();
     await refresh();
   }
@@ -234,7 +238,7 @@
     const m = current(); if(!m) return;
     $("m-name").textContent = m.name;
     $("m-till").textContent = m.ussd_string;
-    $("m-settle").textContent = `Settles to ${m.settlement_msisdn}`;
+    $("m-settle").textContent = `Settles to ${opName(m.settlement_provider)} · ${m.settlement_msisdn}`;
   }
 
   async function refresh(){
@@ -316,7 +320,7 @@
   }
 
   // ----- charge by QR -----
-  let chargeTimer = null;
+  let chargeTimer = null, chargeLastStatus = null;
   const CHARGE_LABEL = { awaiting_payment:"awaiting payment — scan the QR to pay", processing:"processing…",
     paid:"✓ paid", declined:"declined", refunded:"refunded", review:"needs review" };
   const CHARGE_TERMINAL = new Set(["paid","declined","refunded","review"]);
@@ -336,6 +340,8 @@
     $("charge-box").classList.remove("hidden");
     $("charge-status").className = "out";
     $("charge-status").textContent = `Charge for $${charge.amount} · ${CHARGE_LABEL[charge.status]||charge.status}`;
+    chargeLastStatus = charge.status;
+    pushTrace([`▸ charge created — $${charge.amount} for ${m.name}`, `waiting · customer scans the QR and pays…`]);
     if(chargeTimer) clearInterval(chargeTimer);
     chargeTimer = setInterval(() => chargePoll(charge.id), 3000);
   }
@@ -345,7 +351,23 @@
     const cls = c.status==="paid" ? "ok" : (c.status==="declined"||c.status==="review") ? "bad" : "";
     $("charge-status").className = "out " + cls;
     $("charge-status").textContent = `Charge for $${c.amount} · ${CHARGE_LABEL[c.status]||c.status}`;
+    if(c.status !== chargeLastStatus){ chargeLastStatus = c.status; await traceCharge(c); }
     if(CHARGE_TERMINAL.has(c.status) && chargeTimer){ clearInterval(chargeTimer); chargeTimer = null; refresh(); }
+  }
+
+  // Log a charge's progress to the ops console; when paid, pull the transaction's ledger.
+  async function traceCharge(c){
+    if(c.status === "paid" && c.transaction_id){
+      let t; try { t = await jget(`/transactions/${c.transaction_id}`); } catch(e){ t = null; }
+      const lines = ["webhook ← pawaPay confirmed the payment"];
+      for(const l of (t && t.ledger || [])){ lines.push(`ledger · ${l.direction} ${l.account} ${l.amount} ${l.currency}`); }
+      if(t){ const net = (Math.round(parseFloat(t.amount)*100) - Math.round(parseFloat(t.fee)*100))/100;
+        lines.push(`✓ paid — customer ${t.amount}, merchant ${net.toFixed(2)}, fee ${t.fee} ${t.currency}`); }
+      pushTrace(lines);
+    } else if(c.status === "declined"){ pushTrace(["✕ declined — no money moved"]); }
+    else if(c.status === "refunded"){ pushTrace(["↩ refunded — customer made whole"]); }
+    else if(c.status === "review"){ pushTrace(["⚠ needs review"]); }
+    else { pushTrace([`charge · ${CHARGE_LABEL[c.status]||c.status}`]); }
   }
 
   // ----- detail modal -----
@@ -413,7 +435,7 @@
   $("refresh").addEventListener("click", refresh);
   $("scrim").addEventListener("click", (e)=>{ if(e.target.id==="scrim") closeDetail(); });
 
-  $("cbody").innerHTML = `<div class="empty2">// take a payment to trace every operation</div>`;
+  $("cbody").innerHTML = `<div class="empty2">// create a charge or take a payment to trace every operation</div>`;
   boot();
   setInterval(refresh, 6000);
 </script>

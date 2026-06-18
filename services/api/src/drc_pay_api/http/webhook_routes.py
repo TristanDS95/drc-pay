@@ -10,13 +10,13 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from ..application.webhooks import process_pawapay_callback
 from ..integrations.pawapay.signatures import SignatureError
+from .container import ContainerDep
 
 webhook_router = APIRouter()
 
 
 @webhook_router.post("/webhooks/pawapay", response_class=Response)
-async def pawapay_webhook(request: Request) -> Response:
-    container = request.app.state.container
+async def pawapay_webhook(request: Request, container: ContainerDep) -> Response:
     raw_body = await request.body()
     try:
         status = process_pawapay_callback(
