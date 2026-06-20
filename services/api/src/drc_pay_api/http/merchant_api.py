@@ -24,7 +24,6 @@ from ..application.payments import start_merchant_payment
 from ..domains.charges.models import Charge, charge_status
 from ..domains.ledger.money import Money
 from ..domains.transactions.models import Transaction
-from ..domains.transactions.orchestrator import Orchestrator
 from .container import Container, ContainerDep
 from .schemas import (
     CreateTransactionRequest,
@@ -120,9 +119,12 @@ def create_transaction(
     if body.defer:
         recorder.record("demo · deferring outcome — payment stays pending until reconciled")
 
-    orchestrator = Orchestrator(container.store, container.rail, container.ledger, recorder)
     transaction_id = start_merchant_payment(
-        orchestrator,
+        store=container.store,
+        ledger=container.ledger,
+        rail=container.rail,
+        direct_rails=container.direct_rails,
+        on_net_providers=container.on_net_providers,
         predictor=container.predictor,
         simulated=container.simulated,
         customer_msisdn=body.customer_msisdn,
@@ -132,6 +134,7 @@ def create_transaction(
         idempotency_key=idempotency_key,
         scenario=body.scenario,
         defer=body.defer,
+        recorder=recorder,
     )
     return _to_response(container, container.store.get(transaction_id), recorder.messages)
 

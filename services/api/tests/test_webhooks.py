@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
 from drc_pay_api.application.payments import start_merchant_payment
 from drc_pay_api.domains.ledger.money import Money
-from drc_pay_api.domains.transactions.orchestrator import Orchestrator
 from drc_pay_api.http.container import Container
 from drc_pay_api.main import create_app
 
@@ -28,10 +27,15 @@ def _pending_app():
     container = Container(
         store=store, ledger=ledger, rail=rail, simulated=False, pawapay_public_key=pem
     )
-    orchestrator = Orchestrator(store, rail, ledger)
     merchant = container.merchants.get("m_alpha")
+    # direct_rails/on_net_providers default empty → this stays on the routed pawaPay flow (the path
+    # this webhook test exercises); the customer also resolves cross-network (Vodacom → Airtel).
     tx_id = start_merchant_payment(
-        orchestrator,
+        store=store,
+        ledger=ledger,
+        rail=rail,
+        direct_rails=container.direct_rails,
+        on_net_providers=container.on_net_providers,
         predictor=None,
         simulated=False,
         customer_msisdn="243800000001",
