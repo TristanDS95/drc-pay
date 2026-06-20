@@ -19,11 +19,13 @@ app may follow later.
 **🟢 Live, end-to-end, on real pawaPay _sandbox_ rails.** Deployed on Railway as a single container
 (API + both web apps + Postgres). A real phone scans a merchant's QR → pays → the payment **confirms in
 real time** on both the payer's screen and the Merchant Console, driven by pawaPay's **signed callbacks**
-(RFC-9421). Backend is green: ruff + `mypy --strict` clean, **130 tests**.
+(RFC-9421). Backend is green: ruff + `mypy --strict` clean, **156 tests**.
 
 - **Backend** (`services/api`, **Python / FastAPI**): payment spine (collect → settle → auto-refund),
-  double-entry ledger, explicit state machine, idempotency, Merchant domain, MDR pricing, Postgres +
-  Alembic, the pawaPay client/rail, signed-callback receiver, reconciliation sweep, and the USSD channel.
+  double-entry ledger, explicit state machine, idempotency, Merchant + Charge domains, MDR pricing,
+  Postgres + Alembic, the pawaPay client/rail, signed-callback receiver, reconciliation sweep, the USSD
+  channel, and **on-net dual-rail routing** — same-network payments take the operator's one cheap leg
+  instead of pawaPay's two (wired & green offline; the live operator adapters are pending sandbox).
 - **Web UIs** (`tooling/`): the gated **Merchant Console** and the public **Customer** scan-to-pay page.
 - **Not started:** the native mobile app (`apps/mobile`, React Native/Expo — deliberately web-first for
   now) and merchant onboarding/KYC.
@@ -33,7 +35,8 @@ real time** on both the payer's screen and the Merchant Console, driven by pawaP
 
 - **URL:** `https://drc-pay-sandbox-production.up.railway.app`
 - **Merchant Console:** open the URL → log in (user `drcpay` + the shared demo password).
-- **Customer pay page:** `…/customer/?m=m_alpha` (what the merchant's QR opens — no login).
+- **Customer pay page:** the Console's "Charge by QR" makes a charge whose QR opens
+  `…/customer/?charge=<id>` (no login) — scan, pick a network, pay.
 - It runs on pawaPay's **sandbox** (test money only).
 
 ## Layout
@@ -41,11 +44,11 @@ real time** on both the payer's screen and the Merchant Console, driven by pawaP
 ```
 drc-pay/
 ├── services/
-│   ├── api/           # backend — FastAPI; the money logic + all channels (incl. the webhook receiver)
+│   ├── api/           # backend — FastAPI; the money core + every channel (HTTP, USSD, webhooks)
 │   └── webhooks/      # placeholder (the receiver currently lives in services/api)
 ├── tooling/
-│   ├── merchant-console/  # gated web cockpit (merchant side) — take payments, live feed, reconcile
-│   ├── customer-app/      # public scan-to-pay + USSD dial simulator (customer side)
+│   ├── merchant-console/  # gated web cockpit (merchant side) — Charge-by-QR, live feed, ledger
+│   ├── customer-app/      # public scan-to-pay (charge-driven) + USSD dial simulator (customer side)
 │   └── pawapay-sim/       # placeholder (use the in-process simulator in services/api)
 ├── apps/
 │   ├── mobile/        # React Native + Expo — scaffolding only (not started)
@@ -56,34 +59,70 @@ drc-pay/
 └── .github/workflows/ # CI (lint, type, test)
 ```
 
-## Quickstart (backend)
+Inside the backend (`services/api/src/drc_pay_api/`) the design is hexagonal — the domain is pure,
+infrastructure plugs in via ports, every channel is a thin caller into the same core. The **dual-rail
+routing** added with on-net lives here:
+
+```
+domains/              # PURE money logic — no HTTP / SQL / vendor knowledge
+  ledger/             #   Money (integer minor units) + the double-entry ledger
+  merchants/ charges/ #   the payee + the scan-to-pay checkout
+  transactions/       #   state machine · models · pricing · ports, and the TWO orchestrators:
+                      #     orchestrator.py — cross-network: pawaPay collect → settle → auto-refund
+                      #     on_net.py       — same-network: ONE direct leg straight to the merchant
+application/          # payments.py — the single entry every channel calls; routing.py picks on-net vs
+                      #   routed; outcomes.py / webhooks.py resolve async outcomes (callback + sweep)
+adapters/             # in-memory + SQLAlchemy/Postgres stores (same ports)
+integrations/
+  pawapay/            #   rented-rails client · rail · simulator · RFC-9421 signed-callback verify
+  airtel/  mpesa/     #   on-net direct-collect adapters (scaffolds — pending each operator's sandbox)
+  simulated_direct.py #   in-process on-net rail, so same-network flows run fully offline
+http/                 # FastAPI routes + the composition root (container.py); callbacks at
+                      #   /webhooks/pawapay (signed) and /webhooks/onnet/{provider} (on-net)
+ussd/                 # feature-phone channel — a thin caller into the same core
+jobs/                 # the reconciliation sweep (missed-callback safety net)
+```
+
+## Quickstart
+
+Day-to-day we run against the **hosted sandbox**, not a local server — see
+[Live demo](#live-demo-sandbox) above for the URL and logins. It's a single container (API + Merchant
+Console + Customer page, same-origin) deployed on **Railway**, backed by managed Postgres, talking to
+pawaPay's **sandbox** rails (test money only). Real **signed callbacks** (RFC-9421) confirm payments in
+real time; the reconciliation sweep is the backstop.
+
+- **Deploy / redeploy:** push-to-deploy from GitHub. The full runbook — env vars, the database
+  reference, and wiring pawaPay's callback URLs — is
+  [`docs/deploy-railway.md`](./docs/deploy-railway.md).
+- **Secrets stay out of the repo:** the pawaPay token and the demo password live only in Railway's
+  dashboard, never in git or chat.
+- **Production** will move to AWS (`af-south-1`); the same Docker image is portable (`infra/`).
+
+### Run locally (contributors)
+
+Still fully supported for development. With **no credentials** set it runs entirely offline — the
+in-process pawaPay simulator **and** the on-net simulator, with seeded demo merchants — so you never
+touch real (or sandbox) money:
 
 ```bash
 cd services/api
 python3 -m venv .venv && source .venv/bin/activate
 pip install ".[dev]"                                  # runtime + dev deps (ruff, mypy, pytest)
-ruff check . && mypy src && pytest                    # all green (130)
+ruff check . && mypy src && pytest                    # all green (156)
 
-# Run the API + both web apps locally (point it at the static dirs, then open the URLs):
 export DRCPAY_CONSOLE_DIR="$PWD/../../tooling/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../../tooling/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app --reload
 #   API docs:  http://localhost:8000/docs
-#   console:   http://localhost:8000/console/
-#   customer:  http://localhost:8000/customer/?m=m_alpha
+#   console:   http://localhost:8000/console/   (post a charge → scan/open its QR to pay)
 ```
 
-With no credentials set it runs fully offline on a pawaPay simulator with seeded demo
-merchants. Point it at the live sandbox by putting `DRCPAY_PAWAPAY_BASE_URL` +
-`DRCPAY_PAWAPAY_API_TOKEN` in `services/api/.env`. 
+Point it at the live sandbox rail instead by putting `DRCPAY_PAWAPAY_BASE_URL` +
+`DRCPAY_PAWAPAY_API_TOKEN` in `services/api/.env`. Postgres is optional locally
+(`docker compose up -d`, then set `DRCPAY_DATABASE_URL`); without it the app uses an in-memory store.
 
-Postgres is optional locally (`docker compose up -d` then set `DRCPAY_DATABASE_URL`); 
-without it the app uses an in-memory store.
-
-NOTE: always run uvicorn with `--app-dir src` — the repo path contains a space, which breaks pip's
-*editable* install, so we run from `src` instead (tests do the same via `pythonpath=src`).
-
-The whole thing also runs as one Docker image; see [`docs/deploy-railway.md`](./docs/deploy-railway.md).
+> **Always run uvicorn with `--app-dir src`** — the repo path contains a space, which breaks pip's
+> *editable* install, so we run from `src` (tests do the same via `pythonpath=src`).
 
 ## Engineering standards
 
