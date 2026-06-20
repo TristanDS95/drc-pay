@@ -54,6 +54,24 @@ class FakePaymentRail:
         return f"ref-{transaction_id}"
 
 
+class FakeDirectRail:
+    """Stands in for an operator's on-net C2B rail (M-Pesa / Airtel). Records each direct
+    collection and returns a synthetic op-id; outcomes are delivered via OnNetOrchestrator.on_confirm.
+    ``reject=True`` exercises the synchronous-rejection path."""
+
+    def __init__(self, reject: bool = False) -> None:
+        self.collections: list[tuple[str, str, str, Money, str]] = []
+        self._reject = reject
+
+    def request_direct_collection(
+        self, *, transaction_id: str, payer_msisdn: str, merchant_msisdn: str, amount: Money, provider: str
+    ) -> str | None:
+        self.collections.append((transaction_id, payer_msisdn, merchant_msisdn, amount, provider))
+        if self._reject:
+            raise RailRejected("direct collection rejected (fake)")
+        return f"onnet-{transaction_id}"
+
+
 class FakePredictor:
     """Stands in for the pawaPay client's predict-provider in route tests."""
 
