@@ -27,9 +27,11 @@ from .http.ussd_routes import ussd_router
 from .http.webhook_routes import webhook_router
 from .ussd.session import UssdHandler
 
-# Paths reachable WITHOUT the shared password: pawaPay's signed webhook (it can't send our
-# password — it's verified by signature instead) and the platform's health probe.
-_AUTH_EXEMPT = {"/health", "/webhooks/pawapay"}
+# Paths reachable WITHOUT the shared password: provider callbacks under /webhooks/ (an operator
+# can't send our password — pawaPay's is verified by signature; the on-net callback is gated to
+# sandbox/simulator instead) and the platform's health probe.
+_AUTH_EXEMPT = {"/health"}
+_AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
 # Customer-facing paths are public — a customer who scans a merchant's QR has no login.
 _PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
 
@@ -64,7 +66,11 @@ def create_app() -> FastAPI:
     ) -> Response:
         password = settings.basic_auth_password
         path = request.url.path
-        gated = path not in _AUTH_EXEMPT and not path.startswith(_PUBLIC_PREFIXES)
+        gated = (
+            path not in _AUTH_EXEMPT
+            and not path.startswith(_AUTH_EXEMPT_PREFIXES)
+            and not path.startswith(_PUBLIC_PREFIXES)
+        )
         if password and request.method != "OPTIONS" and gated:
             if not _basic_auth_ok(request.headers.get("authorization", ""), password):
                 return Response(

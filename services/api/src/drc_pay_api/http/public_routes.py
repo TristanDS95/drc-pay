@@ -14,7 +14,6 @@ from ..adapters.memory import ListRecorder
 from ..application.payments import start_merchant_payment
 from ..domains.charges.models import charge_status, is_payable
 from ..domains.ledger.money import Money
-from ..domains.transactions.orchestrator import Orchestrator
 from .container import ContainerDep
 
 public_router = APIRouter()
@@ -201,9 +200,12 @@ def pay(body: PayRequest, container: ContainerDep) -> PayResponse:
         f"customer scanned {merchant.name}'s QR · pays {amount.to_major_str()} USD "
         f"· network={body.payer_network} · outcome={body.outcome}"
     )
-    orchestrator = Orchestrator(container.store, container.rail, container.ledger, recorder)
     transaction_id = start_merchant_payment(
-        orchestrator,
+        store=container.store,
+        ledger=container.ledger,
+        rail=container.rail,
+        direct_rails=container.direct_rails,
+        on_net_providers=container.on_net_providers,
         predictor=container.predictor,
         simulated=container.simulated,
         customer_msisdn=customer_msisdn,
@@ -211,6 +213,7 @@ def pay(body: PayRequest, container: ContainerDep) -> PayResponse:
         amount=amount,
         customer_provider_override=customer_provider,
         scenario=scenario,
+        recorder=recorder,
     )
     if charge is not None:
         charge.transaction_id = transaction_id

@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from ..application.payments import start_merchant_payment
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
-from ..domains.transactions.orchestrator import Orchestrator
 from ..http.container import Container
 
 _CURRENCY = "USD"  # MVP: the USSD flow is single-currency for now
@@ -97,11 +96,12 @@ class UssdHandler:
         )
 
     def _start_payment(self, customer_msisdn: str, merchant: Merchant, amount: Money) -> None:
-        orchestrator = Orchestrator(
-            self._container.store, self._container.rail, self._container.ledger
-        )
         start_merchant_payment(
-            orchestrator,
+            store=self._container.store,
+            ledger=self._container.ledger,
+            rail=self._container.rail,
+            direct_rails=self._container.direct_rails,
+            on_net_providers=self._container.on_net_providers,
             predictor=self._container.predictor,
             simulated=self._container.simulated,
             customer_msisdn=customer_msisdn,

@@ -29,7 +29,14 @@ class TxState(str, Enum):
 _TRANSITIONS: dict[TxState, frozenset[TxState]] = {
     TxState.INITIATED: frozenset({TxState.COLLECTION_PENDING, TxState.MANUAL_REVIEW}),
     TxState.COLLECTION_PENDING: frozenset(
-        {TxState.COLLECTION_SUCCEEDED, TxState.COLLECTION_FAILED, TxState.MANUAL_REVIEW}
+        # On-net (same-network) collapses the two legs: a successful direct collection IS the
+        # settlement, so it lands straight in PAYOUT_SUCCEEDED (the shared "paid" terminal).
+        {
+            TxState.COLLECTION_SUCCEEDED,
+            TxState.COLLECTION_FAILED,
+            TxState.PAYOUT_SUCCEEDED,
+            TxState.MANUAL_REVIEW,
+        }
     ),
     TxState.COLLECTION_SUCCEEDED: frozenset({TxState.PAYOUT_PENDING, TxState.MANUAL_REVIEW}),
     TxState.COLLECTION_FAILED: frozenset(),  # terminal
