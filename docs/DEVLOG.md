@@ -1,6 +1,6 @@
 # DRC Pay — Development Log & Handoff
 
-**Last updated:** 2026-06-17 · **Read this first to resume work.**
+**Last updated:** 2026-06-20 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC: merchants accept mobile-money payments across
 networks (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure pass-through**
@@ -20,14 +20,42 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
 - **Real per-network-pair fees** (pawaPay published cost, **pass-through, no margin yet**) replaced the
   flat 1%; pawaPay's cost is now booked to **`expense:pawapay`** and `revenue:fees` holds only the
   **margin** (0 today) — ADR 0007. See "How the money works".
-- **Backend green:** ruff + mypy --strict clean, **135 tests**. Payment spine (collect → settle →
+- **Backend green:** ruff + mypy --strict clean, **156 tests**. Payment spine (collect → settle →
   auto-refund), double-entry ledger, 10-state machine, idempotency, Merchant + Charge domains, Postgres
-  + Alembic, pawaPay client/rail, signed-callback receiver, reconciliation sweep, USSD channel.
+  + Alembic, pawaPay client/rail, signed-callback receiver, reconciliation sweep, USSD channel. **New:
+  on-net dual-rail routing is WIRED end-to-end** — a same-network payment takes the operator's one-leg
+  direct rail (offline via `SimulatedDirectRail`) instead of pawaPay's two legs, confirms as **paid**,
+  with pawaPay the graceful per-operator fallback; an operator-callback endpoint resolves the async
+  outcome. Filling the live Airtel/M-Pesa adapters is the remaining work; see NEXT.
 - **Web UIs:** **Merchant Console** (gated) — "Charge by QR", live feed, ledger drill-down, a
   de-emphasized reconcile fallback; **Customer page** (public) — scan → locked amount → pick network →
   pay, confirms live with the fee shown.
 
 ## ▶ NEXT — biggest open rocks (rough priority; confirm the pick before building)
+
+**⚠ MOST IMMEDIATE — Fill the live on-net operator adapters.** On-net dual-rail routing is BUILT &
+WIRED (offline, green): a same-network payment takes the operator's one-leg direct rail instead of
+pawaPay's collect+payout (~3.5–5%); cross-network — and Orange, which has no in-app push — fall back to
+pawaPay (graceful per-operator fallback). What remains is making the on-net rail *real* against an
+operator sandbox.
+- **Research done** (`../drc-mvp-research/02-findings/cross-cutting/on-net-direct-operator-apis.md`):
+  pawaPay can't shortcut it (a deposit always lands in *our* wallet → always 2 legs); M-Pesa & Airtel
+  support in-app USSD-push C2B + auto-confirm; **Airtel has a self-serve sandbox**
+  (`openapiuat.airtel.africa` — start there); aggregator/multi-merchant model + pricing + licensing are
+  partner-gated (open — need direct contact).
+- **BUILT & green (slices 1–3 + wiring, in the 156 tests):** `DirectCollectRail` port; `on_net.py`
+  `OnNetOrchestrator` (one-leg flow → single customer→merchant ledger posting, `fee=0`, →
+  `payout_succeeded`); `application/routing.py` `use_on_net`; `SimulatedDirectRail` (offline);
+  `build_container` holds the direct rails (provider→rail) + an `on_net_providers` set (the simulator
+  wires Airtel & Vodacom — not Orange); `start_merchant_payment` routes on-net vs pawaPay for *every*
+  channel; an operator-callback endpoint `POST /webhooks/onnet/{provider}` → `on_confirm` (sandbox-gated
+  until per-operator signature verification lands). A charge paid on-net shows **paid**.
+- **REMAINING:** **Fill the Airtel adapter** (`integrations/airtel/rail.py`, currently
+  `NotImplementedError`) against its self-serve sandbox, then M-Pesa — and wire it into the *live* branch
+  of `build_container` with its per-operator callback signature verification (today the live rail holds
+  no on-net rails, so it routes everything through pawaPay). Commercial go/no-go per operator is gated on
+  the partner-contact open questions above.
+
 1. **Pricing — the decision this all serves.** The ledger now splits cost from revenue (**ADR 0007**):
    pawaPay's per-pair cost (3.5–5%) → `expense:pawapay`, and `revenue:fees` holds the **margin** — which
    is **0 today** (MDR == cost). The remaining decision is the **MDR margin/model**: set `mdr = cost +
@@ -138,7 +166,7 @@ pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md
 ## How to run
 ```bash
 cd services/api && source .venv/bin/activate
-ruff check . && mypy src && pytest                          # all green (135)
+ruff check . && mypy src && pytest                          # all green (156)
 export DRCPAY_CONSOLE_DIR="$PWD/../../tooling/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../../tooling/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"

@@ -16,6 +16,7 @@ so each call can return its own operations log.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Annotated, Protocol
 
@@ -40,12 +41,19 @@ from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
 from ..application.payments import Predictor
-from ..domains.transactions.ports import PaymentRail
+from ..domains.transactions.ports import DirectCollectRail, PaymentRail
 from ..integrations.pawapay.client import PawaPayClient
 from ..integrations.pawapay.rail import PawaPayRail
 from ..integrations.pawapay.simulator import SimulatedPaymentRail
 from ..integrations.pawapay.status import StatusPoller
+from ..integrations.simulated_direct import SimulatedDirectRail
 from ..seed import seed_demo_merchants
+
+# On-net-capable operators in the offline demo: M-Pesa & Airtel support a third-party-initiated
+# in-app push (so a same-network payment can take the one-leg direct rail). Orange does NOT (its
+# flow is a web redirect, not a push), so it always routes through pawaPay. See the research finding
+# ``cross-cutting/on-net-direct-operator-apis.md``.
+ON_NET_SIM_PROVIDERS = frozenset({"AIRTEL_COD", "VODACOM_MPESA_COD"})
 
 
 class TxStore(Protocol):
@@ -101,6 +109,12 @@ class Container:
     rail: PaymentRail
     predictor: Predictor | None = None
     simulated: bool = True  # True when the rail is the in-process simulator
+    # On-net (same-network) direct rails: operator code → its one-leg C2B rail. A payment whose
+    # payer and merchant share an operator in ``on_net_providers`` takes that rail instead of the
+    # two-leg pawaPay flow; anything else falls back to pawaPay. Empty by default, so a Container
+    # built directly (e.g. in a test) opts out of on-net unless it wires these explicitly.
+    direct_rails: Mapping[str, DirectCollectRail] = field(default_factory=dict)
+    on_net_providers: frozenset[str] = frozenset()
     environment: str = "local"  # local | sandbox | production — gates the demo/ops controls
     merchants: MerchantStore = field(default_factory=_seeded_merchant_store)
     charges: ChargeStore = field(default_factory=InMemoryChargeStore)
@@ -148,6 +162,12 @@ def build_container(
         predictor: Predictor | None = client
         poller: StatusPoller | None = client  # same client polls status for reconciliation
         simulated = False
+        # On-net stays on pawaPay until a real operator rail is implemented (the M-Pesa/Airtel
+        # adapters still raise NotImplementedError). So with a live rail we hold no direct rails and
+        # route everything through pawaPay — the graceful per-operator fallback. Wire an operator
+        # here once its adapter + credentials are ready (next: Airtel against its self-serve sandbox).
+        direct_rails: Mapping[str, DirectCollectRail] = {}
+        on_net_providers: frozenset[str] = frozenset()
     else:
         simulator = SimulatedPaymentRail()
         pawapay_client = None
@@ -155,6 +175,11 @@ def build_container(
         predictor = None
         poller = simulator  # the simulator doubles as a StatusPoller — reconciliation can heal demo txns
         simulated = True
+        # Offline demo: one simulated direct rail stands in for every on-net-capable operator, so a
+        # same-network payment exercises the one-leg flow end to end with zero network.
+        sim_direct = SimulatedDirectRail()
+        direct_rails = {provider: sim_direct for provider in ON_NET_SIM_PROVIDERS}
+        on_net_providers = ON_NET_SIM_PROVIDERS
 
     # Persistence: Postgres when a URL is given (schema managed by Alembic), else memory.
     if database_url:
@@ -176,6 +201,8 @@ def build_container(
         rail=rail,
         predictor=predictor,
         simulated=simulated,
+        direct_rails=direct_rails,
+        on_net_providers=on_net_providers,
         merchants=merchants,
         charges=charges,
         ussd_shortcode=ussd_shortcode,
