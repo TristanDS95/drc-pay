@@ -56,6 +56,19 @@ def test_live_rail_has_no_on_net_rails_yet() -> None:
     assert container.on_net_providers == frozenset()
 
 
+def test_onnet_simulate_toggle_wires_sim_on_net_on_a_live_rail() -> None:
+    # The demo toggle wires the in-process SimulatedDirectRail even on a live pawaPay rail, so on-net
+    # routing is *visible* on the sandbox (simulated — fakes the confirmation, moves no real money).
+    container = build_container(
+        pawapay_base_url="https://api.sandbox.pawapay.io",
+        pawapay_api_token="tkn",
+        onnet_simulate=True,
+    )
+    assert container.simulated is False  # the pawaPay rail is still live
+    assert container.on_net_providers == frozenset({"AIRTEL_COD", "VODACOM_MPESA_COD"})
+    assert all(isinstance(rail, SimulatedDirectRail) for rail in container.direct_rails.values())
+
+
 def test_seeds_demo_merchants() -> None:
     container = build_container()
     assert container.merchants.get_by_short_code("1001") is not None

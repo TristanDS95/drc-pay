@@ -153,6 +153,7 @@ def build_container(
     ussd_shortcode: str = "*123#",
     pawapay_public_key: str = "",
     environment: str = "local",
+    onnet_simulate: bool = False,
 ) -> Container:
     # Rail: live pawaPay when both credentials are present, else the simulator.
     if pawapay_base_url and pawapay_api_token:
@@ -162,12 +163,6 @@ def build_container(
         predictor: Predictor | None = client
         poller: StatusPoller | None = client  # same client polls status for reconciliation
         simulated = False
-        # On-net stays on pawaPay until a real operator rail is implemented (the M-Pesa/Airtel
-        # adapters still raise NotImplementedError). So with a live rail we hold no direct rails and
-        # route everything through pawaPay — the graceful per-operator fallback. Wire an operator
-        # here once its adapter + credentials are ready (next: Airtel against its self-serve sandbox).
-        direct_rails: Mapping[str, DirectCollectRail] = {}
-        on_net_providers: frozenset[str] = frozenset()
     else:
         simulator = SimulatedPaymentRail()
         pawapay_client = None
@@ -175,11 +170,20 @@ def build_container(
         predictor = None
         poller = simulator  # the simulator doubles as a StatusPoller — reconciliation can heal demo txns
         simulated = True
-        # Offline demo: one simulated direct rail stands in for every on-net-capable operator, so a
-        # same-network payment exercises the one-leg flow end to end with zero network.
+
+    # On-net (same-network) direct rails. The ONLY implementation today is the in-process
+    # SimulatedDirectRail — the real operator adapters (M-Pesa/Airtel) are NOT built yet (a v2 item;
+    # see DEVLOG). Wire the simulator for the on-net-capable operators (Airtel & Vodacom, not Orange)
+    # when running on the simulator, OR when ``onnet_simulate`` is set to DEMO on-net routing on a
+    # live/sandbox deployment. ⚠ Simulated: it fakes the operator confirmation and moves no real money;
+    # otherwise same-network payments fall back to pawaPay (the graceful per-operator fallback).
+    if simulated or onnet_simulate:
         sim_direct = SimulatedDirectRail()
-        direct_rails = {provider: sim_direct for provider in ON_NET_SIM_PROVIDERS}
-        on_net_providers = ON_NET_SIM_PROVIDERS
+        direct_rails: Mapping[str, DirectCollectRail] = {p: sim_direct for p in ON_NET_SIM_PROVIDERS}
+        on_net_providers: frozenset[str] = ON_NET_SIM_PROVIDERS
+    else:
+        direct_rails = {}
+        on_net_providers = frozenset()
 
     # Persistence: Postgres when a URL is given (schema managed by Alembic), else memory.
     if database_url:

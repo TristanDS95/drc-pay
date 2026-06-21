@@ -19,13 +19,13 @@ app may follow later.
 **🟢 Live, end-to-end, on real pawaPay _sandbox_ rails.** Deployed on Railway as a single container
 (API + both web apps + Postgres). A real phone scans a merchant's QR → pays → the payment **confirms in
 real time** on both the payer's screen and the Merchant Console, driven by pawaPay's **signed callbacks**
-(RFC-9421). Backend is green: ruff + `mypy --strict` clean, **156 tests**.
+(RFC-9421). Backend is green: ruff + `mypy --strict` clean, **158 tests**.
 
 - **Backend** (`services/api`, **Python / FastAPI**): payment spine (collect → settle → auto-refund),
   double-entry ledger, explicit state machine, idempotency, Merchant + Charge domains, MDR pricing,
   Postgres + Alembic, the pawaPay client/rail, signed-callback receiver, reconciliation sweep, the USSD
   channel, and **on-net dual-rail routing** — same-network payments take the operator's one cheap leg
-  instead of pawaPay's two (wired & green offline; the live operator adapters are pending sandbox).
+  instead of pawaPay's two (wired & green; real operator integration deferred to v2, with a sandbox demo toggle).
 - **Web UIs** (`tooling/`): the gated **Merchant Console** and the public **Customer** scan-to-pay page.
 - **Not started:** the native mobile app (`apps/mobile`, React Native/Expo — deliberately web-first for
   now) and merchant onboarding/KYC.
@@ -91,9 +91,9 @@ Console + Customer page, same-origin) deployed on **Railway**, backed by managed
 pawaPay's **sandbox** rails (test money only). Real **signed callbacks** (RFC-9421) confirm payments in
 real time; the reconciliation sweep is the backstop.
 
-- **Deploy / redeploy:** push-to-deploy from GitHub. The full runbook — env vars, the database
-  reference, and wiring pawaPay's callback URLs — is
-  [`docs/deploy-railway.md`](./docs/deploy-railway.md).
+- **Deploy / redeploy:** push-to-deploy from GitHub; env vars (the Postgres reference, the pawaPay
+  token, the optional `DRCPAY_ONNET_SIMULATE` demo flag) are set in Railway's dashboard. Deploy
+  specifics live in [`docs/DEVLOG.md`](./docs/DEVLOG.md).
 - **Secrets stay out of the repo:** the pawaPay token and the demo password live only in Railway's
   dashboard, never in git or chat.
 - **Production** will move to AWS (`af-south-1`); the same Docker image is portable (`infra/`).
@@ -108,7 +108,7 @@ touch real (or sandbox) money:
 cd services/api
 python3 -m venv .venv && source .venv/bin/activate
 pip install ".[dev]"                                  # runtime + dev deps (ruff, mypy, pytest)
-ruff check . && mypy src && pytest                    # all green (156)
+ruff check . && mypy src && pytest                    # all green (158)
 
 export DRCPAY_CONSOLE_DIR="$PWD/../../tooling/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../../tooling/customer-app"

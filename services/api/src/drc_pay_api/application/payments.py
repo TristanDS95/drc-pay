@@ -29,6 +29,7 @@ from ..domains.transactions.ports import (
 )
 from ..domains.transactions.pricing import default_fee
 from ..integrations.pawapay.client import ProviderPrediction
+from ..integrations.simulated_direct import SimulatedDirectRail
 from .routing import use_on_net
 
 # Demo fallback operator: used only when no override is given and no live predictor is
@@ -123,9 +124,13 @@ def start_merchant_payment(
             merchant_id=merchant.id,
             idempotency_key=idempotency_key,
         )
-        if simulated and not defer:
-            # On-net is a single leg: the only outcome that can fail is the collection itself, so a
-            # post-collection scenario (payout_fail / refund_fail) simply confirms as paid.
+        # The in-process simulator has no real operator to send a confirmation callback, so we
+        # produce the outcome inline (the on-net analog of the pawaPay demo play-out) — this is what
+        # keys off the rail type, NOT the pawaPay ``simulated`` flag, so the on-net demo toggle works
+        # on a live pawaPay deployment too. A real operator rail would instead await its callback.
+        # On-net is a single leg: only the collection can fail, so a post-collection scenario
+        # (payout_fail / refund_fail) simply confirms as paid.
+        if isinstance(direct_rail, SimulatedDirectRail) and not defer:
             on_net.on_confirm(transaction_id, success=scenario != "collection_fail")
         return transaction_id
 
