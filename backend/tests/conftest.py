@@ -1,6 +1,6 @@
 """Test environment isolation.
 
-A developer's local ``services/api/.env`` may hold real pawaPay **sandbox credentials**. Without
+A developer's local ``backend/.env`` may hold real pawaPay **sandbox credentials**. Without
 this, pydantic-settings would read that file and the suite would build a *live* rail and make
 real network calls — violating our "offline and deterministic" rule (and separating sandbox
 from test, always). os.environ takes precedence over the .env file, so forcing these empty/clean

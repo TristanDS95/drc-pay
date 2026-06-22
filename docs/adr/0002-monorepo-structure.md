@@ -1,6 +1,6 @@
 # ADR 0002 — Monorepo and repository structure
 
-- **Status:** Accepted (2026-06-09)
+- **Status:** Accepted (2026-06-09). **Top-level layout superseded by [ADR 0008](./0008-repo-restructure.md)** — the monorepo decision still stands; the `apps/ services/ infra/ tooling/` split was flattened to `backend/ frontend/ docs/`.
 - **Context:** One small team building a mobile app + backend + (later) an admin
   dashboard and a USSD gateway, plus infrastructure. Separate repos add version-skew
   and coordination cost at this size.

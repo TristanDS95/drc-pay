@@ -5,7 +5,7 @@ Reads DRCPAY_PAWAPAY_BASE_URL / DRCPAY_PAWAPAY_API_TOKEN from the environment, c
 GET /v2/active-conf (a read-only config endpoint), and prints only the HTTP status — never the
 token itself.
 
-Run from services/api with the venv active:
+Run from backend with the venv active:
     set -a; source .env; set +a          # load the local .env into the environment
     python scripts/pawapay_smoke.py
 """
@@ -21,7 +21,7 @@ def main() -> int:
     token = os.environ.get("DRCPAY_PAWAPAY_API_TOKEN", "")
     if not base or not token:
         print("✗ DRCPAY_PAWAPAY_BASE_URL / DRCPAY_PAWAPAY_API_TOKEN are not set.")
-        print("  Put the token in services/api/.env, then:  set -a; source .env; set +a")
+        print("  Put the token in backend/.env, then:  set -a; source .env; set +a")
         return 1
 
     url = f"{base}/v2/active-conf"
@@ -37,7 +37,7 @@ def main() -> int:
         print("✓ Connected — your sandbox token authenticates against pawaPay. No money moved.")
         return 0
     if resp.status_code in (401, 403):
-        print("✗ Token rejected — re-check the sandbox API token pasted into services/api/.env.")
+        print("✗ Token rejected — re-check the sandbox API token pasted into backend/.env.")
     else:
         print(f"✗ Unexpected response. First 300 chars of the body:\n{resp.text[:300]}")
     return 1

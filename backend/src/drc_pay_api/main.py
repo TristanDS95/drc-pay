@@ -85,6 +85,7 @@ def create_app() -> FastAPI:
         ussd_shortcode=settings.ussd_shortcode,
         pawapay_public_key=settings.pawapay_public_key,
         environment=settings.environment,
+        onnet_simulate=settings.onnet_simulate,
     )
     # On a live rail with no statically-set key, fetch pawaPay's callback-verification public
     # key from their API now (best-effort; a no-op on the simulator, so tests stay offline).

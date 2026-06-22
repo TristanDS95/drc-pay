@@ -78,6 +78,27 @@ def test_pay_same_network_orange_stays_routed() -> None:
     assert body["fee"] != "0.00"
 
 
+def test_sim_toggle_runs_on_net_on_a_live_sandbox_container() -> None:
+    # The demo toggle: a live (simulated=False) sandbox container wired with a SimulatedDirectRail
+    # still takes the on-net path AND confirms inline — the inline confirm keys off the rail type, not
+    # the pawaPay flag — so on-net is visible on the deployed sandbox without a real operator.
+    app = create_app()
+    app.state.container = Container(
+        store=InMemoryTransactionStore(),
+        ledger=InMemoryLedger(),
+        rail=FakePaymentRail(),
+        simulated=False,
+        environment="sandbox",  # so the public /pay path is reachable, like the real sandbox
+        direct_rails={"AIRTEL_COD": SimulatedDirectRail()},
+        on_net_providers=frozenset({"AIRTEL_COD"}),
+    )
+    body = TestClient(app).post(
+        "/pay", json={"merchant_id": "m_alpha", "amount": "10.00", "payer_network": "airtel"}
+    ).json()
+    assert body["state"] == "payout_succeeded"  # on-net confirmed inline despite the live pawaPay rail
+    assert body["fee"] == "0.00"
+
+
 def test_charge_paid_on_net_shows_paid() -> None:
     # The decision item 5: a charge paid on-net shows "paid" in the console/customer flow.
     client = _client()
