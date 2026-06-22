@@ -1,4 +1,4 @@
-# services/api
+# backend
 
 The backend — **Python / FastAPI**. This is where the money logic lives.
 
@@ -35,7 +35,7 @@ By default the API uses an in-memory store (zero setup — perfect for the demo)
 against **Postgres**, start one with Docker (from the repo root) and point the API at it:
 
 ```bash
-docker compose up -d        # starts Postgres on localhost:5432 (see ../../docker-compose.yml)
+docker compose up -d        # starts Postgres on localhost:5432 (see ../docker-compose.yml)
 export DRCPAY_DATABASE_URL=postgresql+psycopg://drcpay:drcpay@localhost:5432/drcpay
 alembic upgrade head        # create/update the schema (Alembic migrations)
 uvicorn --app-dir src drc_pay_api.main:app --reload

@@ -20,41 +20,48 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
 - **Real per-network-pair fees** (pawaPay published cost, **pass-through, no margin yet**) replaced the
   flat 1%; pawaPay's cost is now booked to **`expense:pawapay`** and `revenue:fees` holds only the
   **margin** (0 today) — ADR 0007. See "How the money works".
-- **Backend green:** ruff + mypy --strict clean, **156 tests**. Payment spine (collect → settle →
+- **Backend green:** ruff + mypy --strict clean, **158 tests**. Payment spine (collect → settle →
   auto-refund), double-entry ledger, 10-state machine, idempotency, Merchant + Charge domains, Postgres
   + Alembic, pawaPay client/rail, signed-callback receiver, reconciliation sweep, USSD channel. **New:
   on-net dual-rail routing is WIRED end-to-end** — a same-network payment takes the operator's one-leg
   direct rail (offline via `SimulatedDirectRail`) instead of pawaPay's two legs, confirms as **paid**,
   with pawaPay the graceful per-operator fallback; an operator-callback endpoint resolves the async
-  outcome. Filling the live Airtel/M-Pesa adapters is the remaining work; see NEXT.
+  outcome. The **real** operator integration is **deferred to v2** (small/unconfirmed saving,
+  partner-gated); a `DRCPAY_ONNET_SIMULATE` toggle demos it on the sandbox meanwhile. See NEXT.
 - **Web UIs:** **Merchant Console** (gated) — "Charge by QR", live feed, ledger drill-down, a
   de-emphasized reconcile fallback; **Customer page** (public) — scan → locked amount → pick network →
   pay, confirms live with the fee shown.
 
 ## ▶ NEXT — biggest open rocks (rough priority; confirm the pick before building)
 
-**⚠ MOST IMMEDIATE — Fill the live on-net operator adapters.** On-net dual-rail routing is BUILT &
-WIRED (offline, green): a same-network payment takes the operator's one-leg direct rail instead of
-pawaPay's collect+payout (~3.5–5%); cross-network — and Orange, which has no in-app push — fall back to
-pawaPay (graceful per-operator fallback). What remains is making the on-net rail *real* against an
-operator sandbox.
-- **Research done** (`../drc-mvp-research/02-findings/cross-cutting/on-net-direct-operator-apis.md`):
-  pawaPay can't shortcut it (a deposit always lands in *our* wallet → always 2 legs); M-Pesa & Airtel
-  support in-app USSD-push C2B + auto-confirm; **Airtel has a self-serve sandbox**
-  (`openapiuat.airtel.africa` — start there); aggregator/multi-merchant model + pricing + licensing are
-  partner-gated (open — need direct contact).
-- **BUILT & green (slices 1–3 + wiring, in the 156 tests):** `DirectCollectRail` port; `on_net.py`
-  `OnNetOrchestrator` (one-leg flow → single customer→merchant ledger posting, `fee=0`, →
-  `payout_succeeded`); `application/routing.py` `use_on_net`; `SimulatedDirectRail` (offline);
-  `build_container` holds the direct rails (provider→rail) + an `on_net_providers` set (the simulator
-  wires Airtel & Vodacom — not Orange); `start_merchant_payment` routes on-net vs pawaPay for *every*
-  channel; an operator-callback endpoint `POST /webhooks/onnet/{provider}` → `on_confirm` (sandbox-gated
-  until per-operator signature verification lands). A charge paid on-net shows **paid**.
-- **REMAINING:** **Fill the Airtel adapter** (`integrations/airtel/rail.py`, currently
-  `NotImplementedError`) against its self-serve sandbox, then M-Pesa — and wire it into the *live* branch
-  of `build_container` with its per-operator callback signature verification (today the live rail holds
-  no on-net rails, so it routes everything through pawaPay). Commercial go/no-go per operator is gated on
-  the partner-contact open questions above.
+**On-net same-network routing — engine BUILT (simulated), real operator integration DEFERRED to v2.**
+(The immediate rocks are the numbered items below.) The dual-rail engine is done and green: a
+same-network payment takes a one-leg direct rail instead of pawaPay's collect+payout (~3.5–5%);
+cross-network — and Orange (no in-app push) — fall back to pawaPay. A **`DRCPAY_ONNET_SIMULATE`** toggle
+wires the in-process `SimulatedDirectRail` on a live/sandbox deployment too, so on-net routing is
+**visible for a demo** (Airtel & Vodacom; the charge shows **paid**, `fee=0`). ⚠ **Simulated only — it
+fakes the operator confirmation and moves no real money.**
+- **What is NOT built (the real piece):** actually moving money on-net into the merchant's wallet via
+  the operator. Merchants already *receive* on their operator; the gap is the authorized API path for us
+  to (a) push a collection to the customer and (b) land it in *that* merchant's wallet with a
+  trustworthy confirmation. The operators' Collection APIs let the API *caller* collect into its *own*
+  wallet — so routing to a *specific* merchant needs an **aggregator / sub-merchant** arrangement
+  (partner-gated). A per-merchant-credentials workaround was considered and **rejected**: it pushes an
+  operator contract onto every merchant, undermining the whole aggregator value prop.
+- **Why deferred (per research — `cross-cutting/{on-net-direct-operator-apis,own-aggregator}.md`):**
+  direct operator integration is a **v2–v3 (12–36 mo) play**. The saving is small and unconfirmed —
+  pawaPay's margin is ~1%/leg; the operator's own fee (~1.5–2%/leg) is paid either way; operator API
+  merchant pricing is partner-gated (can't model it). Verdict: **rent pawaPay now, own the rails later.**
+- **BUILT & green (in the 158 tests):** `DirectCollectRail` port; `on_net.py` `OnNetOrchestrator`
+  (one-leg → single customer→merchant ledger posting, `fee=0`, → `payout_succeeded`); `routing.py`
+  `use_on_net`; `SimulatedDirectRail`; `build_container` direct rails + `on_net_providers` (+ the
+  `onnet_simulate` toggle); `start_merchant_payment` routes for *every* channel; `POST
+  /webhooks/onnet/{provider}` → `on_confirm` (sandbox-gated). `integrations/{airtel,mpesa}/rail.py`
+  remain scaffolds (`NotImplementedError`).
+- **When we do build it (v2):** fill `integrations/airtel/rail.py` (then M-Pesa) against the self-serve
+  Airtel sandbox (`openapiuat.airtel.africa`); confirm the aggregator/sub-merchant model + pricing with
+  the operator; wire it into the *live* branch of `build_container` with per-operator callback signature
+  verification; ungate the callback. Commercial go/no-go is gated on operator contacts + contracts.
 
 1. **Pricing — the decision this all serves.** The ledger now splits cost from revenue (**ADR 0007**):
    pawaPay's per-pair cost (3.5–5%) → `expense:pawapay`, and `revenue:fees` holds the **margin** — which
@@ -65,7 +72,7 @@ operator sandbox.
    onboarding UI/API; no DB FK on `merchant_id`).
 3. **Real USSD aggregator** — rent Africa's Talking / Infobip; wire shortcode + MNO PIN. Our
    provider-neutral `/ussd` handler is ready. *(Also where the static-till QR returns.)*
-4. **Production hardening** — AWS (`infra/` Terraform, `af-south-1`, Secrets Manager); lock CORS to
+4. **Production hardening** — AWS (Terraform, `af-south-1`, Secrets Manager — notes in `future-dev.md`); lock CORS to
    known origins; reconciliation on an authenticated schedule. Minor: charge expiry (none yet).
 
 ---
@@ -74,7 +81,7 @@ operator sandbox.
 Domain is pure; infra plugs in via ports; channels are thin callers.
 
 ```
-services/api/src/drc_pay_api/
+backend/src/drc_pay_api/
 ├── domains/                  # PURE — no HTTP/SQL/vendor knowledge
 │   ├── ledger/   money.py    # Money = integer minor units (never floats)
 │   │             ledger.py   # double-entry Posting/Entry (must balance)
@@ -94,9 +101,9 @@ services/api/src/drc_pay_api/
 │           demo_routes.py     # /demo/reconcile — off-real-money path only (404 in prod)
 │           public_routes.py   # /public/{merchant,charge,transaction}, /pay — public (sandbox-gated)
 ├── main.py · config.py · seed.py   # seed.py = demo-merchant seeding (entrypoint, sandbox/local)
-tooling/  merchant-console/   # gated cockpit: Charge-by-QR, take-payment, live feed
+frontend/ merchant-console/   # gated cockpit: Charge-by-QR, take-payment, live feed
           customer-app/       # public scan-to-pay (charge-driven) + USSD dial sim
-Dockerfile · docs/deploy-railway.md     # deploy (single container)
+Dockerfile                              # deploy (single container, on Railway)
 ```
 **Layering:** dependencies point inward; `domains/` + `application/` never import a channel.
 
@@ -141,7 +148,7 @@ payer page.
   Vodacom `243813456789`, Airtel `243973456789`, Orange `243893456789` (docs.pawapay.io/v2/docs/test_numbers).
   Open: replace the static `_DECIMALS` map with live `active-conf`.
 
-## Deploy — 🟢 LIVE on Railway (`docs/deploy-railway.md`)
+## Deploy — 🟢 LIVE on Railway
 - One `Dockerfile`: install API → `alembic upgrade head` → **seed demo merchants** (`python -m
   drc_pay_api.seed`, sandbox/local only; **production starts empty**) → uvicorn (`--proxy-headers`),
   serving the API + gated `/console` + public `/customer`. `DRCPAY_BASIC_AUTH_PASSWORD` gates all but the
@@ -149,7 +156,10 @@ payer page.
 - ⚠️ **`DRCPAY_DATABASE_URL` must be a working reference** (`${{drc-pay-db.DATABASE_URL}}`, **no quotes**)
   or the app silently runs in-memory and the DB stays empty. Verify: deploy logs show migrations +
   `[seed] demo merchants ready`; the Data tab has tables.
-- **AWS is the eventual production target** (`infra/`); the Docker image is portable. Alembic head:
+- **On-net demo (optional):** `DRCPAY_ONNET_SIMULATE=true` makes same-network on-net routing visible on
+  the sandbox — ⚠ **simulated** (fakes the operator confirmation, no real money); unset → all payments
+  via pawaPay. Real operator on-net is a v2 item (see NEXT).
+- **AWS is the eventual production target** (notes in `future-dev.md`); the Docker image is portable. Alembic head:
   `f3a4b5c6d7e8`.
 
 ---
@@ -163,14 +173,17 @@ the disbursement rate — Plans page; our refund path books only the sunk collec
 pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md`) ·
 **Legal/licensing (BCC)** — standing flag.
 
+**Longer-horizon / someday** (mobile app · admin dashboard · AWS infra · splitting the webhook receiver
+into its own service): see [`future-dev.md`](./future-dev.md).
+
 ## How to run
 ```bash
-cd services/api && source .venv/bin/activate
-ruff check . && mypy src && pytest                          # all green (156)
-export DRCPAY_CONSOLE_DIR="$PWD/../../tooling/merchant-console"
-export DRCPAY_CUSTOMER_DIR="$PWD/../../tooling/customer-app"
+cd backend && source .venv/bin/activate
+ruff check . && mypy src && pytest                          # all green (158)
+export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
+export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
-# live sandbox rail: token in services/api/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
+# live sandbox rail: token in backend/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
 # Postgres: docker compose up -d ; export DRCPAY_DATABASE_URL=… ; alembic upgrade head
 ```
 **Gotcha:** the repo path has a space → pip *editable* installs break. Run uvicorn with `--app-dir src`;
