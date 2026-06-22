@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: services/api
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,4 +36,4 @@ jobs:
       - name: gitleaks
         uses: gitleaks/gitleaks-action@v2
 
-  # mobile job — add once apps/mobile is initialized (lint + type-check + EAS build).
+  # mobile job — add when the mobile app exists (see docs/future-dev.md): lint + type-check + EAS build.
