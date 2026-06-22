@@ -72,7 +72,7 @@ fakes the operator confirmation and moves no real money.**
    onboarding UI/API; no DB FK on `merchant_id`).
 3. **Real USSD aggregator** — rent Africa's Talking / Infobip; wire shortcode + MNO PIN. Our
    provider-neutral `/ussd` handler is ready. *(Also where the static-till QR returns.)*
-4. **Production hardening** — AWS (`infra/` Terraform, `af-south-1`, Secrets Manager); lock CORS to
+4. **Production hardening** — AWS (Terraform, `af-south-1`, Secrets Manager — notes in `future-dev.md`); lock CORS to
    known origins; reconciliation on an authenticated schedule. Minor: charge expiry (none yet).
 
 ---
@@ -81,7 +81,7 @@ fakes the operator confirmation and moves no real money.**
 Domain is pure; infra plugs in via ports; channels are thin callers.
 
 ```
-services/api/src/drc_pay_api/
+backend/src/drc_pay_api/
 ├── domains/                  # PURE — no HTTP/SQL/vendor knowledge
 │   ├── ledger/   money.py    # Money = integer minor units (never floats)
 │   │             ledger.py   # double-entry Posting/Entry (must balance)
@@ -101,7 +101,7 @@ services/api/src/drc_pay_api/
 │           demo_routes.py     # /demo/reconcile — off-real-money path only (404 in prod)
 │           public_routes.py   # /public/{merchant,charge,transaction}, /pay — public (sandbox-gated)
 ├── main.py · config.py · seed.py   # seed.py = demo-merchant seeding (entrypoint, sandbox/local)
-tooling/  merchant-console/   # gated cockpit: Charge-by-QR, take-payment, live feed
+frontend/ merchant-console/   # gated cockpit: Charge-by-QR, take-payment, live feed
           customer-app/       # public scan-to-pay (charge-driven) + USSD dial sim
 Dockerfile                              # deploy (single container, on Railway)
 ```
@@ -159,7 +159,7 @@ payer page.
 - **On-net demo (optional):** `DRCPAY_ONNET_SIMULATE=true` makes same-network on-net routing visible on
   the sandbox — ⚠ **simulated** (fakes the operator confirmation, no real money); unset → all payments
   via pawaPay. Real operator on-net is a v2 item (see NEXT).
-- **AWS is the eventual production target** (`infra/`); the Docker image is portable. Alembic head:
+- **AWS is the eventual production target** (notes in `future-dev.md`); the Docker image is portable. Alembic head:
   `f3a4b5c6d7e8`.
 
 ---
@@ -173,14 +173,17 @@ the disbursement rate — Plans page; our refund path books only the sunk collec
 pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md`) ·
 **Legal/licensing (BCC)** — standing flag.
 
+**Longer-horizon / someday** (mobile app · admin dashboard · AWS infra · splitting the webhook receiver
+into its own service): see [`future-dev.md`](./future-dev.md).
+
 ## How to run
 ```bash
-cd services/api && source .venv/bin/activate
+cd backend && source .venv/bin/activate
 ruff check . && mypy src && pytest                          # all green (158)
-export DRCPAY_CONSOLE_DIR="$PWD/../../tooling/merchant-console"
-export DRCPAY_CUSTOMER_DIR="$PWD/../../tooling/customer-app"
+export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
+export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
-# live sandbox rail: token in services/api/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
+# live sandbox rail: token in backend/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
 # Postgres: docker compose up -d ; export DRCPAY_DATABASE_URL=… ; alembic upgrade head
 ```
 **Gotcha:** the repo path has a space → pip *editable* installs break. Run uvicorn with `--app-dir src`;
