@@ -47,6 +47,8 @@ class MerchantRow(Base):
     settlement_msisdn: Mapped[str] = mapped_column(String)
     settlement_provider: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String)
+    # The merchant's own operator "buy goods" till (on-net hand-off prefers it). See ADR 0009.
+    operator_till: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -265,6 +267,7 @@ def _merchant_to_domain(row: MerchantRow) -> Merchant:
         settlement_msisdn=row.settlement_msisdn,
         settlement_provider=row.settlement_provider,
         status=row.status,
+        operator_till=row.operator_till,
     )
 
 
@@ -297,6 +300,7 @@ class SqlMerchantStore:
             row.settlement_msisdn = merchant.settlement_msisdn
             row.settlement_provider = merchant.settlement_provider
             row.status = merchant.status
+            row.operator_till = merchant.operator_till
             session.commit()
 
     def all(self) -> list[Merchant]:

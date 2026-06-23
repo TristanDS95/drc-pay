@@ -25,6 +25,7 @@ DEMO_MERCHANTS: tuple[Merchant, ...] = (
         short_code="1001",
         settlement_msisdn="243973456789",  # Airtel COD — sandbox payout-success number
         settlement_provider="AIRTEL_COD",
+        operator_till="507412",  # demo Airtel "merchant pay" till — on-net hand-off prefers this
     ),
     Merchant(
         id="m_beta",
@@ -32,6 +33,7 @@ DEMO_MERCHANTS: tuple[Merchant, ...] = (
         short_code="1002",
         settlement_msisdn="243893456789",  # Orange COD — sandbox payout-success number
         settlement_provider="ORANGE_COD",
+        # No till on purpose: demonstrates the on-net fallback to send-to-number (P2P).
     ),
     Merchant(
         id="m_gamma",
@@ -39,6 +41,7 @@ DEMO_MERCHANTS: tuple[Merchant, ...] = (
         short_code="1003",
         settlement_msisdn="243813456789",  # Vodacom M-Pesa COD — sandbox payout-success number
         settlement_provider="VODACOM_MPESA_COD",
+        operator_till="660145",  # demo M-Pesa "buy goods" till — on-net hand-off prefers this
     ),
 )
 
