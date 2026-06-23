@@ -14,6 +14,7 @@ from ..adapters.memory import ListRecorder
 from ..application.payments import start_merchant_payment
 from ..domains.charges.models import charge_status, is_payable
 from ..domains.ledger.money import Money
+from ..domains.transactions.models import MERCHANT_ATTESTED
 from .container import ContainerDep
 
 public_router = APIRouter()
@@ -66,6 +67,11 @@ class PayResponse(BaseModel):
     merchant_provider: str | None = None  # resolved merchant (payout) operator
     merchant_name: str
     trace: list[str]
+    # On-net (same-network): the customer pays the merchant DIRECTLY on the operator's rail, so the
+    # page shows a hand-off, not an in-app result. False/null on the routed (pawaPay) path.
+    on_net: bool = False
+    pay_to_msisdn: str | None = None  # the merchant's number the customer sends to
+    pay_to_operator: str | None = None  # the shared operator (e.g. AIRTEL_COD)
 
 
 class PublicTransaction(BaseModel):
@@ -217,6 +223,7 @@ def pay(body: PayRequest, container: ContainerDep) -> PayResponse:
         charge.transaction_id = transaction_id
         container.charges.save(charge)
     tx = container.store.get(transaction_id)
+    on_net = tx.provenance == MERCHANT_ATTESTED
     return PayResponse(
         transaction_id=tx.id,
         state=tx.state.value,
@@ -227,4 +234,7 @@ def pay(body: PayRequest, container: ContainerDep) -> PayResponse:
         merchant_provider=tx.merchant_provider,
         merchant_name=merchant.name,
         trace=recorder.messages,
+        on_net=on_net,
+        pay_to_msisdn=merchant.settlement_msisdn if on_net else None,
+        pay_to_operator=tx.merchant_provider if on_net else None,
     )

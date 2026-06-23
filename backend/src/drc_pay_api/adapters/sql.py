@@ -84,6 +84,8 @@ class TransactionRow(Base):
     deposit_id: Mapped[str | None] = mapped_column(String, nullable=True)
     payout_id: Mapped[str | None] = mapped_column(String, nullable=True)
     refund_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Assurance level: "rail_verified" (pawaPay) or "merchant_attested" (on-net). See ADR 0009.
+    provenance: Mapped[str] = mapped_column(String, server_default="rail_verified")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -142,6 +144,7 @@ def _to_domain(row: TransactionRow) -> Transaction:
         deposit_id=row.deposit_id,
         payout_id=row.payout_id,
         refund_id=row.refund_id,
+        provenance=row.provenance,
     )
 
 
@@ -176,6 +179,7 @@ class SqlTransactionStore:
             row.deposit_id = transaction.deposit_id
             row.payout_id = transaction.payout_id
             row.refund_id = transaction.refund_id
+            row.provenance = transaction.provenance
             session.commit()
 
     def all(self) -> list[Transaction]:

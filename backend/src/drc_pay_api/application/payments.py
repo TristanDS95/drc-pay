@@ -17,6 +17,7 @@ from typing import Protocol
 
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
+from ..domains.transactions.on_net import OnNetOrchestrator
 from ..domains.transactions.orchestrator import Orchestrator
 from ..domains.transactions.ports import (
     LedgerPort,
@@ -26,6 +27,7 @@ from ..domains.transactions.ports import (
 )
 from ..domains.transactions.pricing import default_fee
 from ..integrations.pawapay.client import ProviderPrediction
+from .routing import ON_NET_PROVIDERS, use_on_net
 
 # Demo fallback operator: used only when no override is given and no live predictor is
 # wired (the simulator ignores the provider anyway). The live rail always resolves a real
@@ -96,6 +98,21 @@ def start_merchant_payment(
         predictor, merchant.settlement_msisdn, merchant.settlement_provider
     )
     transaction_id = uuid.uuid4().hex
+
+    # On-net (same-network): the customer pays the merchant directly on the operator's own rail. We
+    # record the payment as awaiting confirmation (initiate nothing, hold nothing, take no fee); a
+    # merchant "Confirm received" resolves it via OnNetOrchestrator.on_confirm. See ADR 0009.
+    if use_on_net(customer_provider, merchant_provider, ON_NET_PROVIDERS):
+        OnNetOrchestrator(store, ledger, recorder).start(
+            transaction_id=transaction_id,
+            payer_msisdn=customer_msisdn,
+            merchant_msisdn=merchant.settlement_msisdn,
+            amount=amount,
+            provider=customer_provider,
+            merchant_id=merchant.id,
+            idempotency_key=idempotency_key,
+        )
+        return transaction_id
 
     # Routed (pawaPay) two-leg flow. Fee = the real round-trip cost for this network pair
     # (pass-through, no margin yet), derivable only once both operators are known — never the client.
