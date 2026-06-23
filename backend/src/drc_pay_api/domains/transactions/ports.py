@@ -49,28 +49,6 @@ class PaymentRail(Protocol):
     ) -> str | None: ...
 
 
-class DirectCollectRail(Protocol):
-    """On-net (same-network) money movement — used when the payer and merchant share an operator.
-    ONE operation: collect from the customer's wallet straight to the merchant's, on the operator's
-    own network (a direct C2B), with no payout leg and no custody by us. ``provider`` is the shared
-    operator code both sides are on.
-
-    Returns the operator's operation id (or ``None`` for rails that issue none, e.g. the simulator).
-    The call is only the *request*: the final outcome arrives asynchronously via the operator's
-    confirmation callback → ``OnNetOrchestrator.on_confirm``. A *synchronous* rejection raises
-    ``RailRejected``. The real adapters live in ``integrations.mpesa`` / ``integrations.airtel``."""
-
-    def request_direct_collection(
-        self,
-        *,
-        transaction_id: str,
-        payer_msisdn: str,
-        merchant_msisdn: str,
-        amount: Money,
-        provider: str,
-    ) -> str | None: ...
-
-
 class TransactionStore(Protocol):
     def get(self, transaction_id: str) -> Transaction: ...
 

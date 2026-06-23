@@ -1,8 +1,8 @@
-"""On-net (same-network) payment: one leg straight to the merchant, recorded as a single posting.
+"""On-net (same-network) payment: facilitate & record. The customer pays the merchant directly on the
+operator's rail (we never touch the money); we record the payment as pending, then mark it paid on
+confirmation — a single balanced ledger entry (customer → merchant), no fee. See ADR 0009.
 
-Contrast with test_orchestrator.py (the routed/cross-network two-leg flow). On-net moves the money
-once (customer → merchant), we never custody it, and we take no fee — so the ledger is a single
-balanced entry and the transaction lands directly in PAYOUT_SUCCEEDED (paid).
+Contrast with test_orchestrator.py (the routed/cross-network two-leg flow).
 """
 from __future__ import annotations
 
@@ -18,8 +18,6 @@ from drc_pay_api.domains.transactions.orchestrator import (
     REVENUE,
 )
 from drc_pay_api.domains.transactions.state_machine import TxState
-
-from fakes import FakeDirectRail
 
 USD = "USD"
 PROVIDER = "AIRTEL_COD"
@@ -44,22 +42,21 @@ def _net_debit(postings: list[Posting], account: str) -> int:
     return total
 
 
-def _make() -> tuple[OnNetOrchestrator, InMemoryTransactionStore, FakeDirectRail, InMemoryLedger]:
-    store, ledger, rail = InMemoryTransactionStore(), InMemoryLedger(), FakeDirectRail()
-    return OnNetOrchestrator(store, rail, ledger), store, rail, ledger
+def _make() -> tuple[OnNetOrchestrator, InMemoryTransactionStore, InMemoryLedger]:
+    store, ledger = InMemoryTransactionStore(), InMemoryLedger()
+    return OnNetOrchestrator(store, ledger), store, ledger
 
 
 def test_on_net_success_is_one_posting_straight_to_merchant() -> None:
-    orch, store, rail, ledger = _make()
+    orch, store, ledger = _make()
     amount = Money.from_major("10.00", USD)
     orch.start(
         transaction_id="o1", payer_msisdn="243aaa", merchant_msisdn="243bbb",
         amount=amount, provider=PROVIDER, merchant_id="m_demo",
     )
-    # The operator was asked to move the money straight to the merchant — one leg.
-    assert rail.collections == [("o1", "243aaa", "243bbb", amount, PROVIDER)]
+    # We initiate nothing on the operator — the payment is recorded as awaiting confirmation.
     assert store.get("o1").state is TxState.COLLECTION_PENDING
-    assert ledger.postings == []  # nothing recorded until the operator confirms
+    assert ledger.postings == []  # nothing recorded until it's confirmed
 
     orch.on_confirm("o1", success=True)
     tx = store.get("o1")
@@ -73,28 +70,16 @@ def test_on_net_success_is_one_posting_straight_to_merchant() -> None:
     assert _credit_total(ledger.postings, EXPENSE) == 0
     assert _credit_total(ledger.postings, REVENUE) == 0
     assert (tx.customer_provider, tx.merchant_provider) == (PROVIDER, PROVIDER)
-    assert tx.deposit_id == "onnet-o1"  # operator op-id persisted for the callback to correlate
 
 
-def test_on_net_failure_moves_no_money() -> None:
-    orch, store, _, ledger = _make()
+def test_on_net_not_received_moves_no_money() -> None:
+    orch, store, ledger = _make()
     orch.start(
         transaction_id="o2", payer_msisdn="243aaa", merchant_msisdn="243bbb",
         amount=Money.from_major("5.00", USD), provider=PROVIDER,
     )
     orch.on_confirm("o2", success=False)
     assert store.get("o2").state is TxState.COLLECTION_FAILED
-    assert ledger.postings == []
-
-
-def test_on_net_synchronous_reject_ends_clean() -> None:
-    store, ledger = InMemoryTransactionStore(), InMemoryLedger()
-    orch = OnNetOrchestrator(store, FakeDirectRail(reject=True), ledger)
-    orch.start(
-        transaction_id="o3", payer_msisdn="243aaa", merchant_msisdn="243bbb",
-        amount=Money.from_major("5.00", USD), provider=PROVIDER,
-    )
-    assert store.get("o3").state is TxState.COLLECTION_FAILED
     assert ledger.postings == []
 
 

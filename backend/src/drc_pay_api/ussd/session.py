@@ -100,8 +100,6 @@ class UssdHandler:
             store=self._container.store,
             ledger=self._container.ledger,
             rail=self._container.rail,
-            direct_rails=self._container.direct_rails,
-            on_net_providers=self._container.on_net_providers,
             predictor=self._container.predictor,
             simulated=self._container.simulated,
             customer_msisdn=customer_msisdn,

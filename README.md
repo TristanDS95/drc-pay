@@ -19,13 +19,14 @@ app may follow later.
 **🟢 Live, end-to-end, on real pawaPay _sandbox_ rails.** Deployed on Railway as a single container
 (API + both web apps + Postgres). A real phone scans a merchant's QR → pays → the payment **confirms in
 real time** on both the payer's screen and the Merchant Console, driven by pawaPay's **signed callbacks**
-(RFC-9421). Backend is green: ruff + `mypy --strict` clean, **158 tests**.
+(RFC-9421). Backend is green: ruff + `mypy --strict` clean, **141 tests**.
 
 - **Backend** (`backend/`, **Python / FastAPI**): payment spine (collect → settle → auto-refund),
   double-entry ledger, explicit state machine, idempotency, Merchant + Charge domains, MDR pricing,
   Postgres + Alembic, the pawaPay client/rail, signed-callback receiver, reconciliation sweep, the USSD
-  channel, and **on-net dual-rail routing** — same-network payments take the operator's one cheap leg
-  instead of pawaPay's two (wired & green; real operator integration deferred to v2, with a sandbox demo toggle).
+  channel, and **on-net same-network handling** — being reworked to *facilitate & record*
+  ([ADR 0009](docs/adr/0009-on-net-facilitate-and-record.md)): same-network payments are paid
+  merchant-direct on the operator's own rail (non-custodial), and we record/confirm them.
 - **Web UIs** (`frontend/`): the gated **Merchant Console** and the public **Customer** scan-to-pay page.
 - **Not started:** the native mobile app (React Native/Expo — deliberately web-first for now; plan in
   [`docs/future-dev.md`](docs/future-dev.md)) and merchant onboarding/KYC.
@@ -63,16 +64,14 @@ domains/              # PURE money logic — no HTTP / SQL / vendor knowledge
   merchants/ charges/ #   the payee + the scan-to-pay checkout
   transactions/       #   state machine · models · pricing · ports, and the TWO orchestrators:
                       #     orchestrator.py — cross-network: pawaPay collect → settle → auto-refund
-                      #     on_net.py       — same-network: ONE direct leg straight to the merchant
-application/          # payments.py — the single entry every channel calls; routing.py picks on-net vs
-                      #   routed; outcomes.py / webhooks.py resolve async outcomes (callback + sweep)
+                      #     on_net.py       — same-network: facilitate & record (no money movement)
+application/          # payments.py — the single entry every channel calls; routing.py decides on-net
+                      #   vs routed; outcomes.py / webhooks.py resolve async outcomes (callback + sweep)
 adapters/             # in-memory + SQLAlchemy/Postgres stores (same ports)
 integrations/
   pawapay/            #   rented-rails client · rail · simulator · RFC-9421 signed-callback verify
-  airtel/  mpesa/     #   on-net direct-collect adapters (scaffolds — pending each operator's sandbox)
-  simulated_direct.py #   in-process on-net rail, so same-network flows run fully offline
-http/                 # FastAPI routes + the composition root (container.py); callbacks at
-                      #   /webhooks/pawapay (signed) and /webhooks/onnet/{provider} (on-net)
+http/                 # FastAPI routes + the composition root (container.py); the signed pawaPay
+                      #   callback receiver at /webhooks/pawapay
 ussd/                 # feature-phone channel — a thin caller into the same core
 jobs/                 # the reconciliation sweep (missed-callback safety net)
 ```
@@ -102,7 +101,7 @@ touch real (or sandbox) money:
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install ".[dev]"                                  # runtime + dev deps (ruff, mypy, pytest)
-ruff check . && mypy src && pytest                    # all green (158)
+ruff check . && mypy src && pytest                    # all green (141)
 
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
