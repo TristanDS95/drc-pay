@@ -204,8 +204,6 @@ def pay(body: PayRequest, container: ContainerDep) -> PayResponse:
         store=container.store,
         ledger=container.ledger,
         rail=container.rail,
-        direct_rails=container.direct_rails,
-        on_net_providers=container.on_net_providers,
         predictor=container.predictor,
         simulated=container.simulated,
         customer_msisdn=customer_msisdn,

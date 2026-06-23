@@ -28,12 +28,6 @@ class Settings(BaseSettings):
     # placeholder until it's provisioned.
     ussd_shortcode: str = "*123#"
 
-    # On-net demo toggle. The real operator on-net rails are NOT built yet (a v2 item — see DEVLOG),
-    # so on a live deployment same-network payments fall back to pawaPay. Set this to wire the
-    # in-process SimulatedDirectRail on a live/sandbox deployment too, so on-net routing is *visible*
-    # for a demo. ⚠ Simulated only: it fakes the operator confirmation and moves no real money.
-    onnet_simulate: bool = False
-
     # Hosting (a deployed sandbox demo). When CONSOLE_DIR is set, the app also serves the
     # static Merchant Console from that directory, same-origin with the API. When
     # BASIC_AUTH_PASSWORD is set, every request is gated behind HTTP Basic auth (username
