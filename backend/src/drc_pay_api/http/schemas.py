@@ -45,6 +45,7 @@ class TransactionResponse(BaseModel):
     deposit_id: str | None = None
     payout_id: str | None = None
     refund_id: str | None = None
+    provenance: str = "rail_verified"  # rail_verified (pawaPay) | merchant_attested (on-net)
     # Human-readable operations trace (empty on plain reads; populated on create).
     trace: list[str] = Field(default_factory=list)
 
@@ -58,3 +59,4 @@ class MerchantResponse(BaseModel):
     status: str
     ussd_string: str  # "*123*1001#" — what the customer dials
     tel_uri: str  # "tel:*123*1001%23" — the USSD dial-through (the eventual static-till QR payload)
+    operator_till: str | None = None  # the merchant's operator "buy goods" till (on-net hand-off)

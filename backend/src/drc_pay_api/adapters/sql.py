@@ -47,6 +47,8 @@ class MerchantRow(Base):
     settlement_msisdn: Mapped[str] = mapped_column(String)
     settlement_provider: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String)
+    # The merchant's own operator "buy goods" till (on-net hand-off prefers it). See ADR 0009.
+    operator_till: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -84,6 +86,8 @@ class TransactionRow(Base):
     deposit_id: Mapped[str | None] = mapped_column(String, nullable=True)
     payout_id: Mapped[str | None] = mapped_column(String, nullable=True)
     refund_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Assurance level: "rail_verified" (pawaPay) or "merchant_attested" (on-net). See ADR 0009.
+    provenance: Mapped[str] = mapped_column(String, server_default="rail_verified")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -142,6 +146,7 @@ def _to_domain(row: TransactionRow) -> Transaction:
         deposit_id=row.deposit_id,
         payout_id=row.payout_id,
         refund_id=row.refund_id,
+        provenance=row.provenance,
     )
 
 
@@ -176,6 +181,7 @@ class SqlTransactionStore:
             row.deposit_id = transaction.deposit_id
             row.payout_id = transaction.payout_id
             row.refund_id = transaction.refund_id
+            row.provenance = transaction.provenance
             session.commit()
 
     def all(self) -> list[Transaction]:
@@ -261,6 +267,7 @@ def _merchant_to_domain(row: MerchantRow) -> Merchant:
         settlement_msisdn=row.settlement_msisdn,
         settlement_provider=row.settlement_provider,
         status=row.status,
+        operator_till=row.operator_till,
     )
 
 
@@ -293,6 +300,7 @@ class SqlMerchantStore:
             row.settlement_msisdn = merchant.settlement_msisdn
             row.settlement_provider = merchant.settlement_provider
             row.status = merchant.status
+            row.operator_till = merchant.operator_till
             session.commit()
 
     def all(self) -> list[Merchant]:

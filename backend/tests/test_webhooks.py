@@ -28,14 +28,12 @@ def _pending_app():
         store=store, ledger=ledger, rail=rail, simulated=False, pawapay_public_key=pem
     )
     merchant = container.merchants.get("m_alpha")
-    # direct_rails/on_net_providers default empty → this stays on the routed pawaPay flow (the path
-    # this webhook test exercises); the customer also resolves cross-network (Vodacom → Airtel).
+    # The customer resolves cross-network (Vodacom → Airtel) — a routed pawaPay flow, which is the
+    # path this webhook test exercises.
     tx_id = start_merchant_payment(
         store=store,
         ledger=ledger,
         rail=rail,
-        direct_rails=container.direct_rails,
-        on_net_providers=container.on_net_providers,
         predictor=None,
         simulated=False,
         customer_msisdn="243800000001",

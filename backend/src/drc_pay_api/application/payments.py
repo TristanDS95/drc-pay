@@ -13,7 +13,6 @@ never on any channel/transport — so it can sit under all of them.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping
 from typing import Protocol
 
 from ..domains.ledger.money import Money
@@ -21,7 +20,6 @@ from ..domains.merchants.models import Merchant
 from ..domains.transactions.on_net import OnNetOrchestrator
 from ..domains.transactions.orchestrator import Orchestrator
 from ..domains.transactions.ports import (
-    DirectCollectRail,
     LedgerPort,
     PaymentRail,
     Recorder,
@@ -29,8 +27,7 @@ from ..domains.transactions.ports import (
 )
 from ..domains.transactions.pricing import default_fee
 from ..integrations.pawapay.client import ProviderPrediction
-from ..integrations.simulated_direct import SimulatedDirectRail
-from .routing import use_on_net
+from .routing import ON_NET_PROVIDERS, use_on_net
 
 # Demo fallback operator: used only when no override is given and no live predictor is
 # wired (the simulator ignores the provider anyway). The live rail always resolves a real
@@ -76,8 +73,6 @@ def start_merchant_payment(
     store: TransactionStore,
     ledger: LedgerPort,
     rail: PaymentRail,
-    direct_rails: Mapping[str, DirectCollectRail],
-    on_net_providers: frozenset[str],
     predictor: Predictor | None,
     simulated: bool,
     customer_msisdn: str,
@@ -89,33 +84,26 @@ def start_merchant_payment(
     defer: bool = False,
     recorder: Recorder | None = None,
 ) -> str:
-    """Resolve operators, ROUTE the payment (on-net direct vs. routed pawaPay), start it, and — on
-    the simulator — play out the demo ``scenario``. Returns the new transaction id. The merchant's
-    settlement target is server-derived, never client-set. This is the single dispatch point every
-    channel (HTTP, USSD, charge) inherits, so the routing decision is made once, in one place.
-
-    Routing: when the payer and merchant share an operator AND we hold an on-net rail for it, the
-    operator moves the money straight to the merchant in one cheap leg (``OnNetOrchestrator``).
-    Otherwise — cross-network, or an operator with no on-net rail (e.g. Orange) — it takes the
-    two-leg pawaPay flow (``Orchestrator``). The provider can only be known after resolution, which
-    is why the decision lives here and not inside either orchestrator.
+    """Resolve operators, start the transaction (collect from the customer, settle to the merchant via
+    pawaPay), and — on the simulator — play out the demo ``scenario``. Returns the new transaction id.
+    The merchant's settlement target is server-derived, never client-set. The shared entry every channel
+    (HTTP, USSD, charge) calls.
 
     ``defer`` (simulator only) skips the play-out, leaving the transaction *pending* as if awaiting
-    the operator's / pawaPay's callback — used to demonstrate a callback (or the reconciliation
-    safety net) healing a payment whose outcome arrived later. On the live rail there is no play-out
-    regardless: the real outcome always arrives asynchronously via callback."""
+    pawaPay's callback — used to demonstrate the reconciliation safety net healing a payment whose
+    callback never arrived. On the live rail there is no play-out: the real outcome always arrives
+    asynchronously via the signed callback."""
     customer_provider = resolve_provider(predictor, customer_msisdn, customer_provider_override)
     merchant_provider = resolve_provider(
         predictor, merchant.settlement_msisdn, merchant.settlement_provider
     )
     transaction_id = uuid.uuid4().hex
 
-    # On-net (same-network) direct flow — one leg straight to the merchant, no fee, no pawaPay. Only
-    # taken when we actually hold a rail for the shared operator; otherwise fall through to pawaPay.
-    direct_rail = direct_rails.get(customer_provider)
-    if direct_rail is not None and use_on_net(customer_provider, merchant_provider, on_net_providers):
-        on_net = OnNetOrchestrator(store, direct_rail, ledger, recorder)
-        on_net.start(
+    # On-net (same-network): the customer pays the merchant directly on the operator's own rail. We
+    # record the payment as awaiting confirmation (initiate nothing, hold nothing, take no fee); a
+    # merchant "Confirm received" resolves it via OnNetOrchestrator.on_confirm. See ADR 0009.
+    if use_on_net(customer_provider, merchant_provider, ON_NET_PROVIDERS):
+        OnNetOrchestrator(store, ledger, recorder).start(
             transaction_id=transaction_id,
             payer_msisdn=customer_msisdn,
             merchant_msisdn=merchant.settlement_msisdn,
@@ -124,14 +112,6 @@ def start_merchant_payment(
             merchant_id=merchant.id,
             idempotency_key=idempotency_key,
         )
-        # The in-process simulator has no real operator to send a confirmation callback, so we
-        # produce the outcome inline (the on-net analog of the pawaPay demo play-out) — this is what
-        # keys off the rail type, NOT the pawaPay ``simulated`` flag, so the on-net demo toggle works
-        # on a live pawaPay deployment too. A real operator rail would instead await its callback.
-        # On-net is a single leg: only the collection can fail, so a post-collection scenario
-        # (payout_fail / refund_fail) simply confirms as paid.
-        if isinstance(direct_rail, SimulatedDirectRail) and not defer:
-            on_net.on_confirm(transaction_id, success=scenario != "collection_fail")
         return transaction_id
 
     # Routed (pawaPay) two-leg flow. Fee = the real round-trip cost for this network pair

@@ -16,7 +16,6 @@ so each call can return its own operations log.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Annotated, Protocol
 
@@ -41,19 +40,12 @@ from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
 from ..application.payments import Predictor
-from ..domains.transactions.ports import DirectCollectRail, PaymentRail
+from ..domains.transactions.ports import PaymentRail
 from ..integrations.pawapay.client import PawaPayClient
 from ..integrations.pawapay.rail import PawaPayRail
 from ..integrations.pawapay.simulator import SimulatedPaymentRail
 from ..integrations.pawapay.status import StatusPoller
-from ..integrations.simulated_direct import SimulatedDirectRail
 from ..seed import seed_demo_merchants
-
-# On-net-capable operators in the offline demo: M-Pesa & Airtel support a third-party-initiated
-# in-app push (so a same-network payment can take the one-leg direct rail). Orange does NOT (its
-# flow is a web redirect, not a push), so it always routes through pawaPay. See the research finding
-# ``cross-cutting/on-net-direct-operator-apis.md``.
-ON_NET_SIM_PROVIDERS = frozenset({"AIRTEL_COD", "VODACOM_MPESA_COD"})
 
 
 class TxStore(Protocol):
@@ -109,12 +101,6 @@ class Container:
     rail: PaymentRail
     predictor: Predictor | None = None
     simulated: bool = True  # True when the rail is the in-process simulator
-    # On-net (same-network) direct rails: operator code → its one-leg C2B rail. A payment whose
-    # payer and merchant share an operator in ``on_net_providers`` takes that rail instead of the
-    # two-leg pawaPay flow; anything else falls back to pawaPay. Empty by default, so a Container
-    # built directly (e.g. in a test) opts out of on-net unless it wires these explicitly.
-    direct_rails: Mapping[str, DirectCollectRail] = field(default_factory=dict)
-    on_net_providers: frozenset[str] = frozenset()
     environment: str = "local"  # local | sandbox | production — gates the demo/ops controls
     merchants: MerchantStore = field(default_factory=_seeded_merchant_store)
     charges: ChargeStore = field(default_factory=InMemoryChargeStore)
@@ -153,7 +139,6 @@ def build_container(
     ussd_shortcode: str = "*123#",
     pawapay_public_key: str = "",
     environment: str = "local",
-    onnet_simulate: bool = False,
 ) -> Container:
     # Rail: live pawaPay when both credentials are present, else the simulator.
     if pawapay_base_url and pawapay_api_token:
@@ -170,20 +155,6 @@ def build_container(
         predictor = None
         poller = simulator  # the simulator doubles as a StatusPoller — reconciliation can heal demo txns
         simulated = True
-
-    # On-net (same-network) direct rails. The ONLY implementation today is the in-process
-    # SimulatedDirectRail — the real operator adapters (M-Pesa/Airtel) are NOT built yet (a v2 item;
-    # see DEVLOG). Wire the simulator for the on-net-capable operators (Airtel & Vodacom, not Orange)
-    # when running on the simulator, OR when ``onnet_simulate`` is set to DEMO on-net routing on a
-    # live/sandbox deployment. ⚠ Simulated: it fakes the operator confirmation and moves no real money;
-    # otherwise same-network payments fall back to pawaPay (the graceful per-operator fallback).
-    if simulated or onnet_simulate:
-        sim_direct = SimulatedDirectRail()
-        direct_rails: Mapping[str, DirectCollectRail] = {p: sim_direct for p in ON_NET_SIM_PROVIDERS}
-        on_net_providers: frozenset[str] = ON_NET_SIM_PROVIDERS
-    else:
-        direct_rails = {}
-        on_net_providers = frozenset()
 
     # Persistence: Postgres when a URL is given (schema managed by Alembic), else memory.
     if database_url:
@@ -205,8 +176,6 @@ def build_container(
         rail=rail,
         predictor=predictor,
         simulated=simulated,
-        direct_rails=direct_rails,
-        on_net_providers=on_net_providers,
         merchants=merchants,
         charges=charges,
         ussd_shortcode=ussd_shortcode,
