@@ -11,6 +11,10 @@ from dataclasses import dataclass, field
 from ..ledger.money import Money
 from .state_machine import TxState
 
+# How a payment's outcome was established (its assurance level), recorded on the transaction.
+RAIL_VERIFIED = "rail_verified"  # pawaPay-settled, verified by the operator's RFC-9421 signed callback
+MERCHANT_ATTESTED = "merchant_attested"  # on-net: paid merchant-direct, the merchant confirmed receipt
+
 
 @dataclass
 class Transaction:
@@ -33,3 +37,6 @@ class Transaction:
     deposit_id: str | None = None
     payout_id: str | None = None
     refund_id: str | None = None
+    # How the outcome is established (assurance level): RAIL_VERIFIED (pawaPay signed callback) or
+    # MERCHANT_ATTESTED (on-net, the merchant confirmed they received it directly). See ADR 0009.
+    provenance: str = RAIL_VERIFIED

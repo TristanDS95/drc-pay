@@ -1,38 +1,36 @@
-"""On-net (same-network) payment flow — the single-leg path.
+"""On-net (same-network) payment flow — facilitate & record (no money movement by us).
 
-When the customer and merchant are on the SAME operator, we don't route through pawaPay's
-collect-then-payout (two legs, ~3.5–5%). The operator moves the money customer→merchant on its own
-network in ONE leg (a direct C2B collection straight to the merchant); we never custody the funds,
-so the ledger is a single balanced posting (customer → merchant) — no clearing, no pawaPay expense,
-no fee leg. The cross-network two-leg flow stays in ``orchestrator.py``; a router picks between them.
+When the customer and merchant are on the SAME operator, we do NOT route money through pawaPay's
+collect-then-payout. The customer pays the merchant **directly on the operator's own rail**; we never
+touch the funds. Our job is only to RECORD the sale and mark it paid once it's confirmed — a single
+balanced ledger posting (customer → merchant), no clearing, no pawaPay expense, no fee. The
+cross-network two-leg flow stays in ``orchestrator.py``. See ADR 0009.
 
-The outcome is asynchronous (the operator's confirmation callback), resolved through ``on_confirm`` —
-mirroring how the routed flow resolves via the webhook/sweep. Every state change is enforced by the
-state machine; the one money movement is a balanced ledger posting.
+The confirmation is asynchronous: ``start`` records the payment as pending (awaiting confirmation),
+and ``on_confirm`` resolves it — triggered by the merchant ("Confirm received") or, later, an operator
+merchant-payment notification. Every state change is enforced by the state machine.
 """
 from __future__ import annotations
 
 from ..ledger.ledger import Direction, Entry, Posting
 from ..ledger.money import Money
-from .models import Transaction
+from .models import MERCHANT_ATTESTED, Transaction
 from .orchestrator import CUSTOMER, MERCHANT  # the external-wallet account names, shared with the routed flow
-from .ports import DirectCollectRail, LedgerPort, RailRejected, Recorder, TransactionStore
+from .ports import LedgerPort, Recorder, TransactionStore
 from .state_machine import TxState, assert_transition
 
 
 class OnNetOrchestrator:
-    """Drives a same-network payment: one direct collection straight to the merchant, confirmed
-    asynchronously. No payout leg, no custody, a single balanced ledger posting."""
+    """Records a same-network payment that settles merchant-direct on the operator's rail. We hold no
+    funds and take no fee: one balanced ledger posting (customer → merchant), confirmed out-of-band."""
 
     def __init__(
         self,
         store: TransactionStore,
-        rail: DirectCollectRail,
         ledger: LedgerPort,
         recorder: Recorder | None = None,
     ) -> None:
         self._store = store
-        self._rail = rail
         self._ledger = ledger
         self._recorder = recorder
 
@@ -60,8 +58,9 @@ class OnNetOrchestrator:
         merchant_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> Transaction:
-        """Record a same-network payment and ask the operator to move the money customer→merchant
-        directly. The outcome arrives later via ``on_confirm``. ``provider`` is the shared operator."""
+        """Record a same-network payment as *pending confirmation*. We initiate nothing on the
+        operator — the customer pays the merchant directly; the outcome arrives via ``on_confirm``.
+        ``provider`` is the shared operator on both sides."""
         if not amount.is_positive:
             raise ValueError("amount must be positive")
         self._rec("check · amount > 0, same-network (on-net) — OK")
@@ -77,42 +76,27 @@ class OnNetOrchestrator:
             customer_provider=provider,
             merchant_provider=provider,  # same network on both sides — that is what makes this on-net
             merchant_id=merchant_id,
+            provenance=MERCHANT_ATTESTED,  # on-net is confirmed by the merchant, not a signed rail callback
         )
         self._store.save(transaction)
         self._rec("state · created → initiated")
-        self._transition(transaction, TxState.COLLECTION_PENDING)
-        try:
-            op_id = self._rail.request_direct_collection(
-                transaction_id=transaction.id,
-                payer_msisdn=payer_msisdn,
-                merchant_msisdn=merchant_msisdn,
-                amount=amount,
-                provider=provider,
-            )
-        except RailRejected as exc:
-            self._rec(f"rail ✕ direct collection rejected synchronously — {exc}")
-            self._transition(transaction, TxState.COLLECTION_FAILED)
-            self._rec("✕ ended — collection rejected, no money moved")
-            return transaction
-        if op_id is not None:
-            transaction.deposit_id = op_id  # the operator's op-id, so the callback correlates back
-            self._store.save(transaction)
-            self._rec(f"rail · direct_collect_id={op_id} (persisted)")
+        self._transition(transaction, TxState.COLLECTION_PENDING)  # awaiting confirmation
         self._rec(
-            f"rail → on-net collect {amount.to_major_str()} {amount.currency} from {payer_msisdn} "
-            f"straight to {merchant_msisdn} on {provider}"
+            f"on-net · awaiting confirmation that {payer_msisdn} paid {merchant_msisdn} "
+            f"{amount.to_major_str()} {amount.currency} directly on {provider}"
         )
         return transaction
 
     # ---- async outcome ------------------------------------------------
     def on_confirm(self, transaction_id: str, *, success: bool) -> None:
-        """Resolve the operator's confirmation. On success the merchant already has the money —
-        record the single customer→merchant posting and mark the payment paid."""
+        """Resolve the confirmation (merchant "Confirm received", or later an operator notification).
+        On success the merchant already has the money — record the single customer→merchant posting and
+        mark the payment paid."""
         transaction = self._store.get(transaction_id)
-        self._rec(f"callback ← operator: on-net collection {'SUCCEEDED' if success else 'FAILED'}")
+        self._rec(f"confirm ← on-net payment {'CONFIRMED' if success else 'NOT RECEIVED'}")
         if not success:
             self._transition(transaction, TxState.COLLECTION_FAILED)
-            self._rec("✕ ended — collection failed, no money moved")
+            self._rec("✕ ended — not received, no money moved")
             return
         # One leg: the customer's money went straight to the merchant on-net. We never held it, so
         # there is no clearing / expense / revenue — just the movement, recorded.
@@ -129,6 +113,5 @@ class OnNetOrchestrator:
             f"ledger · DEBIT {CUSTOMER} {transaction.amount.to_major_str()} | "
             f"CREDIT {MERCHANT} {transaction.amount.to_major_str()} — balanced ✓"
         )
-        # On-net collapses the two legs: this single collection IS the settlement → paid.
         self._transition(transaction, TxState.PAYOUT_SUCCEEDED)
-        self._rec("✓ complete — merchant paid directly on-net (no pawaPay, no fee leg)")
+        self._rec("✓ complete — merchant paid directly on-net (no pawaPay, no fee, merchant-attested)")

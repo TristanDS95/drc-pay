@@ -20,48 +20,45 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
 - **Real per-network-pair fees** (pawaPay published cost, **pass-through, no margin yet**) replaced the
   flat 1%; pawaPay's cost is now booked to **`expense:pawapay`** and `revenue:fees` holds only the
   **margin** (0 today) — ADR 0007. See "How the money works".
-- **Backend green:** ruff + mypy --strict clean, **158 tests**. Payment spine (collect → settle →
+- **Backend green:** ruff + mypy --strict clean, **148 tests**. Payment spine (collect → settle →
   auto-refund), double-entry ledger, 10-state machine, idempotency, Merchant + Charge domains, Postgres
-  + Alembic, pawaPay client/rail, signed-callback receiver, reconciliation sweep, USSD channel. **New:
-  on-net dual-rail routing is WIRED end-to-end** — a same-network payment takes the operator's one-leg
-  direct rail (offline via `SimulatedDirectRail`) instead of pawaPay's two legs, confirms as **paid**,
-  with pawaPay the graceful per-operator fallback; an operator-callback endpoint resolves the async
-  outcome. The **real** operator integration is **deferred to v2** (small/unconfirmed saving,
-  partner-gated); a `DRCPAY_ONNET_SIMULATE` toggle demos it on the sandbox meanwhile. See NEXT.
+  + Alembic, pawaPay client/rail, signed-callback receiver, reconciliation sweep, USSD channel. **On-net
+  = facilitate & record ([ADR 0009](adr/0009-on-net-facilitate-and-record.md)), backend DONE.**
+  Same-network payments are paid **merchant-direct on the operator's own rail** (we never touch the
+  money); we record an *awaiting-confirmation* txn, the merchant taps **Confirm received**, and it's
+  marked paid (**merchant-attested**). The operator-API "direct-collect" approach is **retired** (it
+  would make us the merchant → custody → EMI licence). The on-net **UI is now built** (customer hand-off,
+  merchant Confirm-received, per-merchant till) — the slice is complete; see NEXT for the next rocks.
 - **Web UIs:** **Merchant Console** (gated) — "Charge by QR", live feed, ledger drill-down, a
-  de-emphasized reconcile fallback; **Customer page** (public) — scan → locked amount → pick network →
-  pay, confirms live with the fee shown.
+  de-emphasized reconcile fallback, and an **on-net "Confirm receipt"** card; **Customer page** (public) —
+  scan → locked amount → pick network → pay, confirms live with the fee shown, or an **on-net hand-off**
+  (pay the merchant directly on the operator — their till when set, else their number) when same-network.
 
 ## ▶ NEXT — biggest open rocks (rough priority; confirm the pick before building)
 
-**On-net same-network routing — engine BUILT (simulated), real operator integration DEFERRED to v2.**
-(The immediate rocks are the numbered items below.) The dual-rail engine is done and green: a
-same-network payment takes a one-leg direct rail instead of pawaPay's collect+payout (~3.5–5%);
-cross-network — and Orange (no in-app push) — fall back to pawaPay. A **`DRCPAY_ONNET_SIMULATE`** toggle
-wires the in-process `SimulatedDirectRail` on a live/sandbox deployment too, so on-net routing is
-**visible for a demo** (Airtel & Vodacom; the charge shows **paid**, `fee=0`). ⚠ **Simulated only — it
-fakes the operator confirmation and moves no real money.**
-- **What is NOT built (the real piece):** actually moving money on-net into the merchant's wallet via
-  the operator. Merchants already *receive* on their operator; the gap is the authorized API path for us
-  to (a) push a collection to the customer and (b) land it in *that* merchant's wallet with a
-  trustworthy confirmation. The operators' Collection APIs let the API *caller* collect into its *own*
-  wallet — so routing to a *specific* merchant needs an **aggregator / sub-merchant** arrangement
-  (partner-gated). A per-merchant-credentials workaround was considered and **rejected**: it pushes an
-  operator contract onto every merchant, undermining the whole aggregator value prop.
-- **Why deferred (per research — `cross-cutting/{on-net-direct-operator-apis,own-aggregator}.md`):**
-  direct operator integration is a **v2–v3 (12–36 mo) play**. The saving is small and unconfirmed —
-  pawaPay's margin is ~1%/leg; the operator's own fee (~1.5–2%/leg) is paid either way; operator API
-  merchant pricing is partner-gated (can't model it). Verdict: **rent pawaPay now, own the rails later.**
-- **BUILT & green (in the 158 tests):** `DirectCollectRail` port; `on_net.py` `OnNetOrchestrator`
-  (one-leg → single customer→merchant ledger posting, `fee=0`, → `payout_succeeded`); `routing.py`
-  `use_on_net`; `SimulatedDirectRail`; `build_container` direct rails + `on_net_providers` (+ the
-  `onnet_simulate` toggle); `start_merchant_payment` routes for *every* channel; `POST
-  /webhooks/onnet/{provider}` → `on_confirm` (sandbox-gated). `integrations/{airtel,mpesa}/rail.py`
-  remain scaffolds (`NotImplementedError`).
-- **When we do build it (v2):** fill `integrations/airtel/rail.py` (then M-Pesa) against the self-serve
-  Airtel sandbox (`openapiuat.airtel.africa`); confirm the aggregator/sub-merchant model + pricing with
-  the operator; wire it into the *live* branch of `build_container` with per-operator callback signature
-  verification; ungate the callback. Commercial go/no-go is gated on operator contacts + contracts.
+**On-net same-network — "facilitate & record" ([ADR 0009](adr/0009-on-net-facilitate-and-record.md)); backend + UI DONE.**
+We do NOT route or hold money on-net: the customer pays the merchant **directly on the operator's own
+rail** (their till whenever they have one, else their number), and we **record & confirm** the sale —
+non-custodial, no operator money-API, `fee=0`. Cross-network stays on pawaPay. "Paid" is tagged
+**merchant-attested** (on-net) vs **rail-verified** (pawaPay).
+- **DONE — trim + backend flow ✅ (147 tests green).** Removed the operator-API machinery
+  (`DirectCollectRail`, the `airtel`/`mpesa` scaffolds, `simulated_direct.py`, the `DRCPAY_ONNET_SIMULATE`
+  toggle). `OnNetOrchestrator` is rail-free (records *awaiting confirmation* → `on_confirm` posts the one
+  ledger entry, paid). `start_merchant_payment` routes same-network → on-net awaiting (all pairs, via
+  `ON_NET_PROVIDERS` in `routing.py`). **`POST /transactions/{id}/confirm`** (merchant-gated;
+  `?received=false` for not-received; idempotent) resolves it. A **`provenance`** field
+  (`merchant_attested` | `rail_verified`) on the txn + responses, persisted via migration
+  `a7c1e9f04b2d`. `/pay` exposes `on_net` + `pay_to_msisdn` + `pay_to_operator` for the hand-off.
+- **DONE — the UI slice ✅.** Customer page (`frontend/customer-app`): when `on_net`, a hand-off card —
+  "pay `<merchant>` directly on `<operator>`" showing the merchant's **till** when set (else their number) +
+  a live waiting state that polls `/public/transaction` until paid / not-received. Merchant console
+  (`frontend/merchant-console`): a **"On-net — confirm receipt"** card listing awaiting on-net payments,
+  each with **Confirm received** / **Not received** → `POST /transactions/{id}/confirm`; those rows are kept
+  out of the pawaPay reconcile safety-net, and the detail modal shows **assurance** (merchant-attested vs
+  rail-verified). **Per-merchant operator till** added (`Merchant.operator_till`, migration `c3e8f1a9b7d2`,
+  seeded on Alpha/Gamma, exposed via `/pay` `pay_to_till` + `/merchants`); `/pay` prefers it over the number.
+- **To confirm with operators (not blocking the MVP):** the DRC "pay a merchant till" UX + tariff per
+  operator, and whether tills emit a merchant-payment notification (the path to auto-confirm).
 
 1. **Pricing — the decision this all serves.** The ledger now splits cost from revenue (**ADR 0007**):
    pawaPay's per-pair cost (3.5–5%) → `expense:pawapay`, and `revenue:fees` holds the **margin** — which
@@ -160,7 +157,7 @@ payer page.
   the sandbox — ⚠ **simulated** (fakes the operator confirmation, no real money); unset → all payments
   via pawaPay. Real operator on-net is a v2 item (see NEXT).
 - **AWS is the eventual production target** (notes in `future-dev.md`); the Docker image is portable. Alembic head:
-  `f3a4b5c6d7e8`.
+  `c3e8f1a9b7d2` (adds `merchants.operator_till`).
 
 ---
 
@@ -179,7 +176,7 @@ into its own service): see [`future-dev.md`](./future-dev.md).
 ## How to run
 ```bash
 cd backend && source .venv/bin/activate
-ruff check . && mypy src && pytest                          # all green (158)
+ruff check . && mypy src && pytest                          # all green (148)
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
