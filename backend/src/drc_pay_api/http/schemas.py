@@ -59,3 +59,4 @@ class MerchantResponse(BaseModel):
     status: str
     ussd_string: str  # "*123*1001#" — what the customer dials
     tel_uri: str  # "tel:*123*1001%23" — the USSD dial-through (the eventual static-till QR payload)
+    operator_till: str | None = None  # the merchant's operator "buy goods" till (on-net hand-off)

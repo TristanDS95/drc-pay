@@ -26,9 +26,22 @@ def test_same_network_pay_is_awaiting_confirmation_not_routed() -> None:
     assert body["state"] == "collection_pending"  # awaiting the merchant's confirmation, not "paid"
     assert body["fee"] == "0.00"  # we move no money and take no cut
     assert body["customer_provider"] == body["merchant_provider"] == "AIRTEL_COD"
-    # The customer is told to pay the merchant directly on their operator.
-    assert body["pay_to_msisdn"]  # the merchant's number
+    # The customer is told to pay the merchant directly on their operator. m_alpha has an operator
+    # till, so the hand-off prefers it (over the number) — ADR 0009.
+    assert body["pay_to_till"] == "507412"  # the merchant's operator "buy goods" till
+    assert body["pay_to_msisdn"]  # the merchant's number, still offered as the fallback
     assert body["pay_to_operator"] == "AIRTEL_COD"
+
+
+def test_on_net_without_a_till_falls_back_to_send_to_number() -> None:
+    # m_beta (Orange) has no operator till, so the on-net hand-off offers the number only.
+    body = _client().post(
+        "/pay", json={"merchant_id": "m_beta", "amount": "10.00", "payer_network": "orange"}
+    ).json()
+    assert body["on_net"] is True
+    assert body["pay_to_till"] is None  # no till → P2P fallback
+    assert body["pay_to_msisdn"]  # the merchant's number is what the customer sends to
+    assert body["pay_to_operator"] == "ORANGE_COD"
 
 
 def test_merchant_confirm_marks_a_charge_paid_merchant_attested() -> None:

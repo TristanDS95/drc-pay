@@ -187,6 +187,7 @@ def _merchant_response(container: Container, merchant_id: str) -> MerchantRespon
         status=merchant.status,
         ussd_string=code.ussd_string,
         tel_uri=code.tel_uri,
+        operator_till=merchant.operator_till,
     )
 
 

@@ -143,11 +143,13 @@ def test_merchant_store_roundtrip_and_lookup() -> None:
             short_code="1001",
             settlement_msisdn="243810000001",
             settlement_provider="AIRTEL_COD",
+            operator_till="507412",
         )
     )
     got = store.get("m1")
     assert got.name == "Alpha Gas Station"
     assert got.is_active
+    assert got.operator_till == "507412"  # the on-net till round-trips through SQL
     assert store.get_by_short_code("1001") is not None
     assert store.get_by_short_code("nope") is None
 
