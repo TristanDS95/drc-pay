@@ -61,6 +61,15 @@
   .net .count small{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:6px;}
   .net .pendlist{margin:12px 0 0;list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;}
   .net .pendlist li{font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;}
+  /* on-net confirm card */
+  .onnet{border:1.5px solid #bfe3cf;background:#f3fbf6;}
+  ul.onnetlist{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:10px;}
+  ul.onnetlist li{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+        padding:11px 13px;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
+  ul.onnetlist .amt{font-weight:800;} ul.onnetlist .who{font-size:11.5px;color:var(--muted);}
+  ul.onnetlist .acts{display:flex;gap:8px;}
+  ul.onnetlist .acts button{margin:0;width:auto;padding:9px 14px;font-size:13px;}
+  button.cta.confirm{background:var(--ok);} button.cta.confirm:active{background:#0f5a39;}
   /* feed */
   .feed-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
   .feed-head .t{font-weight:800;font-size:15px;} .feed-head button{font-size:15px;}
@@ -127,6 +136,7 @@
             <div class="name" id="m-name">—</div>
             <div class="till" id="m-till">—</div>
             <div class="line" id="m-settle"></div>
+            <div class="line" id="m-onnet"></div>
             <div class="line">Pick a merchant above, then create a charge below for a specific amount.</div>
           </div>
         </div>
@@ -162,6 +172,14 @@
         </div>
         <button class="cta" id="pay">Take payment</button>
         <div id="pay-out" class="out hidden"></div>
+      </div>
+
+      <div class="card onnet" id="onnet-card" style="display:none;">
+        <h2>📲 On-net payments — confirm receipt</h2>
+        <p class="sub">Same-network payments arrive <b>directly on your mobile money</b> — DRC Pay never
+          touches them. When the operator's SMS says the money landed, tap <b>Confirm received</b> to
+          mark the sale paid. These are <b>merchant-attested</b>, not rail-verified.</p>
+        <ul class="onnetlist" id="onnet-list"></ul>
       </div>
 
       <div class="card net">
@@ -210,6 +228,8 @@
     payout_pending:"Settling", payout_succeeded:"Paid", payout_failed:"Settle failed",
     refund_pending:"Refunding", refunded:"Refunded", collection_failed:"Declined", manual_review:"Needs review",
   };
+  // How a payment's "paid" was established (ADR 0009): pawaPay's signed callback vs the merchant's tap.
+  const PROV = { rail_verified:"rail-verified (pawaPay)", merchant_attested:"merchant-attested (on-net)" };
   const pillClass = (s) => s === "payout_succeeded" ? "ok"
     : PENDING.has(s) ? "wait"
     : (s === "refunded" || s === "initiated" || s === "collection_succeeded") ? "mut" : "bad";
@@ -239,12 +259,15 @@
     $("m-name").textContent = m.name;
     $("m-till").textContent = m.ussd_string;
     $("m-settle").textContent = `Settles to ${opName(m.settlement_provider)} · ${m.settlement_msisdn}`;
+    $("m-onnet").textContent = m.operator_till
+      ? `On-net (same-network): customers pay your ${opName(m.settlement_provider)} till ${m.operator_till}`
+      : `On-net (same-network): no till set — customers send to ${m.settlement_msisdn}`;
   }
 
   async function refresh(){
     try { txns = await jget("/transactions"); } catch(e){ return; }
     clearErr();
-    renderFeed(); renderPending();
+    renderFeed(); renderPending(); renderOnNet();
   }
 
   function mineNewestFirst(){
@@ -266,14 +289,58 @@
   }
 
   function renderPending(){
-    // Reconciliation is global, but show this merchant's share so the demo reads cleanly.
-    const pend = mineNewestFirst().filter((t)=>PENDING.has(t.state));
+    // Reconciliation is global, but show this merchant's share so the demo reads cleanly. On-net
+    // (merchant-attested) awaiting payments are NOT pawaPay legs — they confirm via the card below,
+    // not the sweep — so keep them out of this safety net.
+    const pend = mineNewestFirst().filter((t)=>PENDING.has(t.state) && t.provenance !== "merchant_attested");
     $("pend-count").textContent = pend.length;
     $("pend-cap").textContent = pend.length === 1 ? "payment awaiting confirmation" : "payments awaiting confirmation";
     $("pend-list").innerHTML = pend.slice(0,6).map((t)=>`
       <li><span>${t.amount} ${t.currency} · ${t.customer_msisdn}</span>
           <span class="pill wait">${LABEL[t.state]||t.state}</span></li>`).join("");
     $("reconcile").disabled = pend.length === 0;
+  }
+
+  // ----- on-net (same-network) confirmation -----
+  // On-net payments land merchant-direct on the operator (ADR 0009): we hold no money, so they sit
+  // "awaiting confirmation" until the merchant taps Confirm received. They are exactly the
+  // collection_pending rows tagged merchant_attested (rail-verified pawaPay legs confirm themselves).
+  const awaitingOnNet = () =>
+    mineNewestFirst().filter((t)=>t.state === "collection_pending" && t.provenance === "merchant_attested");
+
+  function renderOnNet(){
+    const list = awaitingOnNet(), card = $("onnet-card"), ul = $("onnet-list");
+    if(!list.length){ card.style.display = "none"; return; }
+    card.style.display = "block";
+    ul.innerHTML = list.map((t)=>`
+      <li>
+        <span><span class="amt">${t.amount} ${t.currency}</span> &nbsp;
+          <span class="who">from ${t.customer_msisdn} · ${opName(t.customer_provider)}</span></span>
+        <span class="acts">
+          <button class="cta confirm" data-id="${t.id}" data-recv="1">Confirm received</button>
+          <button class="cta ghost" data-id="${t.id}" data-recv="0">Not received</button>
+        </span>
+      </li>`).join("");
+    ul.querySelectorAll("button[data-id]").forEach((b)=>b.addEventListener("click",
+      ()=>confirmOnNet(b.dataset.id, b.dataset.recv === "1")));
+  }
+
+  async function confirmOnNet(id, received){
+    clearErr();
+    let t;
+    try {
+      const r = await fetch(`${API}/transactions/${id}/confirm?received=${received}`, { method:"POST" });
+      t = await r.json();
+      if(!r.ok) throw new Error(t.detail || `HTTP ${r.status}`);
+    } catch(e){ showErr(String(e.message||e)); return; }
+    if(received){
+      const lines = [`✓ on-net confirmed — ${t.amount} ${t.currency} from ${t.customer_msisdn} (merchant-attested)`];
+      for(const l of (t.ledger||[])){ lines.push(`ledger · ${l.direction} ${l.account} ${l.amount} ${l.currency}`); }
+      pushTrace(lines);
+    } else {
+      pushTrace([`✕ on-net not received — ${t.amount} ${t.currency} from ${t.customer_msisdn}; no money moved`]);
+    }
+    await refresh();
   }
 
   // ----- actions -----
@@ -389,6 +456,7 @@
         <div class="k">Merchant</div><div class="v">${t.merchant_name||t.merchant_id||"—"} · ${t.merchant_provider||"—"}</div>
         <div class="k">Fee (MDR)</div><div class="v">${t.fee} ${t.currency}</div>
         <div class="k">Merchant nets</div><div class="v">${t.state==='payout_succeeded'? net.toFixed(2): '—'} ${t.currency}</div>
+        <div class="k">Assurance</div><div class="v">${PROV[t.provenance]||t.provenance||"—"}</div>
       </div>
       <div class="sectlabel">pawaPay operation ids</div>
       <div class="kv">
@@ -428,7 +496,7 @@
   }
 
   // ----- wiring -----
-  $("merchant").addEventListener("change", () => { renderMerchant(); renderFeed(); renderPending(); });
+  $("merchant").addEventListener("change", () => { renderMerchant(); renderFeed(); renderPending(); renderOnNet(); });
   $("pay").addEventListener("click", takePayment);
   $("reconcile").addEventListener("click", runReconcile);
   $("charge-make").addEventListener("click", createCharge);
