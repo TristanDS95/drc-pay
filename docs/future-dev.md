@@ -82,8 +82,15 @@ in-process simulator's logic.
 
 ---
 
-## On-net direct-operator rails (v2)
+## On-net (same-network) — facilitate & record
 
-Same-network on-net routing has a **simulated** demo path today; the **real** operator integration is a
-v2 play (small/unconfirmed saving, partner-gated). Full detail is in `DEVLOG.md` (NEXT) and
+Direction set by [ADR 0009](adr/0009-on-net-facilitate-and-record.md): for same-network payments we do
+**not** route or hold money — the customer pays the merchant **directly on the operator's own rail** and
+we **record & confirm** (non-custodial, `fee=0`). The earlier operator-API "direct-collect" approach is
+**retired** (Airtel's Collection API has no payee field → it would make us the merchant → custody → EMI
+licence). Active status + the next build step (trim the rail machinery) live in `DEVLOG.md` (NEXT).
+
+**Longer-horizon enhancement:** **auto-confirmation** via the operator's merchant-payment notification (a
+till that pings us when paid), removing the merchant's manual "Confirm received" tap — to confirm per
+operator. Research context:
 `../../drc-mvp-research/02-findings/cross-cutting/{on-net-direct-operator-apis,own-aggregator}.md`.
