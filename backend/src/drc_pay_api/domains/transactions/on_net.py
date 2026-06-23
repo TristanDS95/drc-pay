@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from ..ledger.ledger import Direction, Entry, Posting
 from ..ledger.money import Money
-from .models import Transaction
+from .models import MERCHANT_ATTESTED, Transaction
 from .orchestrator import CUSTOMER, MERCHANT  # the external-wallet account names, shared with the routed flow
 from .ports import LedgerPort, Recorder, TransactionStore
 from .state_machine import TxState, assert_transition
@@ -76,6 +76,7 @@ class OnNetOrchestrator:
             customer_provider=provider,
             merchant_provider=provider,  # same network on both sides — that is what makes this on-net
             merchant_id=merchant_id,
+            provenance=MERCHANT_ATTESTED,  # on-net is confirmed by the merchant, not a signed rail callback
         )
         self._store.save(transaction)
         self._rec("state · created → initiated")

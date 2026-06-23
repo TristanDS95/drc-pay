@@ -23,7 +23,9 @@ from ..application.payment_codes import merchant_payment_code
 from ..application.payments import start_merchant_payment
 from ..domains.charges.models import Charge, charge_status
 from ..domains.ledger.money import Money
-from ..domains.transactions.models import Transaction
+from ..domains.transactions.models import MERCHANT_ATTESTED, Transaction
+from ..domains.transactions.on_net import OnNetOrchestrator
+from ..domains.transactions.state_machine import TxState
 from .container import Container, ContainerDep
 from .schemas import (
     CreateTransactionRequest,
@@ -78,6 +80,7 @@ def _to_response(
         deposit_id=transaction.deposit_id,
         payout_id=transaction.payout_id,
         refund_id=transaction.refund_id,
+        provenance=transaction.provenance,
         trace=trace,
     )
 
@@ -135,6 +138,26 @@ def create_transaction(
         recorder=recorder,
     )
     return _to_response(container, container.store.get(transaction_id), recorder.messages)
+
+
+@merchant_api_router.post("/transactions/{transaction_id}/confirm", response_model=TransactionResponse)
+def confirm_on_net_payment(
+    transaction_id: str, container: ContainerDep, received: bool = True
+) -> TransactionResponse:
+    """The merchant confirms (``received`` True, the default) or denies (``received=false``) they got an
+    on-net payment directly on their operator. Marks it paid (merchant-attested) or failed. On-net only;
+    idempotent — re-confirming an already-resolved payment is a no-op."""
+    try:
+        tx = container.store.get(transaction_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="transaction not found") from exc
+    if tx.provenance != MERCHANT_ATTESTED:
+        raise HTTPException(status_code=422, detail="not an on-net payment — nothing to confirm")
+    if tx.state is not TxState.COLLECTION_PENDING:
+        return _to_response(container, tx, [f"already resolved · state={tx.state.value}"])
+    OnNetOrchestrator(container.store, container.ledger).on_confirm(transaction_id, success=received)
+    verb = "received → paid" if received else "not received"
+    return _to_response(container, container.store.get(transaction_id), [f"merchant confirmation: {verb}"])
 
 
 @merchant_api_router.get("/transactions/{transaction_id}", response_model=TransactionResponse)

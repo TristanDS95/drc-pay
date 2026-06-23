@@ -45,6 +45,7 @@ class TransactionResponse(BaseModel):
     deposit_id: str | None = None
     payout_id: str | None = None
     refund_id: str | None = None
+    provenance: str = "rail_verified"  # rail_verified (pawaPay) | merchant_attested (on-net)
     # Human-readable operations trace (empty on plain reads; populated on create).
     trace: list[str] = Field(default_factory=list)
 
