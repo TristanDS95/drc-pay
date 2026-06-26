@@ -60,17 +60,24 @@ non-custodial, no operator money-API, `fee=0`. Cross-network stays on pawaPay. "
 - **To confirm with operators (not blocking the MVP):** the DRC "pay a merchant till" UX + tariff per
   operator, and whether tills emit a merchant-payment notification (the path to auto-confirm).
 
-1. **Pricing — the decision this all serves.** The ledger now splits cost from revenue (**ADR 0007**):
-   pawaPay's per-pair cost (3.5–5%) → `expense:pawapay`, and `revenue:fees` holds the **margin** — which
-   is **0 today** (MDR == cost). The remaining decision is the **MDR margin/model**: set `mdr = cost +
-   margin` in `pricing.py` and the surplus flows to revenue automatically (ADR 0005; research
-   `fees-and-costs.md`).
-2. **Merchant onboarding** — merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
+1. **USSD channel — the next priority.** The feature-phone path (no-internet, a first-class access
+   channel alongside scan-to-pay) has had **limited development & testing on both sides** — the backend
+   handler (`ussd/session.py`, `/ussd` routes) and the customer-app **dial simulator**. Build it out and
+   harden it end-to-end: the full menu flow, on-net vs routed payments, every outcome (success / decline /
+   refund / timeout), input validation, and session/error handling — with tests to match the rest of the
+   core. *Then* (separately, when going live) rent a **real USSD aggregator** (Africa's Talking / Infobip)
+   and wire the shortcode + MNO PIN — our `/ussd` handler is provider-neutral and ready for it. *(Also where
+   the static-till QR returns.)*
+2. **Merchant onboarding + KYC** — merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
    onboarding UI/API; no DB FK on `merchant_id`).
-3. **Real USSD aggregator** — rent Africa's Talking / Infobip; wire shortcode + MNO PIN. Our
-   provider-neutral `/ussd` handler is ready. *(Also where the static-till QR returns.)*
-4. **Production hardening** — AWS (Terraform, `af-south-1`, Secrets Manager — notes in `future-dev.md`); lock CORS to
+3. **Production hardening** — AWS (Terraform, `af-south-1`, Secrets Manager — notes in `future-dev.md`); lock CORS to
    known origins; reconciliation on an authenticated schedule. Minor: charge expiry (none yet).
+4. **Monetization model — not established (not urgent).** How we turn a profit isn't decided, and we may
+   not take a per-transaction margin at first. Options to weigh: **(a) per-transaction margin** on the MDR —
+   the ledger already supports it (set `mdr = cost + margin` in `pricing.py`; cost → `expense:pawapay`,
+   surplus → `revenue:fees`; ADR 0005/0007); **(b) SaaS subscription** per merchant (flat or tiered monthly),
+   likely the simplest first model; **(c) value-added / freemium** services later (analytics, faster payouts,
+   lending). On-net stays `fee=0` regardless (ADR 0009) — any on-net monetisation is SaaS, never a rail cut.
 
 ---
 
@@ -162,13 +169,13 @@ payer page.
 ---
 
 ## Open items / TODOs
-**Pricing margin** (above — the decision this serves) · **merchant onboarding + KYC** · **real USSD
-aggregator** · **reconciliation on a schedule** (sweep exists; no timer/auth trigger; no age filter) ·
+**USSD channel build-out + tests** (above — the next priority) · **real USSD aggregator** · **merchant
+onboarding + KYC** · **reconciliation on a schedule** (sweep exists; no timer/auth trigger; no age filter) ·
 **merchant auth** (`domains/auth/` empty) · **lock CORS** before prod · **native mobile app** (deferred,
 web-first) · **charge expiry** (none — charges stay payable until paid) · **refund-leg fee** (pawaPay bills refunds ≈
 the disbursement rate — Plans page; our refund path books only the sunk collection fee, and whether
-pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md`) ·
-**Legal/licensing (BCC)** — standing flag.
+pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md`) · **monetization model**
+(above — not urgent; margin vs subscription vs VAS) · **Legal/licensing (BCC)** — standing flag.
 
 **Longer-horizon / someday** (mobile app · admin dashboard · AWS infra · splitting the webhook receiver
 into its own service): see [`future-dev.md`](./future-dev.md).
