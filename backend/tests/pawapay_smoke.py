@@ -7,7 +7,7 @@ token itself.
 
 Run from backend with the venv active:
     set -a; source .env; set +a          # load the local .env into the environment
-    python scripts/pawapay_smoke.py
+    python tests/pawapay_smoke.py
 """
 from __future__ import annotations
 
