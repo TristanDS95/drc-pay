@@ -53,3 +53,11 @@ boundary clean; a new channel must not duplicate money logic.
   test, secret-scan.
 - **Conventional Commits** (`feat:`, `fix:`, `chore:` …).
 - **Record significant decisions as ADRs** in `docs/adr/` (see `_template.md`).
+
+## Keep docs in sync (when you change X, update Y)
+- pawaPay contract / endpoints / providers / limits → the **pawaPay** section of `docs/DEVLOG.md`.
+- A significant decision → a new **ADR** in `docs/adr/` (don't bury it in a commit message).
+- Deploy, env vars, or secrets handling → `README.md` **and** `backend/.env.example`.
+- A shipped or changed capability / status → the **TL;DR** in `docs/DEVLOG.md`.
+- The visual language → `docs/design-tokens.md` (the single source; `design-tokens.html` renders it).
+- Don't hard-code values that drift (test counts, dates) in prose — they go stale.
