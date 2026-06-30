@@ -4,6 +4,7 @@ credentials are present, otherwise the in-process simulator.
 from __future__ import annotations
 
 import httpx
+import pytest
 
 from drc_pay_api.http.container import build_container
 from drc_pay_api.integrations.pawapay.client import PawaPayClient
@@ -16,6 +17,18 @@ def test_defaults_to_the_simulator() -> None:
     assert isinstance(container.rail, SimulatedPaymentRail)
     assert container.simulated is True
     assert container.predictor is None
+
+
+def test_deployed_environment_refuses_to_start_without_a_database() -> None:
+    # A deployed env must never silently use the ephemeral in-memory store (data loss on restart).
+    with pytest.raises(RuntimeError, match="DRCPAY_DATABASE_URL"):
+        build_container(environment="sandbox")
+
+
+def test_local_environment_allows_in_memory() -> None:
+    # Local dev/tests may run without a database.
+    container = build_container(environment="local")
+    assert container.simulated is True
     assert container.poller is container.rail  # the simulator doubles as the status poller
 
 
