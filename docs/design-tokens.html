@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DRC-Pay — design tokens preview</title>
+<!--
+  This page is a RENDERER, not a copy. It reads ./design-tokens.md at load time and
+  draws the swatches, themes, and scales from it. The markdown is the single source of
+  truth — edit a token there, reload this page, and the preview updates. This file holds
+  no token values of its own.
+
+  Viewing: browsers block a file:// page from reading a sibling file, so serve the folder:
+      cd drc-pay/docs && python3 -m http.server 8000
+  then open  http://localhost:8000/design-tokens.html
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #1A1A1A; background: #FAF8F4; margin: 0; padding: 32px 24px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: 700; margin: 0 0 4px; }
+  .intro { color: #5A5A57; font-size: 14px; line-height: 1.55; margin: 0 0 8px; max-width: 70ch; }
+  .src { font-size: 12px; color: #9A988F; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-bottom: 28px; }
+
+  .h { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8A887F; margin: 30px 0 12px; }
+
+  /* Palette */
+  .pal { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; }
+  .sw { border-radius: 12px; overflow: hidden; border: 1px solid #ECE8E1; background: #fff; }
+  .sw .chip { height: 56px; }
+  .sw .meta { padding: 8px 10px; font-size: 12px; line-height: 1.5; }
+  .sw .tok { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .sw .hex { color: #8A887F; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .sw .use { color: #5A5A57; }
+
+  /* Themes */
+  .themes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .themes { grid-template-columns: 1fr; } }
+  .card { border-radius: 16px; padding: 16px; border: 1px solid; }
+  .card .lbl { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .7; margin-bottom: 12px; }
+  .card .surface { border-radius: 12px; padding: 14px; border: 1px solid; }
+  .card .title { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  .card .muted { font-size: 13px; margin: 0 0 14px; }
+  .btn { display: inline-block; border-radius: 12px; padding: 10px 16px; font-size: 14px; font-weight: 600; }
+  .dots { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .dot { width: 14px; height: 14px; border-radius: 999px; }
+
+  /* Scales */
+  .scale { background: #fff; border: 1px solid #ECE8E1; border-radius: 12px; padding: 14px 16px; }
+  .line { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .radius-box { background: #FF6B5B; height: 40px; min-width: 48px; display: flex; align-items: flex-end; justify-content: center; padding: 0 6px 4px; color: #fff; font-size: 11px; font-family: ui-monospace, monospace; }
+  .space-wrap { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #5A5A57; font-family: ui-monospace, monospace; }
+  .space { background: #FF6B5B; height: 16px; border-radius: 4px; }
+  .type { line-height: 1.1; margin-top: 0; }
+  .type + .type { margin-top: 12px; }
+  .type small { font-family: ui-monospace, monospace; font-size: 11px; color: #8A887F; margin-left: 10px; vertical-align: middle; font-weight: 400; }
+
+  .err { border: 1px solid #E7C9C5; background: #FCEFEE; color: #7A2620; border-radius: 12px; padding: 16px 18px; line-height: 1.6; font-size: 14px; }
+  .err code { background: #fff; border: 1px solid #E7C9C5; border-radius: 6px; padding: 1px 6px; font-size: 13px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 class="sr-only">A rendered preview of the DRC-Pay design tokens, generated from design-tokens.md.</h2>
+  <h1>Design tokens</h1>
+  <p class="intro" id="intro"></p>
+  <p class="src">rendered live from <strong>design-tokens.md</strong></p>
+  <div id="out"></div>
+</div>
+
+<script>
+const HEX = /#[0-9A-Fa-f]{3,8}/;
+const $ = (tag, attrs = {}, html = "") => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "style") el.setAttribute("style", v);
+    else el.setAttribute(k, v);
+  }
+  if (html) el.innerHTML = html;
+  return el;
+};
+
+// --- tiny markdown helpers (only what this doc needs) -----------------------
+function sectionBody(md, heading) {
+  // returns the lines under a "## heading" up to the next "## " heading
+  const lines = md.split("\n");
+  const start = lines.findIndex(l => l.trim().toLowerCase().startsWith("## " + heading.toLowerCase()));
+  if (start === -1) return [];
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex(l => l.trim().startsWith("## "));
+  return end === -1 ? rest : rest.slice(0, end);
+}
+function parseTable(lines) {
+  const rows = lines.filter(l => l.trim().startsWith("|"))
+    .map(l => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim()));
+  if (rows.length < 2) return [];
+  // drop the header row and the |---| separator row
+  return rows.slice(2).map(cells => cells);
+}
+const strip = s => (s || "").replace(/`/g, "").replace(/\*\*/g, "").trim();
+const hexOf = s => (s.match(HEX) || [""])[0];
+
+// contrast: black or white text on a given background
+function readableOn(hex) {
+  const m = hex.replace("#", "");
+  const n = m.length === 3 ? m.split("").map(c => c + c).join("") : m;
+  const r = parseInt(n.slice(0, 2), 16), g = parseInt(n.slice(2, 4), 16), b = parseInt(n.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 140 ? "#1A1A1A" : "#FFFFFF";
+}
+// parse `name 12` code-spans from a scale bullet line, e.g. **Radius:** `sm 8` · `md 12`
+function parseScaleLine(lines, label) {
+  const line = lines.find(l => l.toLowerCase().includes(label.toLowerCase()));
+  if (!line) return [];
+  const out = [];
+  const re = /`\s*([A-Za-z]+)\s+(\d+)\s*`/g;
+  let m;
+  while ((m = re.exec(line))) out.push({ name: m[1], value: +m[2] });
+  return out;
+}
+
+// --- render -----------------------------------------------------------------
+function render(md) {
+  const out = document.getElementById("out");
+  out.innerHTML = "";
+
+  // intro = first non-empty paragraph after the H1
+  const introLine = md.split("\n").find(l => l.trim() && !l.startsWith("#"));
+  document.getElementById("intro").textContent = strip(introLine || "").replace(/\s+/g, " ");
+
+  // ----- Palette -----
+  const palRows = parseTable(sectionBody(md, "Palette"));
+  const palette = {}; // token -> hex
+  out.appendChild($("div", { class: "h" }, "Palette"));
+  const pal = $("div", { class: "pal" });
+  palRows.forEach(([tok, hex, use]) => {
+    const t = strip(tok), h = hexOf(hex);
+    if (!h) return;
+    palette[t] = h;
+    const sw = $("div", { class: "sw" });
+    const border = h.toUpperCase() === "#FFFCF8" ? "border-bottom:1px solid rgba(0,0,0,.06)" : "";
+    sw.appendChild($("div", { class: "chip", style: `background:${h};${border}` }));
+    sw.appendChild($("div", { class: "meta" },
+      `<div class="tok">${t}</div><div class="hex">${h}</div><div class="use">${strip(use)}</div>`));
+    pal.appendChild(sw);
+  });
+  out.appendChild(pal);
+
+  // ----- Theme (light + dark sample UI) -----
+  const themeRows = parseTable(sectionBody(md, "Theme"));
+  const theme = {}; // role -> {light, dark}
+  themeRows.forEach(([role, light, dark]) => {
+    theme[strip(role)] = { light: hexOf(light), dark: hexOf(dark) };
+  });
+  const get = (role, mode, fb) => (theme[role] && theme[role][mode]) || fb;
+
+  out.appendChild($("div", { class: "h" }, "Theme — sample UI, light & dark"));
+  const themes = $("div", { class: "themes" });
+  for (const mode of ["light", "dark"]) {
+    const bg = get("background", mode, mode === "light" ? "#FFFCF8" : "#1A1A1A");
+    const surface = get("surface", mode, mode === "light" ? "#FFFFFF" : "#242422");
+    const text = get("text", mode, mode === "light" ? "#1A1A1A" : "#F5F3EF");
+    const muted = get("textMuted", mode, mode === "light" ? "#5A5A57" : "#A8A6A1");
+    const accent = get("accent", mode, "#FF6B5B");
+    const border = get("border", mode, mode === "light" ? "#ECE8E1" : "#34332F");
+    const card = $("div", { class: "card", style: `background:${bg};border-color:${border};color:${text}` });
+    card.appendChild($("div", { class: "lbl", style: `color:${muted}` }, mode));
+    const s = $("div", { class: "surface", style: `background:${surface};border-color:${border}` });
+    s.appendChild($("p", { class: "title", style: `color:${text}` }, "Payment received"));
+    s.appendChild($("p", { class: "muted", style: `color:${muted}` }, "12,500 CDF from +243 ••• 0427"));
+    s.appendChild($("span", { class: "btn", style: `background:${accent};color:${readableOn(accent)}` }, "Confirm"));
+    const dots = $("div", { class: "dots" });
+    ["success", "error", "warning"].forEach(k => {
+      if (palette[k]) dots.appendChild($("span", { class: "dot", style: `background:${palette[k]}` }));
+    });
+    dots.appendChild($("span", { style: `font-size:12px;color:${muted}` }, "success · error · warning"));
+    s.appendChild(dots);
+    card.appendChild(s);
+    themes.appendChild(card);
+  }
+  out.appendChild(themes);
+
+  // ----- Scale -----
+  const scaleLines = sectionBody(md, "Scale");
+
+  const radii = parseScaleLine(scaleLines, "Radius");
+  if (radii.length) {
+    out.appendChild($("div", { class: "h" }, "Radius"));
+    const box = $("div", { class: "scale" });
+    const line = $("div", { class: "line" });
+    radii.forEach(r => {
+      const px = Math.min(r.value, 40); // visually cap the pill
+      line.appendChild($("div", { class: "radius-box", style: `border-radius:${r.value}px;${r.value >= 999 ? "width:40px" : ""}` }, r.value >= 999 ? "pill" : String(r.value)));
+    });
+    box.appendChild(line);
+    out.appendChild(box);
+  }
+
+  const spacing = parseScaleLine(scaleLines, "Spacing");
+  if (spacing.length) {
+    out.appendChild($("div", { class: "h" }, "Spacing"));
+    const box = $("div", { class: "scale" });
+    const line = $("div", { class: "line" });
+    spacing.forEach(sp => {
+      const w = $("div", { class: "space-wrap" }, `${sp.name} ${sp.value}`);
+      w.insertBefore($("div", { class: "space", style: `width:${sp.value}px` }), w.firstChild);
+      line.appendChild(w);
+    });
+    box.appendChild(line);
+    out.appendChild(box);
+  }
+
+  const type = parseScaleLine(scaleLines, "Font");
+  if (type.length) {
+    out.appendChild($("div", { class: "h" }, "Type — Inter"));
+    const box = $("div", { class: "scale" });
+    const samples = { caption: "Caption — the small print", body: "Body — the default reading size", title: "Title — section heading", display: "Display" };
+    type.forEach(t => {
+      const weight = t.value >= 32 ? 700 : t.value >= 22 ? 600 : 400;
+      box.appendChild($("div", { class: "type", style: `font-size:${t.value}px;font-weight:${weight}` },
+        `${samples[t.name] || t.name}<small>${t.name} ${t.value}</small>`));
+    });
+    out.appendChild(box);
+  }
+}
+
+function showError(detail) {
+  document.getElementById("out").innerHTML =
+    `<div class="err"><strong>Couldn't read design-tokens.md.</strong><br>
+     Browsers block a double-clicked <code>file://</code> page from reading a sibling file.
+     Serve this folder instead:<br><br>
+     <code>cd drc-pay/docs &amp;&amp; python3 -m http.server 8000</code><br><br>
+     then open <code>http://localhost:8000/design-tokens.html</code>.
+     <br><br><span style="opacity:.7">(${detail})</span></div>`;
+}
+
+(async () => {
+  try {
+    const res = await fetch("design-tokens.md", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    render(await res.text());
+  } catch (e) {
+    showError(e.message || String(e));
+  }
+})();
+</script>
+</body>
+</html>
