@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from typing import Annotated, Protocol
 
 from fastapi import Depends, Request
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from ..adapters.memory import (
@@ -157,18 +159,36 @@ def build_container(
         simulated = True
 
     # Persistence: Postgres when a URL is given (schema managed by Alembic), else memory.
+    # A deployed environment MUST have a *working* database — we never silently fall back to the
+    # ephemeral in-memory store, which loses every transaction on restart. Local dev/tests
+    # (environment == "local") may run in-memory.
     if database_url:
         engine = make_engine(database_url)
+        try:  # fail fast if the DB is configured but unreachable — don't run degraded
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except SQLAlchemyError as exc:
+            raise RuntimeError(
+                f"DRCPAY_DATABASE_URL is set but the database is unreachable: {exc}"
+            ) from exc
         session_factory = sessionmaker(engine)
         store: TxStore = SqlTransactionStore(session_factory)
         ledger: LedgerStore = SqlLedger(session_factory)
         merchants: MerchantStore = SqlMerchantStore(session_factory)
         charges: ChargeStore = SqlChargeStore(session_factory)
+        print(f"[container] persistence: Postgres ({environment})")
+    elif environment != "local":
+        raise RuntimeError(
+            f"No DRCPAY_DATABASE_URL set in environment '{environment}'. Refusing to start on the "
+            "ephemeral in-memory store (it loses all data on restart). Set DRCPAY_DATABASE_URL to a "
+            "Postgres database, or use DRCPAY_ENVIRONMENT=local for in-memory dev."
+        )
     else:
         store = InMemoryTransactionStore()
         ledger = InMemoryLedger()
         merchants = _seeded_merchant_store()
         charges = InMemoryChargeStore()
+        print("[container] persistence: in-memory (local dev — data is NOT durable)")
 
     return Container(
         store=store,
