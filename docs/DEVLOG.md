@@ -20,7 +20,7 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
 - **Real per-network-pair fees** (pawaPay published cost, **pass-through, no margin yet**) replaced the
   flat 1%; pawaPay's cost is now booked to **`expense:pawapay`** and `revenue:fees` holds only the
   **margin** (0 today) — ADR 0007. See "How the money works".
-- **Backend green:** ruff + mypy --strict clean, **148 tests**. Payment spine (collect → settle →
+- **Backend green:** ruff + mypy --strict clean, **full test suite passing**. Payment spine (collect → settle →
   auto-refund), double-entry ledger, 10-state machine, idempotency, Merchant + Charge domains, Postgres
   + Alembic, pawaPay client/rail, signed-callback receiver, reconciliation sweep, USSD channel. **On-net
   = facilitate & record ([ADR 0009](adr/0009-on-net-facilitate-and-record.md)), backend DONE.**
@@ -151,6 +151,11 @@ payer page.
   **Sandbox test numbers:** operator prefix + last-3-digit outcome (`…789` success, `…049` insufficient):
   Vodacom `243813456789`, Airtel `243973456789`, Orange `243893456789` (docs.pawapay.io/v2/docs/test_numbers).
   Open: replace the static `_DECIMALS` map with live `active-conf`.
+- **Live-sandbox e2e tests** (`tests/test_pawapay_sandbox_e2e.py`): opt-in (`RUN_PAWAPAY_SANDBOX_E2E=1`),
+  off by default so the suite stays offline. They validate the seam the simulator can't: real auth,
+  the callback key loads as **EC P-256**, the status envelope, deposit acceptance + lifecycle
+  (`…789` success / `…049` fail), the rail port, refund. Found a real constraint the simulator
+  doesn't enforce: **VODACOM_MPESA_COD amounts must be 500 < x < 1,000,000 CDF**.
 
 ## Deploy — 🟢 LIVE on Railway
 - One `Dockerfile`: install API → `alembic upgrade head` → **seed demo merchants** (`python -m
@@ -183,7 +188,8 @@ into its own service): see [`future-dev.md`](./future-dev.md).
 ## How to run
 ```bash
 cd backend && source .venv/bin/activate
-ruff check . && mypy src && pytest                          # all green (148)
+ruff check . && mypy src && pytest                          # all green (offline; sandbox tests skip)
+# opt-in live sandbox e2e (real network, sandbox only): RUN_PAWAPAY_SANDBOX_E2E=1 pytest tests/test_pawapay_sandbox_e2e.py
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
@@ -195,8 +201,8 @@ tests use `pythonpath=src`.
 
 ## Git & conventions
 Repo **github.com/TristanDS95/drc-pay** (`main`); **the human pushes**; commits use **no** Claude
-co-author trailer; Conventional Commits; keep ruff + mypy + pytest green. **`CLAUDE.md` is local-only**
-(gitignored, not on GitHub) — the engineering standards. Plain-language tour:
+co-author trailer; Conventional Commits; keep ruff + mypy + pytest green. **`CLAUDE.md`** is the
+engineering standards, now tracked in-repo. Plain-language tour:
 `docs/DRC-Pay-Architecture-Guide.docx`. ADRs in `docs/adr/`. Simplicity: `docs/simplicity-review.md`.
 
 ## Carry-forward insights
