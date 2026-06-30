@@ -28,9 +28,10 @@ different rules.)
   Railway's dashboard. `.env` is git-ignored; only `.env.example` is committed.
 - **Verify pawaPay webhooks** with RFC-9421 public-key signatures (ECDSA-P256) — not
   HMAC. Reject anything unsigned or stale.
-- **PINs: Argon2id, never logged, never recoverable** (reset only via OTP).
-- **Never log** PINs, full PII, tokens, or secrets. Scrub structured logs.
-- **Least-privilege access to secrets and data; encrypt PII at rest; TLS everywhere.**
+- **Never log** PII (phone numbers), tokens, or secrets; scrub structured logs.
+
+(Pre-production / when-auth-exists hardening — PIN hashing, PII-at-rest encryption,
+least-privilege IAM — lives in `docs/future-dev.md`, not here.)
 
 ## Channel-agnostic core
 The money logic lives in `domains/` (plus the shared `application/` service), framework-

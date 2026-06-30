@@ -52,6 +52,21 @@ Redis** (sessions / rate limits), **Secrets Manager**, an **ALB**, and **CloudWa
 - No secrets in committed state (remote state + git-ignored `*.tfvars`).
 - Least-privilege IAM per service.
 
+## Security hardening (pre-production / when auth exists)
+
+Forward-looking security work, kept out of `CLAUDE.md` so the active standards reflect the Railway
+MVP (which has no user auth yet and stores only sandbox test-number MSISDNs). Revisit before there is
+real customer PII or real money:
+
+- **PIN / customer auth:** hash PINs with **Argon2id**; never log them, never make them recoverable
+  (reset only via OTP). Currently unbuilt — `domains/auth/` is a stub.
+- **Encrypt PII at rest:** phone numbers (`customer_msisdn` / `merchant_msisdn` / `settlement_msisdn`)
+  are stored in plaintext today. Railway's disk encryption is the baseline; add **application-level
+  field encryption** before storing real customer numbers at scale.
+- **Least-privilege IAM:** per-service on AWS (see Production infrastructure above); on Railway, keep
+  dashboard / DB-credential access tight.
+- **TLS** is handled by the platform (Railway serves HTTPS), so it is not a standing task.
+
 ## Webhook receiver as its own deployable
 
 Today the pawaPay webhook receiver lives **inside the backend** (`http/webhook_routes.py` +
