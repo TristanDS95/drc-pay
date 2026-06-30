@@ -55,9 +55,24 @@ boundary clean; a new channel must not duplicate money logic.
 - **Record significant decisions as ADRs** in `docs/adr/` (see `_template.md`).
 
 ## Keep docs in sync (when you change X, update Y)
-- pawaPay contract / endpoints / providers / limits → the **pawaPay** section of `docs/DEVLOG.md`.
-- A significant decision → a new **ADR** in `docs/adr/` (don't bury it in a commit message).
-- Deploy, env vars, or secrets handling → `README.md` **and** `backend/.env.example`.
-- A shipped or changed capability / status → the **TL;DR** in `docs/DEVLOG.md`.
-- The visual language → `docs/design-tokens.md` (the single source; `design-tokens.html` renders it).
-- Don't hard-code values that drift (test counts, dates) in prose — they go stale.
+Each fact should have one source of truth. Where it's currently duplicated, update *every* copy
+(these are the spots that have actually drifted):
+- **What's live / current status** → `docs/DEVLOG.md` "TL;DR" is the source; the README "Status"
+  section restates it — update both.
+- **Run / dev-setup commands** → duplicated in *three* places: README "Run locally",
+  `backend/README.md` "Run", and `docs/DEVLOG.md` "How to run". Change one, change all three.
+- **Money / engineering rules** → `CLAUDE.md` (this file) is the source; README "Engineering
+  standards" restates them — keep them aligned.
+
+Single-source topics (update the one owner):
+- **pawaPay contract** (endpoints, statuses, providers, amount limits, signatures) → `docs/DEVLOG.md`
+  "pawaPay" section.
+- **A significant / hard-to-reverse decision** → a new **ADR** in `docs/adr/` (don't bury it in a commit).
+- **Deploy / env vars / secrets** → `backend/.env.example` + README "Quickstart" (specifics in DEVLOG "Deploy").
+- **Visual language** → `docs/design-tokens.md` (single source; `design-tokens.html` renders it; mirrors
+  research `ui-spec.md`).
+- **Roadmap** → DEVLOG "NEXT" (active) vs `docs/future-dev.md` (someday) — put it in the right one.
+- **Product spec** → lives in `drc-mvp-research/05-product-spec/`; link, don't duplicate.
+
+Don't hard-code drift-prone values (test counts, dates) in prose — the README/DEVLOG count split came
+from exactly that.
