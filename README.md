@@ -102,7 +102,7 @@ touch real (or sandbox) money:
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install ".[dev]"                                  # runtime + dev deps (ruff, mypy, pytest)
-ruff check . && mypy src && pytest                    # all green (141)
+ruff check . && mypy src && pytest                    # all green (offline; sandbox tests skip)
 
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
