@@ -19,7 +19,8 @@ app may follow later.
 **🟢 Live, end-to-end, on real pawaPay _sandbox_ rails.** Deployed on Railway as a single container
 (API + both web apps + Postgres). A real phone scans a merchant's QR → pays → the payment **confirms in
 real time** on both the payer's screen and the Merchant Console, driven by pawaPay's **signed callbacks**
-(RFC-9421). Backend is green: ruff + `mypy --strict` clean, **141 tests**.
+(RFC-9421). Backend is green: ruff + `mypy --strict` clean, full pytest suite passing (plus
+opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-to-run)).
 
 - **Backend** (`backend/`, **Python / FastAPI**): payment spine (collect → settle → auto-refund),
   double-entry ledger, explicit state machine, idempotency, Merchant + Charge domains, MDR pricing,
