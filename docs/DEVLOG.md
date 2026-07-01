@@ -78,7 +78,9 @@ non-custodial, no operator money-API, `fee=0`. Cross-network stays on pawaPay. "
 2. **Merchant onboarding + KYC** — merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
    onboarding UI/API; no DB FK on `merchant_id`).
 3. **Production hardening** — AWS (Terraform, `af-south-1`, Secrets Manager — notes in `future-dev.md`); lock CORS to
-   known origins; reconciliation on an authenticated schedule. Minor: charge expiry (none yet).
+   known origins. Reconciliation now runs on an in-process schedule on a live rail (`main.py`,
+   `DRCPAY_RECONCILE_INTERVAL_SECONDS`); still open: an age filter + batch limit on the sweep. Minor:
+   charge expiry (none yet); on-net rows have no ageing rule (sit awaiting-confirm indefinitely).
 4. **Monetization model — not established (not urgent).** How we turn a profit isn't decided, and we may
    not take a per-transaction margin at first. Options to weigh: **(a) per-transaction margin** on the MDR —
    the ledger already supports it (set `mdr = cost + margin` in `pricing.py`; cost → `expense:pawapay`,
@@ -107,8 +109,9 @@ backend/src/drc_pay_api/
 ├── integrations/pawapay/    # client · rail · providers · signatures · callbacks · status · simulator
 ├── ussd/  session.py        # USSD channel: full-text parse + dial fast-path
 ├── jobs/reconciliation/sweep.py   # missed-callback safety net → apply_outcome
-├── http/   routes.py schemas.py container.py (composition root)
-│           merchant_routes.py charge_routes.py ussd_routes.py webhook_routes.py
+├── http/   schemas.py container.py (composition root)
+│           merchant_api.py    # transactions + merchants + charges (one merchant trust tier)
+│           ussd_routes.py webhook_routes.py
 │           demo_routes.py     # /demo/reconcile — off-real-money path only (404 in prod)
 │           public_routes.py   # /public/{merchant,charge,transaction}, /pay — public (sandbox-gated)
 ├── main.py · config.py · seed.py   # seed.py = demo-merchant seeding (entrypoint, sandbox/local)
@@ -172,9 +175,9 @@ payer page.
 - ⚠️ **`DRCPAY_DATABASE_URL` must be a working reference** (`${{drc-pay-db.DATABASE_URL}}`, **no quotes**)
   or the app silently runs in-memory and the DB stays empty. Verify: deploy logs show migrations +
   `[seed] demo merchants ready`; the Data tab has tables.
-- **On-net demo (optional):** `DRCPAY_ONNET_SIMULATE=true` makes same-network on-net routing visible on
-  the sandbox — ⚠ **simulated** (fakes the operator confirmation, no real money); unset → all payments
-  via pawaPay. Real operator on-net is a v2 item (see NEXT).
+- **On-net (same-network):** routed automatically (all same-network pairs, per `routing.py`) — recorded
+  as *awaiting confirmation*, no rail, no money movement; the merchant taps **Confirm received** to mark
+  it paid (merchant-attested). No toggle: on-net is always facilitate & record (ADR 0009).
 - **AWS is the eventual production target** (notes in `future-dev.md`); the Docker image is portable. Alembic head:
   `c3e8f1a9b7d2` (adds `merchants.operator_till`).
 
@@ -182,8 +185,10 @@ payer page.
 
 ## Open items / TODOs
 **USSD channel build-out + tests** (above — the next priority) · **real USSD aggregator** · **merchant
-onboarding + KYC** · **reconciliation on a schedule** (sweep exists; no timer/auth trigger; no age filter) ·
-**merchant auth** (`domains/auth/` empty) · **lock CORS** before prod · **native mobile app** (deferred,
+onboarding + KYC** · **reconciliation age filter + batch limit** (now scheduled in-process on a live rail;
+the unbounded `find_pending` scan is the remaining gap) · **merchant auth** (`domains/auth/` empty) ·
+**per-merchant authorization** (one shared credential today; any merchant can read/confirm any other's) ·
+**lock CORS** before prod · **native mobile app** (deferred,
 web-first) · **charge expiry** (none — charges stay payable until paid) · **refund-leg fee** (pawaPay bills refunds ≈
 the disbursement rate — Plans page; our refund path books only the sunk collection fee, and whether
 pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md`) · **monetization model**

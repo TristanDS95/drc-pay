@@ -25,7 +25,7 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
 - **Backend** (`backend/`, **Python / FastAPI**): payment spine (collect → settle → auto-refund),
   double-entry ledger, explicit state machine, idempotency, Merchant + Charge domains, MDR pricing,
   Postgres + Alembic, the pawaPay client/rail, signed-callback receiver, reconciliation sweep, the USSD
-  channel, and **on-net same-network handling** — being reworked to *facilitate & record*
+  channel, and **on-net same-network handling** — *facilitate & record*
   ([ADR 0009](docs/adr/0009-on-net-facilitate-and-record.md)): same-network payments are paid
   merchant-direct on the operator's own rail (non-custodial), and we record/confirm them.
 - **Web UIs** (`frontend/`): the gated **Merchant Console** and the public **Customer** scan-to-pay page.
@@ -86,7 +86,7 @@ pawaPay's **sandbox** rails (test money only). Real **signed callbacks** (RFC-94
 real time; the reconciliation sweep is the backstop.
 
 - **Deploy / redeploy:** push-to-deploy from GitHub; env vars (the Postgres reference, the pawaPay
-  token, the optional `DRCPAY_ONNET_SIMULATE` demo flag) are set in Railway's dashboard. Deploy
+  token, the shared `DRCPAY_BASIC_AUTH_PASSWORD`) are set in Railway's dashboard. Deploy
   specifics live in [`docs/DEVLOG.md`](./docs/DEVLOG.md).
 - **Secrets stay out of the repo:** the pawaPay token and the demo password live only in Railway's
   dashboard, never in git or chat.
@@ -95,8 +95,8 @@ real time; the reconciliation sweep is the backstop.
 ### Run locally (contributors)
 
 Still fully supported for development. With **no credentials** set it runs entirely offline — the
-in-process pawaPay simulator **and** the on-net simulator, with seeded demo merchants — so you never
-touch real (or sandbox) money:
+in-process pawaPay simulator, with seeded demo merchants — so you never touch real (or sandbox)
+money (same-network payments route on-net and are recorded, no rail involved):
 
 ```bash
 cd backend
