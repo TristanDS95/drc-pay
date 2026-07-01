@@ -115,6 +115,17 @@
   .err{color:#ffb3ab;font-size:12.5px;padding:6px 22px;background:#2a1310;}
   .hidden{display:none;}
   .sectlabel{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin:14px 0 4px;}
+  /* feature-phone / USSD card */
+  .ussd{border:1.5px solid #cdddf0;background:#f6f9fd;}
+  .ussd .sticker{border:1.5px dashed var(--coral);border-radius:14px;padding:14px;text-align:center;background:#fffdf9;}
+  .ussd .sticker-dial{font-size:12px;color:var(--muted);}
+  .ussd .sticker-dial b{font:800 24px "SF Mono",Menlo,Consolas,monospace;color:var(--coral-dark);display:block;margin-top:3px;}
+  .ussd .sticker-qr{width:148px;height:148px;margin:12px auto 6px;display:block;}
+  .ussd .sticker-cap{font-size:11.5px;color:var(--muted);line-height:1.45;}
+  .ussd-screen{margin-top:12px;background:#0b0f13;border-radius:12px;padding:12px 14px;
+        font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace;white-space:pre-wrap;}
+  .ussd-screen .con{color:#cfe9da;} .ussd-screen .end{color:#67e0a3;font-weight:600;}
+  .ussd-screen .dl{color:#8a98a4;margin-top:8px;}
 </style>
 </head>
 <body>
@@ -143,9 +154,10 @@
       </div>
 
       <div class="card">
-        <h2>🧾 Charge by QR</h2>
-        <p class="sub">Post an amount → get a QR for it. The customer scans it and is charged exactly
-          that — their phone never types the amount.</p>
+        <h2>🧾 Charge by QR <span style="font-weight:600;color:var(--muted);font-size:12px;">· smartphone</span></h2>
+        <p class="sub">For a <b>smartphone customer with data</b>: post an amount → get a QR. They scan it
+          and are charged exactly that — their phone never types the amount. (Feature-phone customers
+          with no internet use the <b>USSD</b> card below instead.)</p>
         <div class="row">
           <div><label class="fld" for="charge-amt">Amount (USD)</label>
             <input id="charge-amt" type="text" inputmode="decimal" value="10.00" /></div>
@@ -155,6 +167,31 @@
           <img id="charge-qr" alt="charge QR" style="width:200px;height:200px;" />
           <div id="charge-status" class="out" style="margin-top:10px;"></div>
         </div>
+      </div>
+
+      <div class="card ussd" id="ussd-card">
+        <h2>📟 Feature phone (USSD) <span style="font-weight:600;color:var(--muted);font-size:12px;">· no internet</span></h2>
+        <p class="sub">For a customer with a <b>basic phone and no internet</b>. They dial your till on
+          their own phone — no app, no scanning. Show this code (or tape up the printed sticker); they
+          type the amount and confirm with their mobile-money PIN on the operator's own prompt.</p>
+        <div class="sticker">
+          <div class="sticker-dial">Dial on any phone<b id="ussd-code">*123*—#</b></div>
+          <img id="ussd-qr" class="sticker-qr" alt="USSD dial QR" />
+          <div class="sticker-cap">Smartphone? Scan to auto-dial. Basic phone? Just dial the code.</div>
+        </div>
+        <button class="cta ghost" id="ussd-print" style="margin-top:12px;">🖨 Print sticker</button>
+
+        <div class="sectlabel">Simulate a customer dialing (sandbox)</div>
+        <p class="sub" style="margin-bottom:8px;">Walks the real USSD menu against the sandbox rail —
+          it creates an actual payment you'll see below.</p>
+        <div class="row">
+          <div><label class="fld" for="ussd-cust">Customer number</label>
+            <input id="ussd-cust" type="tel" inputmode="numeric" value="243813456789" /></div>
+          <div><label class="fld" for="ussd-amt">Amount (USD)</label>
+            <input id="ussd-amt" type="text" inputmode="decimal" value="10.00" /></div>
+        </div>
+        <button class="cta" id="ussd-dial">📞 Dial as this customer</button>
+        <div id="ussd-screen" class="ussd-screen hidden"></div>
       </div>
 
       <div class="card">
@@ -262,6 +299,11 @@
     $("m-onnet").textContent = m.operator_till
       ? `On-net (same-network): customers pay your ${opName(m.settlement_provider)} till ${m.operator_till}`
       : `On-net (same-network): no till set — customers send to ${m.settlement_msisdn}`;
+    // feature-phone (USSD) card — the merchant's static dial code + printable sticker QR
+    $("ussd-code").textContent = m.ussd_string;
+    $("ussd-qr").src = `${API}/merchants/${m.id}/qr.svg`;
+    $("ussd-dial").textContent = `📞 Dial ${m.ussd_string} as this customer`;
+    $("ussd-screen").classList.add("hidden");
   }
 
   async function refresh(){
@@ -437,6 +479,68 @@
     else { pushTrace([`charge · ${CHARGE_LABEL[c.status]||c.status}`]); }
   }
 
+  // ----- feature phone (USSD) -----
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function renderUssdScreen(transcript){
+    $("ussd-screen").innerHTML = transcript.map((t)=>{
+      const dialed = t.dialed === "" ? "(dial)" : t.dialed;
+      const ended = t.wire.startsWith("END");
+      const msg = t.wire.replace(/^(CON|END)\s*/, "");
+      return `<div class="dl">📱 ${dialed.replace(/</g,"&lt;")}</div>`
+        + `<div class="${ended?"end":"con"}">${msg.replace(/</g,"&lt;")}</div>`;
+    }).join("");
+  }
+
+  // Step through the REAL /ussd handler the way an aggregator would: send the accumulated text
+  // (till → till*amount → till*amount*1). The confirm step starts a real sandbox payment.
+  async function ussdDial(){
+    clearErr(); const m = current(); if(!m) return;
+    const cust = $("ussd-cust").value.trim(), amt = $("ussd-amt").value.trim();
+    const session = "sim-" + Date.now();
+    const steps = ["", m.short_code, `${m.short_code}*${amt}`, `${m.short_code}*${amt}*1`];
+    const transcript = [];
+    $("ussd-dial").disabled = true;
+    $("ussd-screen").classList.remove("hidden");
+    $("ussd-screen").innerHTML = "";
+    try {
+      for(const text of steps){
+        const r = await fetch(`${API}/ussd`, { method:"POST", headers:{ "content-type":"application/json" },
+          body: JSON.stringify({ session_id: session, msisdn: cust, text }) });
+        const wire = await r.text();
+        transcript.push({ dialed: text, wire });
+        renderUssdScreen(transcript);
+        if(wire.startsWith("END")) break;
+        await sleep(550);
+      }
+    } catch(e){ showErr("USSD dial failed: " + e); $("ussd-dial").disabled = false; return; }
+    $("ussd-dial").disabled = false;
+    pushTrace([`📟 USSD dial (feature phone) — ${amt} USD from ${cust} → ${m.name}`,
+      ...transcript.map((t)=>`ussd · ${t.wire.replace(/\n/g," ")}`)]);
+    await refresh();
+  }
+
+  // Open a print-friendly countertop sticker: the QR (tel: dial-through) + the big printed till.
+  function printSticker(){
+    const m = current(); if(!m) return;
+    const w = window.open("", "_blank", "width=440,height=640");
+    if(!w) return;
+    w.document.write(`<!doctype html><html><head><title>USSD sticker — ${m.name}</title>
+      <style>body{font-family:Inter,-apple-system,sans-serif;text-align:center;padding:34px 26px;color:#1A1A1A;}
+        h1{font-size:22px;margin:0 0 2px;} .lead{color:#5A5A57;font-size:13px;margin:0 0 18px;}
+        img{width:270px;height:270px;} .code{font:800 32px "SF Mono",Menlo,monospace;color:#E2553F;margin:16px 0 6px;}
+        p{color:#5A5A57;font-size:13px;line-height:1.55;}</style></head>
+      <body><h1>${m.name}</h1><div class="lead">Pay by mobile money — no app or internet needed</div>
+        <img src="${API}/merchants/${m.id}/qr.svg" alt="scan to dial" />
+        <div class="code">${m.ussd_string}</div>
+        <p><b>Dial the code</b> on any phone, or <b>scan the QR</b> to auto-dial.<br>
+           Enter the amount, then confirm with your mobile-money PIN.</p>
+      </body></html>`);
+    w.document.close();
+    const img = w.document.querySelector("img");
+    if(img){ img.onload = () => w.print(); img.onerror = () => w.print(); } else { w.print(); }
+  }
+
   // ----- detail modal -----
   async function openDetail(id){
     let t; try { t = await jget(`/transactions/${id}`); } catch(e){ return; }
@@ -500,6 +604,8 @@
   $("pay").addEventListener("click", takePayment);
   $("reconcile").addEventListener("click", runReconcile);
   $("charge-make").addEventListener("click", createCharge);
+  $("ussd-dial").addEventListener("click", ussdDial);
+  $("ussd-print").addEventListener("click", printSticker);
   $("refresh").addEventListener("click", refresh);
   $("scrim").addEventListener("click", (e)=>{ if(e.target.id==="scrim") closeDetail(); });
 

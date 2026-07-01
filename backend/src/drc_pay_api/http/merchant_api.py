@@ -286,3 +286,20 @@ def charge_qr(charge_id: str, request: Request, container: ContainerDep) -> Resp
     buff = io.BytesIO()
     segno.make(pay_url, error="m").save(buff, kind="svg", scale=6, border=2)
     return Response(content=buff.getvalue(), media_type="image/svg+xml")
+
+
+@merchant_api_router.get("/merchants/{merchant_id}/qr.svg")
+def merchant_qr(merchant_id: str, container: ContainerDep) -> Response:
+    """A printable QR for the merchant's **static USSD till** — the *customer-initiated USSD*
+    pathway (ADR 0006), distinct from the amount-specific charge QR above. It encodes the
+    ``tel:`` dial-through (``tel:*123*1001%23``) so a scanning phone offers to dial the USSD
+    code; feature phones can't scan, so the printed sticker also shows the dialable
+    ``ussd_string`` for manual entry. No amount is baked in — the customer types it on the phone."""
+    try:
+        merchant = container.merchants.get(merchant_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="merchant not found") from exc
+    code = merchant_payment_code(container.ussd_shortcode, merchant.short_code)
+    buff = io.BytesIO()
+    segno.make(code.tel_uri, error="m").save(buff, kind="svg", scale=6, border=2)
+    return Response(content=buff.getvalue(), media_type="image/svg+xml")
