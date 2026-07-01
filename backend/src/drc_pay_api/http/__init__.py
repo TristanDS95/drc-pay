@@ -1,5 +1,7 @@
 """HTTP layer — routes and middleware.
 
-To build. A thin caller into the domain services. Middleware: idempotency-key
-handling, rate limiting, JWT auth. No money logic lives here.
+A thin caller into the domain services: routes validate input, delegate to an
+``application/`` service, and serialize the result. No money logic lives here. The
+composition root is ``container.py``; the shared-password gate and CORS live in
+``main.py``.
 """

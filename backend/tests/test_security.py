@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 
+import pytest
 from fastapi.testclient import TestClient
 
 from drc_pay_api import config
@@ -38,9 +39,19 @@ def test_password_gates_the_api(monkeypatch) -> None:  # type: ignore[no-untyped
     assert client.get("/transactions", headers=_auth("admin", "sesame")).status_code == 401
 
 
+def test_deployed_env_refuses_to_boot_without_a_password(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    # The gate fails OPEN when no password is set, so a non-local env with none configured would
+    # serve the merchant API unauthenticated. The app must refuse to start instead.
+    monkeypatch.setattr(config.settings, "environment", "sandbox")
+    monkeypatch.setattr(config.settings, "basic_auth_password", "")
+    with pytest.raises(RuntimeError, match="BASIC_AUTH_PASSWORD"):
+        create_app()
+
+
 def _run_all() -> None:
+    _monkeypatched = {test_password_gates_the_api, test_deployed_env_refuses_to_boot_without_a_password}
     for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn) and fn is not test_password_gates_the_api:
+        if name.startswith("test_") and callable(fn) and fn not in _monkeypatched:
             fn()
             print(f"  ok  {name}")
 

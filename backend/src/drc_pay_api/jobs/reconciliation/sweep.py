@@ -10,8 +10,10 @@ It reuses the orchestrator wholesale (via ``apply_outcome``) and is state-guarde
 idempotent and safe to run alongside live callbacks: if a callback resolves a leg first, the
 sweep's apply is a no-op. Offline-testable: it depends only on ports + a ``StatusPoller``.
 
-Not yet wired to a schedule — exposing it (an authenticated admin trigger, or a scheduled
-worker calling ``run_reconciliation`` with the container's pieces) is a flagged ops task.
+Scheduled on a live rail by ``main.py`` (a periodic in-process task calling
+``run_reconciliation`` with the container's pieces); it also backs the manual
+``POST /demo/reconcile`` control off the real-money path. Open follow-up: an age filter + batch
+limit on ``find_pending`` so a large backlog can't turn one pass into an unbounded poll storm.
 """
 from __future__ import annotations
 

@@ -63,6 +63,7 @@ class PayResponse(BaseModel):
     amount: str
     currency: str
     fee: str  # the per-network-pair fee the merchant absorbs
+    merchant_nets: str  # amount − fee, server-derived (never recomputed client-side)
     customer_provider: str | None = None  # resolved payer operator
     merchant_provider: str | None = None  # resolved merchant (payout) operator
     merchant_name: str
@@ -231,6 +232,7 @@ def pay(body: PayRequest, container: ContainerDep) -> PayResponse:
         amount=tx.amount.to_major_str(),
         currency=tx.amount.currency,
         fee=tx.fee.to_major_str(),
+        merchant_nets=(tx.amount - tx.fee).to_major_str(),
         customer_provider=tx.customer_provider,
         merchant_provider=tx.merchant_provider,
         merchant_name=merchant.name,

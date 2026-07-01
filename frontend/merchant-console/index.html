@@ -259,6 +259,11 @@
   const API = new URLSearchParams(location.search).get("api")
     || (location.port === "5501" ? "http://127.0.0.1:8000" : location.origin);
   const $ = (id) => document.getElementById(id);
+  // Escape server-derived strings before they go into innerHTML. customer_msisdn (and, once
+  // onboarding exists, merchant names) are user-controllable, so unescaped interpolation would be
+  // a stored-XSS vector — this console runs same-origin with the API on cached credentials.
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
+    (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
   const PENDING = new Set(["collection_pending", "payout_pending", "refund_pending"]);
   const LABEL = {
     initiated:"Starting", collection_pending:"Awaiting payment", collection_succeeded:"Received",
@@ -286,7 +291,7 @@
   async function boot(){
     try { merchants = await jget("/merchants"); } catch(e){ showErr(e); return; }
     clearErr();
-    $("merchant").innerHTML = merchants.map((m)=>`<option value="${m.id}">${m.name} (${opName(m.settlement_provider)}) · ${m.ussd_string}</option>`).join("");
+    $("merchant").innerHTML = merchants.map((m)=>`<option value="${esc(m.id)}">${esc(m.name)} (${esc(opName(m.settlement_provider))}) · ${esc(m.ussd_string)}</option>`).join("");
     renderMerchant();
     await refresh();
   }
@@ -322,10 +327,10 @@
     const ul = $("feed");
     if(!mine.length){ ul.innerHTML = `<li class="empty">No payments yet — take one above.</li>`; return; }
     ul.innerHTML = mine.slice(0,40).map((t)=>`
-      <li data-id="${t.id}">
-        <span><span class="amt">${t.amount} ${t.currency}</span> &nbsp;
-          <span class="who">${t.customer_msisdn}</span></span>
-        <span class="pill ${pillClass(t.state)}">${LABEL[t.state]||t.state}</span>
+      <li data-id="${esc(t.id)}">
+        <span><span class="amt">${esc(t.amount)} ${esc(t.currency)}</span> &nbsp;
+          <span class="who">${esc(t.customer_msisdn)}</span></span>
+        <span class="pill ${pillClass(t.state)}">${esc(LABEL[t.state]||t.state)}</span>
       </li>`).join("");
     ul.querySelectorAll("li[data-id]").forEach((li)=>li.addEventListener("click",()=>openDetail(li.dataset.id)));
   }
@@ -338,8 +343,8 @@
     $("pend-count").textContent = pend.length;
     $("pend-cap").textContent = pend.length === 1 ? "payment awaiting confirmation" : "payments awaiting confirmation";
     $("pend-list").innerHTML = pend.slice(0,6).map((t)=>`
-      <li><span>${t.amount} ${t.currency} · ${t.customer_msisdn}</span>
-          <span class="pill wait">${LABEL[t.state]||t.state}</span></li>`).join("");
+      <li><span>${esc(t.amount)} ${esc(t.currency)} · ${esc(t.customer_msisdn)}</span>
+          <span class="pill wait">${esc(LABEL[t.state]||t.state)}</span></li>`).join("");
     $("reconcile").disabled = pend.length === 0;
   }
 
@@ -356,11 +361,11 @@
     card.style.display = "block";
     ul.innerHTML = list.map((t)=>`
       <li>
-        <span><span class="amt">${t.amount} ${t.currency}</span> &nbsp;
-          <span class="who">from ${t.customer_msisdn} · ${opName(t.customer_provider)}</span></span>
+        <span><span class="amt">${esc(t.amount)} ${esc(t.currency)}</span> &nbsp;
+          <span class="who">from ${esc(t.customer_msisdn)} · ${esc(opName(t.customer_provider))}</span></span>
         <span class="acts">
-          <button class="cta confirm" data-id="${t.id}" data-recv="1">Confirm received</button>
-          <button class="cta ghost" data-id="${t.id}" data-recv="0">Not received</button>
+          <button class="cta confirm" data-id="${esc(t.id)}" data-recv="1">Confirm received</button>
+          <button class="cta ghost" data-id="${esc(t.id)}" data-recv="0">Not received</button>
         </span>
       </li>`).join("");
     ul.querySelectorAll("button[data-id]").forEach((b)=>b.addEventListener("click",
@@ -470,8 +475,7 @@
       let t; try { t = await jget(`/transactions/${c.transaction_id}`); } catch(e){ t = null; }
       const lines = ["webhook ← pawaPay confirmed the payment"];
       for(const l of (t && t.ledger || [])){ lines.push(`ledger · ${l.direction} ${l.account} ${l.amount} ${l.currency}`); }
-      if(t){ const net = (Math.round(parseFloat(t.amount)*100) - Math.round(parseFloat(t.fee)*100))/100;
-        lines.push(`✓ paid — customer ${t.amount}, merchant ${net.toFixed(2)}, fee ${t.fee} ${t.currency}`); }
+      if(t){ lines.push(`✓ paid — customer ${t.amount}, merchant ${t.merchant_nets}, fee ${t.fee} ${t.currency}`); }
       pushTrace(lines);
     } else if(c.status === "declined"){ pushTrace(["✕ declined — no money moved"]); }
     else if(c.status === "refunded"){ pushTrace(["↩ refunded — customer made whole"]); }
@@ -544,23 +548,22 @@
   // ----- detail modal -----
   async function openDetail(id){
     let t; try { t = await jget(`/transactions/${id}`); } catch(e){ return; }
-    const net = (Math.round(parseFloat(t.amount)*100) - Math.round(parseFloat(t.fee)*100))/100;
-    const opid = (v) => v ? `<span class="mono">${v}</span>` : "—";
+    const opid = (v) => v ? `<span class="mono">${esc(v)}</span>` : "—";
     const led = (t.ledger||[]).map((l)=>`<tr>
-        <td>${l.account}</td>
-        <td class="${l.direction==='debit'?'dr':'cr'}">${l.direction}</td>
-        <td class="num">${l.amount} ${l.currency}</td></tr>`).join("")
+        <td>${esc(l.account)}</td>
+        <td class="${l.direction==='debit'?'dr':'cr'}">${esc(l.direction)}</td>
+        <td class="num">${esc(l.amount)} ${esc(l.currency)}</td></tr>`).join("")
       || `<tr><td colspan="3" class="empty">No ledger postings yet (money hasn't moved).</td></tr>`;
     $("modal").innerHTML = `
       <button class="x" id="x">×</button>
-      <h3>${t.amount} ${t.currency} &nbsp;<span class="pill ${pillClass(t.state)}">${LABEL[t.state]||t.state}</span></h3>
-      <div class="mono">${t.id}</div>
+      <h3>${esc(t.amount)} ${esc(t.currency)} &nbsp;<span class="pill ${pillClass(t.state)}">${esc(LABEL[t.state]||t.state)}</span></h3>
+      <div class="mono">${esc(t.id)}</div>
       <div class="kv">
-        <div class="k">Customer</div><div class="v">${t.customer_msisdn} · ${t.customer_provider||"—"}</div>
-        <div class="k">Merchant</div><div class="v">${t.merchant_name||t.merchant_id||"—"} · ${t.merchant_provider||"—"}</div>
-        <div class="k">Fee (MDR)</div><div class="v">${t.fee} ${t.currency}</div>
-        <div class="k">Merchant nets</div><div class="v">${t.state==='payout_succeeded'? net.toFixed(2): '—'} ${t.currency}</div>
-        <div class="k">Assurance</div><div class="v">${PROV[t.provenance]||t.provenance||"—"}</div>
+        <div class="k">Customer</div><div class="v">${esc(t.customer_msisdn)} · ${esc(t.customer_provider||"—")}</div>
+        <div class="k">Merchant</div><div class="v">${esc(t.merchant_name||t.merchant_id||"—")} · ${esc(t.merchant_provider||"—")}</div>
+        <div class="k">Fee (MDR)</div><div class="v">${esc(t.fee)} ${esc(t.currency)}</div>
+        <div class="k">Merchant nets</div><div class="v">${t.state==='payout_succeeded'? esc(t.merchant_nets): '—'} ${esc(t.currency)}</div>
+        <div class="k">Assurance</div><div class="v">${esc(PROV[t.provenance]||t.provenance||"—")}</div>
       </div>
       <div class="sectlabel">pawaPay operation ids</div>
       <div class="kv">
@@ -569,7 +572,7 @@
         <div class="k">refund</div><div class="v">${opid(t.refund_id)}</div>
       </div>
       <div class="sectlabel">state history</div>
-      <div class="chain">${(t.history||[]).map((s)=>`<span>${LABEL[s]||s}</span>`).join("→ ")}</div>
+      <div class="chain">${(t.history||[]).map((s)=>`<span>${esc(LABEL[s]||s)}</span>`).join("→ ")}</div>
       <div class="sectlabel">ledger (double-entry — the source of truth)</div>
       <table class="led"><thead><tr><th>Account</th><th>Dir</th><th class="num">Amount</th></tr></thead>
         <tbody>${led}</tbody></table>`;

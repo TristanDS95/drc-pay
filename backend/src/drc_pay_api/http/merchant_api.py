@@ -71,6 +71,7 @@ def _to_response(
         merchant_msisdn=transaction.merchant_msisdn,
         amount=transaction.amount.to_major_str(),
         fee=transaction.fee.to_major_str(),
+        merchant_nets=(transaction.amount - transaction.fee).to_major_str(),
         currency=transaction.amount.currency,
         state=transaction.state.value,
         history=[s.value for s in transaction.history],

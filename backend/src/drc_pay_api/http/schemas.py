@@ -35,6 +35,7 @@ class TransactionResponse(BaseModel):
     merchant_msisdn: str  # the merchant's settlement number
     amount: str  # what the customer paid
     fee: str  # our fee (MDR); the merchant nets amount − fee
+    merchant_nets: str  # amount − fee, server-derived from Money (never recomputed client-side)
     currency: str
     state: str
     history: list[str]
@@ -55,7 +56,7 @@ class MerchantResponse(BaseModel):
     name: str
     short_code: str
     settlement_msisdn: str
-    settlement_provider: str  # pawaPay operator code, e.g. "AIRTEL_COD" — the operator the merchant uses
+    settlement_provider: str | None = None  # pawaPay operator code, e.g. "AIRTEL_COD"; None until resolved
     status: str
     ussd_string: str  # "*123*1001#" — what the customer dials
     tel_uri: str  # "tel:*123*1001%23" — the USSD dial-through (the eventual static-till QR payload)
