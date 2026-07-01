@@ -19,10 +19,6 @@
   .top .brand{font-size:11px;letter-spacing:.1em;color:#8aa;text-transform:uppercase;}
   .top .name{font-size:22px;font-weight:800;margin-top:2px;}
   .top .sub{font-size:12.5px;color:#9fb0bd;margin-top:2px;}
-  .tabs{display:flex;background:#0c0f12;}
-  .tabs button{flex:1;background:transparent;border:none;color:#9fb0bd;font-size:13px;font-weight:700;
-        padding:11px;cursor:pointer;border-bottom:2px solid transparent;}
-  .tabs button.on{color:#fff;border-bottom-color:var(--coral);}
   .body{padding:20px;flex:1;}
   label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:14px 0 6px;}
   input{width:100%;padding:14px;border:1px solid var(--border);border-radius:12px;font-size:18px;
@@ -60,17 +56,6 @@
   details.trace summary{cursor:pointer;font-weight:600;}
   details.trace pre{background:#0b0f13;color:#cfe9da;border-radius:10px;padding:10px;overflow:auto;
         font:11px/1.6 "SF Mono",Menlo,monospace;white-space:pre-wrap;margin-top:8px;}
-  /* USSD dialog */
-  .ussd{margin-top:8px;}
-  .ussd .dialbtn{width:100%;padding:16px;border:none;border-radius:14px;background:#222;color:#fff;
-        font:700 17px "SF Mono",Menlo,monospace;cursor:pointer;}
-  .ussd-box{background:#0b0f13;color:#e7edf2;border-radius:14px;padding:18px;margin-top:14px;display:none;}
-  .ussd-box.show{display:block;}
-  .ussd-box .msg{font-size:15px;line-height:1.5;white-space:pre-wrap;}
-  .ussd-box.end .msg{color:#67e0a3;font-weight:600;}
-  .ussd-box input{margin-top:14px;background:#161c22;color:#fff;border-color:#2b3640;}
-  .ussd-box .send{margin-top:10px;width:100%;padding:12px;border:none;border-radius:10px;background:var(--coral);
-        color:#fff;font-weight:700;cursor:pointer;}
   .err{display:none;margin:16px 20px;padding:12px;border-radius:10px;background:var(--badbg);color:var(--bad);
         font-size:13px;}
   .err.show{display:block;}
@@ -83,10 +68,6 @@
       <div class="brand">Pay with your phone</div>
       <div class="name" id="m-name">…</div>
       <div class="sub">via DRC Pay · sandbox test</div>
-    </div>
-    <div class="tabs">
-      <button id="tab-pay" class="on">Scan &amp; Pay</button>
-      <button id="tab-dial">Dial (USSD)</button>
     </div>
     <div id="err" class="err"></div>
 
@@ -142,21 +123,7 @@ Merchant payout network = which merchant you open:
   Alpha = Airtel · Beta = Orange · Gamma = Vodacom</pre></details>
     </div>
 
-    <!-- DIAL / USSD -->
-    <div class="body" id="panel-dial" style="display:none;">
-      <div class="hint" style="margin-top:0;">Simulates a basic feature phone with no internet: dial the
-        merchant's code, then follow the prompts — exactly how the no-smartphone flow works.</div>
-      <div class="ussd">
-        <button class="dialbtn" id="dial">📞 Dial <span id="dial-code">…</span></button>
-        <div class="ussd-box" id="ussd-box">
-          <div class="msg" id="ussd-msg"></div>
-          <input id="ussd-input" type="text" inputmode="numeric" placeholder="Your reply" />
-          <button class="send" id="ussd-send">Send</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="powered">DRC Pay — no app or internet needed on your side</div>
+    <div class="powered">DRC Pay · pay with your mobile money · sandbox test</div>
   </div>
 
 <script>
@@ -175,23 +142,12 @@ Merchant payout network = which merchant you open:
     if(!charge || !charge.charge_id){ showErr("Charge not found."); return; }
     $("m-name").textContent = charge.merchant_name;
     $("amount-due").textContent = `Pay $${charge.amount}`;
-    $("dial-code").textContent = `*123*${charge.short_code}#`;
     // If the charge was already paid (or is mid-flight), reflect it and lock the button.
     if(charge.status && charge.status !== "awaiting_payment" && charge.status !== "declined"){
       showResult(charge.status === "paid" ? "payout_succeeded" : "payout_pending",
                  `$${charge.amount}`, charge.merchant_name);
       $("pay").disabled = true;
     }
-  }
-
-  // ----- tabs -----
-  $("tab-pay").addEventListener("click", () => switchTab("pay"));
-  $("tab-dial").addEventListener("click", () => switchTab("dial"));
-  function switchTab(t){
-    $("tab-pay").classList.toggle("on", t==="pay");
-    $("tab-dial").classList.toggle("on", t==="dial");
-    $("panel-pay").style.display = t==="pay" ? "block" : "none";
-    $("panel-dial").style.display = t==="dial" ? "block" : "none";
   }
 
   // ----- pay -----
@@ -333,39 +289,6 @@ Merchant payout network = which merchant you open:
     // If pawaPay hasn't confirmed yet (live rail), keep checking until the card shows the outcome.
     if(!TERMINAL.has(body.state)) pollStatus(body.transaction_id, `$${body.amount}`, body.merchant_name);
   });
-
-  // ----- USSD dial simulator -----
-  let dialAccum = [], dialSession = null;
-  const DIAL_CUSTOMER = "243813456789"; // a sandbox success number
-
-  $("dial").addEventListener("click", () => {
-    if(!charge) return;
-    dialSession = "ussd-" + Date.now();
-    dialAccum = [charge.short_code];      // the dialed/scanned code pre-fills the till
-    sendUssd();
-  });
-  $("ussd-send").addEventListener("click", () => {
-    const v = $("ussd-input").value.trim();
-    if(v) sendUssd(v);
-  });
-
-  async function sendUssd(extra){
-    if(extra !== undefined) dialAccum.push(extra);
-    let wire;
-    try {
-      const r = await fetch(`${API}/ussd`, { method:"POST", headers:{ "content-type":"application/json" },
-        body: JSON.stringify({ session_id: dialSession, msisdn: DIAL_CUSTOMER, text: dialAccum.join("*") }) });
-      wire = await r.text();
-    } catch(e){ showErr("USSD failed: " + e); return; }
-    const ended = wire.startsWith("END");
-    const box = $("ussd-box");
-    box.className = "ussd-box show" + (ended ? " end" : "");
-    $("ussd-msg").textContent = wire.replace(/^(CON|END)\s*/, "");
-    $("ussd-input").value = "";
-    $("ussd-input").style.display = ended ? "none" : "block";
-    $("ussd-send").style.display = ended ? "none" : "block";
-    if(!ended) $("ussd-input").focus();
-  }
 
   boot();
 </script>

@@ -36,6 +36,13 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
 
 ## ▶ NEXT — biggest open rocks (rough priority; confirm the pick before building)
 
+**French localisation (i18n) — TOP OF THE LIST, not started.**
+Add a language switch (English / French) on the **merchant console** and the **customer phone
+simulator**; French is a primary DRC language, so this is table stakes for real use. Externalise the
+UI strings (both static HTML and the JS-built messages), including the USSD menu copy served by the
+`ussd/` handler. Persist the choice (e.g. `localStorage`) and default sensibly. No backend money logic
+changes — copy/formatting only.
+
 **On-net same-network — "facilitate & record" ([ADR 0009](adr/0009-on-net-facilitate-and-record.md)); backend + UI DONE.**
 We do NOT route or hold money on-net: the customer pays the merchant **directly on the operator's own
 rail** (their till whenever they have one, else their number), and we **record & confirm** the sale —

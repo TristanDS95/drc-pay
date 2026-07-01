@@ -37,6 +37,18 @@ def test_get_unknown_merchant_404() -> None:
     assert _client().get("/merchants/nope").status_code == 404
 
 
+def test_merchant_ussd_qr_svg() -> None:
+    # The printable static-till USSD sticker (encodes the tel: dial-through).
+    qr = _client().get("/merchants/m_alpha/qr.svg")
+    assert qr.status_code == 200
+    assert "image/svg" in qr.headers["content-type"]
+    assert qr.content.startswith(b"<?xml") or qr.content.lstrip().startswith(b"<svg")
+
+
+def test_merchant_ussd_qr_unknown_404() -> None:
+    assert _client().get("/merchants/nope/qr.svg").status_code == 404
+
+
 def _run_all() -> None:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
