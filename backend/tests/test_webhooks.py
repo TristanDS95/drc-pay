@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
 from drc_pay_api.application.payments import start_merchant_payment
 from drc_pay_api.domains.ledger.money import Money
-from drc_pay_api.http.container import Container
+from drc_pay_api.container import Container
 from drc_pay_api.main import create_app
 
 from fakes import FakePaymentRail, pawapay_keypair, sign_pawapay_callback

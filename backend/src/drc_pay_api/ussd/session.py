@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from ..application.payments import start_merchant_payment
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
-from ..http.container import Container
+from ..container import Container
 
 _CURRENCY = "USD"  # MVP: the USSD flow is single-currency for now
 

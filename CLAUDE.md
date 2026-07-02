@@ -74,6 +74,8 @@ Single-source topics (update the one owner):
   research `ui-spec.md`).
 - **Roadmap** → DEVLOG "NEXT" (active) vs `docs/future-dev.md` (someday) — put it in the right one.
 - **Product spec** → lives in `drc-mvp-research/05-product-spec/`; link, don't duplicate.
+- **Plain-language architecture guide** → `docs/architecture-guide.md` (single source; the `.docx` is
+  generated from it — `pandoc docs/architecture-guide.md -o docs/DRC-Pay-Architecture-Guide.docx` after editing).
 
 Don't hard-code drift-prone values (test counts, dates) in prose — the README/DEVLOG count split came
 from exactly that.

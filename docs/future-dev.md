@@ -59,7 +59,7 @@ MVP (which has no user auth yet and stores only sandbox test-number MSISDNs). Re
 real customer PII or real money:
 
 - **PIN / customer auth:** hash PINs with **Argon2id**; never log them, never make them recoverable
-  (reset only via OTP). Currently unbuilt — `domains/auth/` is a stub.
+  (reset only via OTP). Currently unbuilt — no auth code exists yet; create `domains/auth/` when starting it.
 - **Encrypt PII at rest:** phone numbers (`customer_msisdn` / `merchant_msisdn` / `settlement_msisdn`)
   are stored in plaintext today. Railway's disk encryption is the baseline; add **application-level
   field encryption** before storing real customer numbers at scale.

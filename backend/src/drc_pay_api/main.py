@@ -21,7 +21,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
-from .http.container import build_container
+from .container import build_container
 from .http.demo_routes import demo_router
 from .http.merchant_api import merchant_api_router
 from .http.public_routes import public_router

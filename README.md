@@ -71,8 +71,8 @@ application/          # payments.py — the single entry every channel calls; ro
 adapters/             # in-memory + SQLAlchemy/Postgres stores (same ports)
 integrations/
   pawapay/            #   rented-rails client · rail · simulator · RFC-9421 signed-callback verify
-http/                 # FastAPI routes + the composition root (container.py); the signed pawaPay
-                      #   callback receiver at /webhooks/pawapay
+container.py          # the composition root — every channel wires through it
+http/                 # FastAPI routes; the signed pawaPay callback receiver at /webhooks/pawapay
 ussd/                 # feature-phone channel — a thin caller into the same core
 jobs/                 # the reconciliation sweep (missed-callback safety net)
 ```
@@ -133,4 +133,5 @@ These are non-negotiable because bugs here move real money:
 - **ruff + `mypy --strict` + pytest** must all pass; the ledger and state machine carry the most tests.
 
 Significant decisions are recorded as ADRs (architectural decision record) in [`docs/adr/`](./docs/adr/). 
-The plain-language architecture guide is [`docs/DRC-Pay-Architecture-Guide.docx`](./docs/DRC-Pay-Architecture-Guide.docx).
+The plain-language architecture guide is [`docs/architecture-guide.md`](./docs/architecture-guide.md)
+(the Word version, `docs/DRC-Pay-Architecture-Guide.docx`, is generated from it).

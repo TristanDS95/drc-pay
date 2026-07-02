@@ -15,7 +15,7 @@ from ..application.payments import start_merchant_payment
 from ..domains.charges.models import charge_status, is_payable
 from ..domains.ledger.money import Money
 from ..domains.transactions.models import MERCHANT_ATTESTED
-from .container import ContainerDep
+from .dependencies import ContainerDep
 
 public_router = APIRouter()
 

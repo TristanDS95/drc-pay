@@ -1,6 +1,6 @@
 # DRC Pay — Development Log & Handoff
 
-**Last updated:** 2026-06-20 · **Read this first to resume work.**
+**Last updated:** 2026-07-02 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC: merchants accept mobile-money payments across
 networks (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure pass-through**
@@ -48,7 +48,7 @@ We do NOT route or hold money on-net: the customer pays the merchant **directly 
 rail** (their till whenever they have one, else their number), and we **record & confirm** the sale —
 non-custodial, no operator money-API, `fee=0`. Cross-network stays on pawaPay. "Paid" is tagged
 **merchant-attested** (on-net) vs **rail-verified** (pawaPay).
-- **DONE — trim + backend flow ✅ (147 tests green).** Removed the operator-API machinery
+- **DONE — trim + backend flow ✅ (full suite green).** Removed the operator-API machinery
   (`DirectCollectRail`, the `airtel`/`mpesa` scaffolds, `simulated_direct.py`, the `DRCPAY_ONNET_SIMULATE`
   toggle). `OnNetOrchestrator` is rail-free (records *awaiting confirmation* → `on_confirm` posts the one
   ledger entry, paid). `start_merchant_payment` routes same-network → on-net awaiting (all pairs, via
@@ -109,7 +109,8 @@ backend/src/drc_pay_api/
 ├── integrations/pawapay/    # client · rail · providers · signatures · callbacks · status · simulator
 ├── ussd/  session.py        # USSD channel: full-text parse + dial fast-path
 ├── jobs/reconciliation/sweep.py   # missed-callback safety net → apply_outcome
-├── http/   schemas.py container.py (composition root)
+├── container.py              # composition root — every channel wires through it (not under http/)
+├── http/   schemas.py dependencies.py (FastAPI glue injecting the container)
 │           merchant_api.py    # transactions + merchants + charges (one merchant trust tier)
 │           ussd_routes.py webhook_routes.py
 │           demo_routes.py     # /demo/reconcile — off-real-money path only (404 in prod)
@@ -156,7 +157,8 @@ payer page.
   label `sig-pp`; pawaPay sends **DER** (~70 bytes) — `signatures.py` accepts DER + raw-64. Public key is
   **auto-fetched** from `GET /v2/public-key/http` at startup (override via `DRCPAY_PAWAPAY_PUBLIC_KEY`).
 - ⚠️ **Token gotcha:** must be a **sandbox** token (matches `api.sandbox.pawapay.io`); a live token reads
-  "invalid". Paste cleanly in Railway (no quotes/whitespace/`Bearer `).
+  "invalid". Paste cleanly in Railway (no quotes/whitespace/`Bearer `). Quick manual check that a token
+  authenticates (read-only, no money moved): `python tests/pawapay_smoke.py` (reads `.env`; see its docstring).
 - **DRC providers:** `VODACOM_MPESA_COD`, `AIRTEL_COD`, `ORANGE_COD`. USD = 2 decimals; Vodacom CDF = 0.
   **Sandbox test numbers:** operator prefix + last-3-digit outcome (`…789` success, `…049` insufficient):
   Vodacom `243813456789`, Airtel `243973456789`, Orange `243893456789` (docs.pawapay.io/v2/docs/test_numbers).
@@ -186,7 +188,8 @@ payer page.
 ## Open items / TODOs
 **USSD channel build-out + tests** (above — the next priority) · **real USSD aggregator** · **merchant
 onboarding + KYC** · **reconciliation age filter + batch limit** (now scheduled in-process on a live rail;
-the unbounded `find_pending` scan is the remaining gap) · **merchant auth** (`domains/auth/` empty) ·
+the unbounded `find_pending` scan is the remaining gap) · **merchant auth** (not started; plan in
+`future-dev.md` "Security hardening") ·
 **per-merchant authorization** (one shared credential today; any merchant can read/confirm any other's) ·
 **lock CORS** before prod · **native mobile app** (deferred,
 web-first) · **charge expiry** (none — charges stay payable until paid) · **refund-leg fee** (pawaPay bills refunds ≈
@@ -214,8 +217,8 @@ tests use `pythonpath=src`.
 ## Git & conventions
 Repo **github.com/TristanDS95/drc-pay** (`main`); **the human pushes**; commits use **no** Claude
 co-author trailer; Conventional Commits; keep ruff + mypy + pytest green. **`CLAUDE.md`** is the
-engineering standards, now tracked in-repo. Plain-language tour:
-`docs/DRC-Pay-Architecture-Guide.docx`. ADRs in `docs/adr/`. Simplicity: `docs/simplicity-review.md`.
+engineering standards, now tracked in-repo. Plain-language tour: `docs/architecture-guide.md` (source;
+the `.docx` is generated from it via pandoc). ADRs in `docs/adr/`. Simplicity: `docs/simplicity-review.md`.
 
 ## Carry-forward insights
 1. **Money core is role- and channel-agnostic** — every channel (HTTP, USSD, charge) is a thin caller

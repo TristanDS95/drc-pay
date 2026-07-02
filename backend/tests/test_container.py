@@ -6,7 +6,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from drc_pay_api.http.container import build_container
+from drc_pay_api.container import build_container
 from drc_pay_api.integrations.pawapay.client import PawaPayClient
 from drc_pay_api.integrations.pawapay.rail import PawaPayRail
 from drc_pay_api.integrations.pawapay.simulator import SimulatedPaymentRail

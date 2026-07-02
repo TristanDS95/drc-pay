@@ -2,7 +2,7 @@
 ``m_beta``), and the helper that seeds them.
 
 These are the *single source of truth* for the demo merchants, shared by the in-memory
-composition root (``http/container.py``) and the Postgres seed step below. Their settlement
+composition root (``container.py``) and the Postgres seed step below. Their settlement
 numbers are pawaPay **sandbox payout-success** test numbers (…789), so the settle leg
 completes end-to-end against the live sandbox; the simulator ignores them.
 

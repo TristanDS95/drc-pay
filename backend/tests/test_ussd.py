@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from drc_pay_api.domains.ledger.money import Money
-from drc_pay_api.http.container import build_container
+from drc_pay_api.container import build_container
 from drc_pay_api.main import create_app
 from drc_pay_api.ussd.session import UssdHandler, UssdRequest, run_session
 
