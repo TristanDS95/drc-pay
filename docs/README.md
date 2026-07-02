@@ -9,6 +9,9 @@ Engineering-side documentation for drc-pay.
   AWS infra, split webhook service), consolidated when the placeholder folders were removed (ADR 0008).
 - **[`design-tokens.md`](./design-tokens.md)** — the design system (palette, type, spacing), mirroring
   the product spec's `ui-spec.md`.
+- **[`architecture-guide.md`](./architecture-guide.md)** — the plain-language "new user's guide" to the
+  whole system. This Markdown is the source; `DRC-Pay-Architecture-Guide.docx` is generated from it
+  (`pandoc architecture-guide.md -o DRC-Pay-Architecture-Guide.docx`) — regenerate after editing.
 - **Product spec** — the authoritative spec lives in the research workspace:
   [`../../drc-mvp-research/05-product-spec/`](../../drc-mvp-research/05-product-spec/)
   (human-readable summary: `../../drc-mvp-research/product-spec.html`). Port stable

@@ -21,12 +21,13 @@ from pydantic import BaseModel
 from ..adapters.memory import ListRecorder
 from ..application.payment_codes import merchant_payment_code
 from ..application.payments import start_merchant_payment
+from ..container import Container
 from ..domains.charges.models import Charge, charge_status
 from ..domains.ledger.money import Money
 from ..domains.transactions.models import MERCHANT_ATTESTED, Transaction
 from ..domains.transactions.on_net import OnNetOrchestrator
 from ..domains.transactions.state_machine import TxState
-from .container import Container, ContainerDep
+from .dependencies import ContainerDep
 from .schemas import (
     CreateTransactionRequest,
     LedgerLine,
@@ -71,6 +72,7 @@ def _to_response(
         merchant_msisdn=transaction.merchant_msisdn,
         amount=transaction.amount.to_major_str(),
         fee=transaction.fee.to_major_str(),
+        merchant_nets=(transaction.amount - transaction.fee).to_major_str(),
         currency=transaction.amount.currency,
         state=transaction.state.value,
         history=[s.value for s in transaction.history],

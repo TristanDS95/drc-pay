@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from ..application.payments import start_merchant_payment
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
-from ..http.container import Container
+from ..container import Container
 
 _CURRENCY = "USD"  # MVP: the USSD flow is single-currency for now
 
@@ -89,13 +89,22 @@ class UssdHandler:
             return UssdResponse.end("Cancelled.")
         if choice != "1":
             return UssdResponse.end("Invalid choice. Please dial again.")
-        self._start_payment(request.msisdn, merchant, amount)
+        self._start_payment(request.session_id, request.msisdn, merchant, amount)
         return UssdResponse.end(
             f"Payment of {amount.to_major_str()} {_CURRENCY} to {merchant.name} "
             "initiated. Approve on your phone."
         )
 
-    def _start_payment(self, customer_msisdn: str, merchant: Merchant, amount: Money) -> None:
+    def _start_payment(
+        self, session_id: str, customer_msisdn: str, merchant: Merchant, amount: Money
+    ) -> None:
+        # Idempotency (CLAUDE.md: every money-moving request carries a key). Aggregators resend the
+        # confirm step on timeout, and an unauthenticated caller could replay it — either way, keying
+        # on (session, till, amount) makes the retry return the original transaction, never a second
+        # collection. The session id is stable across one dial's steps.
+        key = f"ussd:{session_id}:{merchant.short_code}:{amount.amount_minor}"
+        if self._container.store.find_by_idempotency_key(key) is not None:
+            return  # this session already initiated this payment — no double charge
         start_merchant_payment(
             store=self._container.store,
             ledger=self._container.ledger,
@@ -105,6 +114,7 @@ class UssdHandler:
             customer_msisdn=customer_msisdn,
             merchant=merchant,
             amount=amount,
+            idempotency_key=key,
         )
 
 

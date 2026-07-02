@@ -8,18 +8,32 @@ same /transactions API and dashboard.
 """
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from ..ussd.session import UssdHandler, UssdRequest
 
 ussd_router = APIRouter()
+
+# A mobile number: optional leading '+' then 6-15 digits (E.164-ish). Validating here keeps
+# non-numeric junk out of the phone field — it's stored on the transaction and later rendered
+# in the merchant console, so an unvalidated free-text msisdn would be an injection vector.
+_MSISDN_RE = re.compile(r"^\+?\d{6,15}$")
 
 
 class UssdHttpRequest(BaseModel):
     session_id: str
     msisdn: str
     text: str = ""  # the user's latest input ("" on the initial dial)
+
+    @field_validator("msisdn")
+    @classmethod
+    def _valid_msisdn(cls, value: str) -> str:
+        if not _MSISDN_RE.match(value):
+            raise ValueError("msisdn must be 6-15 digits, optionally prefixed with '+'")
+        return value
 
 
 def _handler(request: Request) -> UssdHandler:

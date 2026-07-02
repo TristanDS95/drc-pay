@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Blank in the demo → the webhook receiver rejects everything when no live rail is set.
     pawapay_public_key: str = ""
 
+    # Reconciliation sweep: how often (seconds) the background job polls pawaPay for missed
+    # deposit/payout/refund outcomes. Runs only on a live rail (never the in-process simulator).
+    reconcile_interval_seconds: int = 300
+
     # USSD shortcode the customer dials (e.g. *123#); each merchant's till is appended
     # (*123*1001#). The real code is assigned by the USSD aggregator/operator — this is a
     # placeholder until it's provisioned.

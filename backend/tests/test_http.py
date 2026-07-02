@@ -9,7 +9,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
-from drc_pay_api.http.container import Container
+from drc_pay_api.container import Container
 from drc_pay_api.main import create_app
 
 from fakes import FakePaymentRail, FakePredictor
@@ -45,6 +45,7 @@ def test_successful_payment_settles_merchant_net_of_fee() -> None:
     # On the simulator the payer falls back to Vodacom (no predictor); m_alpha settles to Airtel.
     # Fee = Vodacom collect 2.5% + Airtel payout 2.0% = 4.5% of 10.00 (real pawaPay cost, no margin).
     assert body["fee"] == "0.45"  # the MDR shown to the merchant — unchanged
+    assert body["merchant_nets"] == "9.55"  # server-derived amount − fee (never computed client-side)
     # The customer paid 10.00; the merchant nets 9.55. The 0.45 fee is pure pawaPay cost
     # (Vodacom collect 0.25 + Airtel payout 0.20), so it is booked to expense, not revenue —
     # with no margin yet, we keep nothing.

@@ -1,5 +1,9 @@
 """Composition root — holds the shared, persistent adapters.
 
+Lives at package level (not under ``http/``) because every channel wires through it —
+``main.py`` builds it, the HTTP routes and the USSD handler both consume it. The FastAPI
+dependency glue that exposes it to routes lives in ``http/dependencies.py``.
+
 Two independent choices are made here from config:
   - **Rail:** a live ``PawaPayRail`` when both ``DRCPAY_PAWAPAY_*`` credentials are set,
     otherwise the in-process ``SimulatedPaymentRail`` (keeps the demo working with zero
@@ -17,37 +21,36 @@ so each call can return its own operations log.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Annotated, Protocol
+from typing import Protocol
 
-from fastapi import Depends, Request
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
-from ..adapters.memory import (
+from .adapters.memory import (
     InMemoryChargeStore,
     InMemoryLedger,
     InMemoryMerchantStore,
     InMemoryTransactionStore,
 )
-from ..adapters.sql import (
+from .adapters.sql import (
     SqlChargeStore,
     SqlLedger,
     SqlMerchantStore,
     SqlTransactionStore,
     make_engine,
 )
-from ..domains.charges.models import Charge
-from ..domains.ledger.ledger import Posting
-from ..domains.merchants.models import Merchant
-from ..domains.transactions.models import Transaction
-from ..application.payments import Predictor
-from ..domains.transactions.ports import PaymentRail
-from ..integrations.pawapay.client import PawaPayClient
-from ..integrations.pawapay.rail import PawaPayRail
-from ..integrations.pawapay.simulator import SimulatedPaymentRail
-from ..integrations.pawapay.status import StatusPoller
-from ..seed import seed_demo_merchants
+from .application.payments import Predictor
+from .domains.charges.models import Charge
+from .domains.ledger.ledger import Posting
+from .domains.merchants.models import Merchant
+from .domains.transactions.models import Transaction
+from .domains.transactions.ports import PaymentRail
+from .integrations.pawapay.client import PawaPayClient
+from .integrations.pawapay.rail import PawaPayRail
+from .integrations.pawapay.simulator import SimulatedPaymentRail
+from .integrations.pawapay.status import StatusPoller
+from .seed import seed_demo_merchants
 
 
 class TxStore(Protocol):
@@ -204,14 +207,3 @@ def build_container(
         pawapay_client=pawapay_client,
         environment=environment,
     )
-
-
-def get_container(request: Request) -> Container:
-    """The shared :class:`Container`, built once at startup and kept on ``app.state``."""
-    container: Container = request.app.state.container
-    return container
-
-
-# FastAPI dependency: a route writes ``container: ContainerDep`` and FastAPI injects the shared
-# container — replacing the per-file ``_container(request)`` helper that used to be copy-pasted.
-ContainerDep = Annotated[Container, Depends(get_container)]

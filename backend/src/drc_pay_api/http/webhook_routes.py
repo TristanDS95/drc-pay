@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 
 from ..application.webhooks import process_pawapay_callback
 from ..integrations.pawapay.signatures import SignatureError
-from .container import ContainerDep
+from .dependencies import ContainerDep
 
 webhook_router = APIRouter()
 

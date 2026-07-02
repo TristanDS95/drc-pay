@@ -9,9 +9,11 @@ spin up isolated instances. The module-level ``app`` is what uvicorn serves.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import secrets
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,21 +21,64 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
-from .http.container import build_container
+from .container import build_container
 from .http.demo_routes import demo_router
 from .http.merchant_api import merchant_api_router
 from .http.public_routes import public_router
 from .http.ussd_routes import ussd_router
 from .http.webhook_routes import webhook_router
+from .jobs.reconciliation.sweep import run_reconciliation
 from .ussd.session import UssdHandler
 
-# Paths reachable WITHOUT the shared password: provider callbacks under /webhooks/ (an operator
-# can't send our password — pawaPay's is verified by signature; the on-net callback is gated to
-# sandbox/simulator instead) and the platform's health probe.
+# Paths reachable WITHOUT the shared password: the pawaPay callback under /webhooks/ (an operator
+# can't send our password — it's verified by RFC-9421 signature instead) and the platform's health
+# probe.
 _AUTH_EXEMPT = {"/health"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
 # Customer-facing paths are public — a customer who scans a merchant's QR has no login.
 _PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
+
+
+async def _reconcile_loop(app: FastAPI, interval: int) -> None:
+    """Periodically run the reconciliation sweep — the production trigger for the missed-callback
+    safety net. The sweep itself is synchronous (blocking pawaPay polls), so it runs in a worker
+    thread to keep the event loop free. It never raises out of here: one bad pass is logged and the
+    loop continues, so the safety net can't be taken down by a transient error."""
+    container = app.state.container
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            summary = await asyncio.to_thread(
+                run_reconciliation,
+                store=container.store,
+                rail=container.rail,
+                ledger=container.ledger,
+                poller=container.poller,
+            )
+            if summary.resolved:
+                print(f"[reconcile] swept {summary.total} pending, healed {summary.resolved}")
+        except Exception as exc:  # the safety-net loop must survive any single failure
+            print(f"[reconcile] sweep error (retrying next interval): {exc}")
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Run the reconciliation sweep on a schedule while the app is up — but only on a live rail.
+    The in-process simulator has nothing to poll, and tests must not spawn background timers, so
+    the loop is skipped when ``container.simulated`` is True."""
+    container = app.state.container
+    task: asyncio.Task[None] | None = None
+    if not container.simulated and container.poller is not None:
+        interval = settings.reconcile_interval_seconds
+        task = asyncio.create_task(_reconcile_loop(app, interval))
+        print(f"[reconcile] scheduled sweep every {interval}s")
+    try:
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
 
 def _basic_auth_ok(authorization: str, password: str) -> bool:
@@ -47,7 +92,18 @@ def _basic_auth_ok(authorization: str, password: str) -> bool:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="DRC Pay — Merchant Acquiring API", version="0.0.1")
+    # A deployed environment MUST gate the merchant API. The password gate fails OPEN when no
+    # password is set (see ``_gate`` below), so refuse to boot a non-local env without one rather
+    # than silently serve /transactions, /merchants, etc. unauthenticated. Mirrors the DB
+    # fail-fast in ``build_container``. Local dev / tests (environment == "local") stay open.
+    if settings.environment != "local" and not settings.basic_auth_password:
+        raise RuntimeError(
+            f"No DRCPAY_BASIC_AUTH_PASSWORD set in environment '{settings.environment}'. "
+            "Refusing to start: the merchant API would be served with no authentication. Set a "
+            "password, or use DRCPAY_ENVIRONMENT=local for unauthenticated local dev."
+        )
+
+    app = FastAPI(title="DRC Pay — Merchant Acquiring API", version="0.0.1", lifespan=_lifespan)
 
     # DEV ONLY: let the local web Merchant Console (a different origin) call the API.
     # Production locks this down to known origins.

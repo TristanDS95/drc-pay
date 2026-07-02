@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..jobs.reconciliation.sweep import run_reconciliation
-from .container import ContainerDep
+from .dependencies import ContainerDep
 
 demo_router = APIRouter()
 

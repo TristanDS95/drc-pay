@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from drc_pay_api.domains.ledger.money import Money
-from drc_pay_api.http.container import build_container
+from drc_pay_api.container import build_container
 from drc_pay_api.main import create_app
 from drc_pay_api.ussd.session import UssdHandler, UssdRequest, run_session
 
@@ -103,6 +103,26 @@ def test_ussd_endpoint_shares_the_transaction_store() -> None:
     assert len(listed) == 1
     assert listed[0]["merchant_id"] == "m_alpha"
     assert listed[0]["customer_msisdn"] == msisdn
+
+
+def test_ussd_confirm_replay_is_idempotent() -> None:
+    # An aggregator resends the confirm step on timeout (or an attacker replays it). Keyed on the
+    # session, the retry must return the original transaction, never a second collection.
+    container = build_container()
+    handler = UssdHandler(container)
+    sid, msisdn = "dup-1", "243800000009"
+    for _ in range(3):  # confirm the same session three times
+        handler.handle(UssdRequest(sid, msisdn, "1001*10*1"))
+    assert len(container.store.all()) == 1  # exactly one payment, not three
+
+
+def test_ussd_http_rejects_non_numeric_msisdn() -> None:
+    # The msisdn is stored and later rendered in the console, so junk must be refused at the edge.
+    client = TestClient(create_app())
+    r = client.post(
+        "/ussd", json={"session_id": "x", "msisdn": "243<img src=x>", "text": "1001*10*1"}
+    )
+    assert r.status_code == 422
 
 
 def _run_all() -> None:
