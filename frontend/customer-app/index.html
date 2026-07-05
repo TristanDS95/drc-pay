@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 <meta name="theme-color" content="#1f2933" />
-<title>Pay — DRC Pay</title>
+<title>Pay - DRC Pay</title>
 <style>
   :root{
     --coral:#FF6B5B; --coral-dark:#E2553F; --cream:#FFFCF8; --charcoal:#1A1A1A;
@@ -102,9 +102,9 @@
         <div class="ho-sub" id="ho-sub"></div>
         <div class="ho-method">
           <div class="lab" id="ho-lab"></div>
-          <div class="val" id="ho-target">—</div>
+          <div class="val" id="ho-target">-</div>
         </div>
-        <div class="ho-amt"><span data-i18n="ho_amt_label">Amount to send:</span> <b id="ho-amount">—</b></div>
+        <div class="ho-amt"><span data-i18n="ho_amt_label">Amount to send:</span> <b id="ho-amount">-</b></div>
         <div class="ho-status" id="ho-status"></div>
       </div>
       <details class="trace" id="trace"><summary data-i18n="trace_summary">What happened (for testing)</summary><pre id="trace-pre"></pre></details>
@@ -146,31 +146,31 @@
       err_not_found: "Charge not found.",
       result: {
         payout_succeeded: ["ok","✓","Paid", (a,n)=>`You paid ${a} to ${n}.`],
-        collection_failed: ["bad","✕","Declined", ()=>`Your payment was declined — nothing was charged.`],
+        collection_failed: ["bad","✕","Declined", ()=>`Your payment was declined - nothing was charged.`],
         refunded: ["wait","↩","Refunded", (a)=>`Settlement failed, so you were refunded ${a}. No money lost.`],
         manual_review: ["wait","⚠","Needs review", ()=>`Something went wrong; it's been flagged for a human.`],
-        collection_pending: ["wait","⏳","Sent", (a,n)=>`${a} sent to ${n} — awaiting confirmation.`],
-        payout_pending: ["wait","⏳","Settling", (a,n)=>`Confirmed — settling to ${n}…`],
+        collection_pending: ["wait","⏳","Sent", (a,n)=>`${a} sent to ${n} - awaiting confirmation.`],
+        payout_pending: ["wait","⏳","Settling", (a,n)=>`Confirmed - settling to ${n}…`],
       },
       fee_line: (pair,pct,fee,nets) => `${pair} · fee ${pct}% = $${fee} · merchant nets $${nets}`,
       ho_head: "Same-network payment",
-      ho_sub: (m,op) => `Pay <b>${m}</b> directly on <b>${op}</b> —
+      ho_sub: (m,op) => `Pay <b>${m}</b> directly on <b>${op}</b> -
           DRC Pay doesn't touch this one. Open your mobile-money menu and send:`,
       ho_your_network: "your network",
       ho_lab_till: "Pay to till (buy goods)",
       ho_lab_number: "Send to number",
       ho_amt_label: "Amount to send:",
-      ho_waiting: (m) => `⏳ Waiting for ${m} to confirm they received it…`,
-      ho_confirmed: (m) => `✓ ${m} confirmed — you're paid.`,
+      ho_waiting: (m) => `Waiting for ${m} to confirm they received it…`,
+      ho_confirmed: (m) => `✓ ${m} confirmed - you're paid.`,
       ho_not_received: (m) => `✕ ${m} hasn't received it. Check you sent it, or try again.`,
-      ho_still_waiting: "Still waiting — keep this page open; it updates when the merchant confirms.",
+      ho_still_waiting: "Still waiting - keep this page open; it updates when the merchant confirms.",
       trace_summary: "What happened (for testing)",
       trace_step: {
         collection_succeeded: "✓ payment collected from your wallet",
         payout_pending: "→ settling to the merchant…",
-        payout_succeeded: "✓ settled — merchant paid",
-        refunded: "↩ settlement failed — you were refunded in full",
-        collection_failed: "✕ payment declined — nothing was charged",
+        payout_succeeded: "✓ settled - merchant paid",
+        refunded: "↩ settlement failed - you were refunded in full",
+        collection_failed: "✕ payment declined - nothing was charged",
         manual_review: "⚠ flagged for manual review",
       },
       testing_summary: "Testing options",
@@ -178,7 +178,7 @@
       outcome_success: "Succeeds", outcome_decline: "Declined", outcome_refund: "Refunded",
       outcome_hint: "In real life your wallet decides this; here you pick it to test each case.",
       numbers_summary: "Sandbox test numbers",
-      numbers_pre: `Network sets the prefix · outcome sets the last 3 digits —
+      numbers_pre: `Network sets the prefix · outcome sets the last 3 digits -
 pick from the menus above; the app sends the right number.
 
   Vodacom   243 813456 _ _ _
@@ -216,7 +216,7 @@ Merchant payout network = which merchant you open:
       ho_lab_till: "Payer au till (compte marchand)",
       ho_lab_number: "Envoyer au numéro",
       ho_amt_label: "Montant à envoyer :",
-      ho_waiting: (m) => `⏳ En attente que ${m} confirme la réception…`,
+      ho_waiting: (m) => `En attente que ${m} confirme la réception…`,
       ho_confirmed: (m) => `✓ ${m} a confirmé la réception - c'est payé.`,
       ho_not_received: (m) => `✕ ${m} n'a pas reçu le paiement. Vérifiez l'envoi, ou réessayez.`,
       ho_still_waiting: "Toujours en attente - gardez cette page ouverte ; elle se met à jour quand le marchand confirme.",
@@ -336,7 +336,7 @@ Réseau de versement du marchand = le marchand que vous ouvrez :
   }
   async function pollOnNet(txId, body){
     const merchant = body.merchant_name;
-    for(let i = 0; i < 150; i++){                      // ~150 × 2s ≈ 5 min — a manual merchant tap can lag
+    for(let i = 0; i < 150; i++){                      // ~150 × 2s ≈ 5 min - a manual merchant tap can lag
       await new Promise((r) => setTimeout(r, 2000));
       let t2;
       try { const r = await fetch(`${API}/public/transaction/${txId}`); if(!r.ok) continue; t2 = await r.json(); }
@@ -392,7 +392,7 @@ Réseau de versement du marchand = le marchand que vous ouvrez :
     renderTrace([]);                          // show them now; polling appends the rest live
     if(body.on_net){                          // same-network → pay the merchant directly on the operator
       showOnNetHandoff(body);
-      $("pay").disabled = true;               // committed to paying on-net — avoid a duplicate record
+      $("pay").disabled = true;               // committed to paying on-net - avoid a duplicate record
       pollOnNet(body.transaction_id, body);
       return;
     }
