@@ -1,6 +1,6 @@
 # DRC Pay — Development Log & Handoff
 
-**Last updated:** 2026-07-02 · **Read this first to resume work.**
+**Last updated:** 2026-07-05 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC: merchants accept mobile-money payments across
 networks (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure pass-through**
@@ -33,15 +33,18 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
   de-emphasized reconcile fallback, and an **on-net "Confirm receipt"** card; **Customer page** (public) —
   scan → locked amount → pick network → pay, confirms live with the fee shown, or an **on-net hand-off**
   (pay the merchant directly on the operator — their till when set, else their number) when same-network.
+  **Both web UIs are bilingual: French (default) / English**, via an FR|EN switch persisted per device.
 
 ## ▶ NEXT — biggest open rocks (rough priority; confirm the pick before building)
 
-**French localisation (i18n) — TOP OF THE LIST, not started.**
-Add a language switch (English / French) on the **merchant console** and the **customer phone
-simulator**; French is a primary DRC language, so this is table stakes for real use. Externalise the
-UI strings (both static HTML and the JS-built messages), including the USSD menu copy served by the
-`ussd/` handler. Persist the choice (e.g. `localStorage`) and default sensibly. No backend money logic
-changes — copy/formatting only.
+**French localisation (i18n) — web UIs DONE ✅ (2026-07-05); backend USSD copy remains.**
+Both web UIs (merchant console + customer page, incl. its testing panels) carry an **FR|EN switch**:
+French default, persisted in `localStorage["drcpay.lang"]`, every user-facing string externalised into
+an in-page dictionary (static HTML via `data-i18n`, JS-built messages read it at render time).
+The console's dark ops-trace panel intentionally stays English - it is a developer-style log and its
+line prefixes drive the color coding.
+Remaining: the **USSD menu copy served by the backend `ussd/` handler** - translate it (with a language
+selection step or per-merchant default) as part of the USSD build-out, item 1 below.
 
 **On-net same-network — "facilitate & record" ([ADR 0009](adr/0009-on-net-facilitate-and-record.md)); backend + UI DONE.**
 We do NOT route or hold money on-net: the customer pays the merchant **directly on the operator's own

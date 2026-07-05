@@ -29,6 +29,7 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
   ([ADR 0009](docs/adr/0009-on-net-facilitate-and-record.md)): same-network payments are paid
   merchant-direct on the operator's own rail (non-custodial), and we record/confirm them.
 - **Web UIs** (`frontend/`): the gated **Merchant Console** and the public **Customer** scan-to-pay page.
+  Both are **bilingual - French (default) / English** - via an FR|EN switch persisted per device.
 - **Not started:** the native mobile app (React Native/Expo — deliberately web-first for now; plan in
   [`docs/future-dev.md`](docs/future-dev.md)) and merchant onboarding/KYC.
 

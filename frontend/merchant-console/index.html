@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -28,6 +28,10 @@
   .topbar label{font-size:11px;color:#9aa6b2;margin-right:6px;font-weight:600;}
   .topbar select{padding:8px 10px;border-radius:10px;border:1px solid #2b3640;background:#161c22;color:#e7edf2;
         font-size:13px;max-width:60vw;}
+  .langsw{display:flex;border:1px solid #2b3640;border-radius:8px;overflow:hidden;}
+  .langsw button{border:none;background:#161c22;color:#9aa6b2;font-size:11px;font-weight:700;padding:6px 10px;
+        cursor:pointer;letter-spacing:.04em;}
+  .langsw button.on{background:var(--coral);color:#fff;}
   .wrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;
         padding:18px 22px 40px;max-width:1180px;margin:0 auto;}
   @media (max-width:880px){ .wrap{grid-template-columns:1fr;} }
@@ -130,10 +134,14 @@
 </head>
 <body>
   <div class="topbar">
-    <div class="brand">DRC <span>Pay</span> — Merchant Console</div>
+    <div class="brand" data-i18n-html="brand">DRC <span>Pay</span> — Merchant Console</div>
     <div class="tag" id="mode">live · sandbox</div>
     <div class="sp"></div>
-    <label for="merchant">Acting as</label>
+    <div class="langsw" id="langsw">
+      <button data-l="fr">FR</button>
+      <button data-l="en">EN</button>
+    </div>
+    <label for="merchant" data-i18n="acting_as">Acting as</label>
     <select id="merchant"></select>
   </div>
   <div id="err" class="err hidden"></div>
@@ -148,21 +156,21 @@
             <div class="till" id="m-till">—</div>
             <div class="line" id="m-settle"></div>
             <div class="line" id="m-onnet"></div>
-            <div class="line">Pick a merchant above, then create a charge below for a specific amount.</div>
+            <div class="line" data-i18n="hero_line">Pick a merchant above, then create a charge below for a specific amount.</div>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <h2>🧾 Charge by QR <span style="font-weight:600;color:var(--muted);font-size:12px;">· smartphone</span></h2>
-        <p class="sub">For a <b>smartphone customer with data</b>: post an amount → get a QR. They scan it
+        <h2 data-i18n-html="charge_h2">🧾 Charge by QR <span style="font-weight:600;color:var(--muted);font-size:12px;">· smartphone</span></h2>
+        <p class="sub" data-i18n-html="charge_sub">For a <b>smartphone customer with data</b>: post an amount → get a QR. They scan it
           and are charged exactly that — their phone never types the amount. (Feature-phone customers
           with no internet use the <b>USSD</b> card below instead.)</p>
         <div class="row">
-          <div><label class="fld" for="charge-amt">Amount (USD)</label>
+          <div><label class="fld" for="charge-amt" data-i18n="amount_usd">Amount (USD)</label>
             <input id="charge-amt" type="text" inputmode="decimal" value="10.00" /></div>
         </div>
-        <button class="cta" id="charge-make">Create QR</button>
+        <button class="cta" id="charge-make" data-i18n="create_qr">Create QR</button>
         <div id="charge-box" class="hidden" style="margin-top:14px;text-align:center;">
           <img id="charge-qr" alt="charge QR" style="width:200px;height:200px;" />
           <div id="charge-status" class="out" style="margin-top:10px;"></div>
@@ -170,24 +178,24 @@
       </div>
 
       <div class="card ussd" id="ussd-card">
-        <h2>📟 Feature phone (USSD) <span style="font-weight:600;color:var(--muted);font-size:12px;">· no internet</span></h2>
-        <p class="sub">For a customer with a <b>basic phone and no internet</b>. They dial your till on
+        <h2 data-i18n-html="ussd_h2">📟 Feature phone (USSD) <span style="font-weight:600;color:var(--muted);font-size:12px;">· no internet</span></h2>
+        <p class="sub" data-i18n-html="ussd_sub">For a customer with a <b>basic phone and no internet</b>. They dial your till on
           their own phone — no app, no scanning. Show this code (or tape up the printed sticker); they
           type the amount and confirm with their mobile-money PIN on the operator's own prompt.</p>
         <div class="sticker">
-          <div class="sticker-dial">Dial on any phone<b id="ussd-code">*123*—#</b></div>
+          <div class="sticker-dial"><span data-i18n="sticker_dial">Dial on any phone</span><b id="ussd-code">*123*—#</b></div>
           <img id="ussd-qr" class="sticker-qr" alt="USSD dial QR" />
-          <div class="sticker-cap">Smartphone? Scan to auto-dial. Basic phone? Just dial the code.</div>
+          <div class="sticker-cap" data-i18n="sticker_cap">Smartphone? Scan to auto-dial. Basic phone? Just dial the code.</div>
         </div>
-        <button class="cta ghost" id="ussd-print" style="margin-top:12px;">🖨 Print sticker</button>
+        <button class="cta ghost" id="ussd-print" style="margin-top:12px;" data-i18n="print_sticker">🖨 Print sticker</button>
 
-        <div class="sectlabel">Simulate a customer dialing (sandbox)</div>
-        <p class="sub" style="margin-bottom:8px;">Walks the real USSD menu against the sandbox rail —
+        <div class="sectlabel" data-i18n="ussd_sim_label">Simulate a customer dialing (sandbox)</div>
+        <p class="sub" style="margin-bottom:8px;" data-i18n="ussd_sim_sub">Walks the real USSD menu against the sandbox rail —
           it creates an actual payment you'll see below.</p>
         <div class="row">
-          <div><label class="fld" for="ussd-cust">Customer number</label>
+          <div><label class="fld" for="ussd-cust" data-i18n="customer_number">Customer number</label>
             <input id="ussd-cust" type="tel" inputmode="numeric" value="243813456789" /></div>
-          <div><label class="fld" for="ussd-amt">Amount (USD)</label>
+          <div><label class="fld" for="ussd-amt" data-i18n="amount_usd">Amount (USD)</label>
             <input id="ussd-amt" type="text" inputmode="decimal" value="10.00" /></div>
         </div>
         <button class="cta" id="ussd-dial">📞 Dial as this customer</button>
@@ -195,44 +203,44 @@
       </div>
 
       <div class="card">
-        <h2>💳 Take a payment</h2>
-        <p class="sub">A customer pays this merchant through pawaPay sandbox. The payment lands
+        <h2 data-i18n="take_h2">💳 Take a payment</h2>
+        <p class="sub" data-i18n-html="take_sub">A customer pays this merchant through pawaPay sandbox. The payment lands
           <b>pending</b> — real money movement is never instant — then <b>confirms automatically</b>
           via pawaPay's signed callback, usually within seconds. The <b>customer number</b> picks the
           network and the outcome: numbers ending <b>789</b> succeed; other endings trigger specific
           failures (see the testing guide).</p>
         <div class="row">
-          <div><label class="fld" for="cust">Customer number</label>
+          <div><label class="fld" for="cust" data-i18n="customer_number">Customer number</label>
             <input id="cust" type="tel" inputmode="numeric" value="243813456789" /></div>
-          <div><label class="fld" for="amt">Amount (USD)</label>
+          <div><label class="fld" for="amt" data-i18n="amount_usd">Amount (USD)</label>
             <input id="amt" type="text" inputmode="decimal" value="10.00" /></div>
         </div>
-        <button class="cta" id="pay">Take payment</button>
+        <button class="cta" id="pay" data-i18n="take_pay">Take payment</button>
         <div id="pay-out" class="out hidden"></div>
       </div>
 
       <div class="card onnet" id="onnet-card" style="display:none;">
-        <h2>📲 On-net payments — confirm receipt</h2>
-        <p class="sub">Same-network payments arrive <b>directly on your mobile money</b> — DRC Pay never
+        <h2 data-i18n="onnet_h2">📲 On-net payments — confirm receipt</h2>
+        <p class="sub" data-i18n-html="onnet_sub">Same-network payments arrive <b>directly on your mobile money</b> — DRC Pay never
           touches them. When the operator's SMS says the money landed, tap <b>Confirm received</b> to
           mark the sale paid. These are <b>merchant-attested</b>, not rail-verified.</p>
         <ul class="onnetlist" id="onnet-list"></ul>
       </div>
 
       <div class="card net">
-        <h2>🔁 Pending payments — safety net</h2>
-        <p class="sub">Payments confirm <b>automatically</b> via pawaPay's signed callback, so you
+        <h2 data-i18n="net_h2">🔁 Pending payments — safety net</h2>
+        <p class="sub" data-i18n-html="net_sub">Payments confirm <b>automatically</b> via pawaPay's signed callback, so you
           rarely need this. It's a manual fallback: if a payment is stuck below, it asks pawaPay
           directly for that payment's status and finishes it — so nothing stays stuck.</p>
         <div><span class="count" id="pend-count">0</span><small id="pend-cap">payments awaiting confirmation</small></div>
         <ul class="pendlist" id="pend-list"></ul>
-        <button class="cta ghost" id="reconcile" style="margin-top:14px;font-size:13px;padding:10px 14px;">Force-check pending with pawaPay</button>
+        <button class="cta ghost" id="reconcile" style="margin-top:14px;font-size:13px;padding:10px 14px;" data-i18n="reconcile_btn">Force-check pending with pawaPay</button>
         <div id="rec-out" class="out hidden"></div>
       </div>
 
       <div class="card">
-        <div class="feed-head"><span class="t">Payments</span><button class="cta ghost" id="refresh"
-          style="width:auto;margin:0;padding:6px 12px;">⟳ Refresh</button></div>
+        <div class="feed-head"><span class="t" data-i18n="feed_title">Payments</span><button class="cta ghost" id="refresh"
+          style="width:auto;margin:0;padding:6px 12px;" data-i18n="refresh_btn">⟳ Refresh</button></div>
         <ul class="feed" id="feed"></ul>
       </div>
     </div>
@@ -241,7 +249,7 @@
     <div class="col">
       <div class="console">
         <div class="head"><span class="lights"></span>
-          <span class="lbl">operations <span>— live trace: collect → settle → refund · reconciliation</span></span>
+          <span class="lbl" data-i18n-html="ops_lbl">operations <span>— live trace: collect → settle → refund · reconciliation</span></span>
         </div>
         <div class="body" id="cbody"></div>
       </div>
@@ -265,13 +273,187 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
     (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
   const PENDING = new Set(["collection_pending", "payout_pending", "refund_pending"]);
-  const LABEL = {
-    initiated:"Starting", collection_pending:"Awaiting payment", collection_succeeded:"Received",
-    payout_pending:"Settling", payout_succeeded:"Paid", payout_failed:"Settle failed",
-    refund_pending:"Refunding", refunded:"Refunded", collection_failed:"Declined", manual_review:"Needs review",
+
+  // ----- i18n -----
+  // Every merchant-facing string lives here, per language; French (the primary DRC language) is the
+  // default and the choice persists in localStorage. Static markup is tagged data-i18n (textContent)
+  // or data-i18n-html (trusted literal markup — never server data); dynamic renders read t() live,
+  // so switching re-renders everything current. The dark ops-trace panel intentionally stays
+  // English: it is a developer-style log and classify() colors lines by their English prefixes.
+  const STR = {
+    en: {
+      brand: `DRC <span>Pay</span> — Merchant Console`,
+      acting_as: "Acting as",
+      hero_line: "Pick a merchant above, then create a charge below for a specific amount.",
+      settles_to: (op, msisdn) => `Settles to ${op} · ${msisdn}`,
+      onnet_till: (op, till) => `On-net (same-network): customers pay your ${op} till ${till}`,
+      onnet_no_till: (msisdn) => `On-net (same-network): no till set — customers send to ${msisdn}`,
+      charge_h2: `🧾 Charge by QR <span style="font-weight:600;color:var(--muted);font-size:12px;">· smartphone</span>`,
+      charge_sub: `For a <b>smartphone customer with data</b>: post an amount → get a QR. They scan it
+          and are charged exactly that — their phone never types the amount. (Feature-phone customers
+          with no internet use the <b>USSD</b> card below instead.)`,
+      amount_usd: "Amount (USD)",
+      create_qr: "Create QR",
+      charge_line: (a, label) => `Charge for $${a} · ${label}`,
+      charge_states: { awaiting_payment:"awaiting payment — scan the QR to pay", processing:"processing…",
+        paid:"✓ paid", declined:"declined", refunded:"refunded", review:"needs review" },
+      ussd_h2: `📟 Feature phone (USSD) <span style="font-weight:600;color:var(--muted);font-size:12px;">· no internet</span>`,
+      ussd_sub: `For a customer with a <b>basic phone and no internet</b>. They dial your till on
+          their own phone — no app, no scanning. Show this code (or tape up the printed sticker); they
+          type the amount and confirm with their mobile-money PIN on the operator's own prompt.`,
+      sticker_dial: "Dial on any phone",
+      sticker_cap: "Smartphone? Scan to auto-dial. Basic phone? Just dial the code.",
+      print_sticker: "🖨 Print sticker",
+      ussd_sim_label: "Simulate a customer dialing (sandbox)",
+      ussd_sim_sub: `Walks the real USSD menu against the sandbox rail — it creates an actual payment
+          you'll see below.`,
+      customer_number: "Customer number",
+      dial_as: (code) => `📞 Dial ${code} as this customer`,
+      dial_placeholder: "(dial)",
+      ussd_fail: "USSD dial failed: ",
+      take_h2: "💳 Take a payment",
+      take_sub: `A customer pays this merchant through pawaPay sandbox. The payment lands
+          <b>pending</b> — real money movement is never instant — then <b>confirms automatically</b>
+          via pawaPay's signed callback, usually within seconds. The <b>customer number</b> picks the
+          network and the outcome: numbers ending <b>789</b> succeed; other endings trigger specific
+          failures (see the testing guide).`,
+      take_pay: "Take payment",
+      pay_pending: (label) => `${label} — sent to pawaPay; it confirms automatically in a few seconds.`,
+      onnet_h2: "📲 On-net payments — confirm receipt",
+      onnet_sub: `Same-network payments arrive <b>directly on your mobile money</b> — DRC Pay never
+          touches them. When the operator's SMS says the money landed, tap <b>Confirm received</b> to
+          mark the sale paid. These are <b>merchant-attested</b>, not rail-verified.`,
+      from_who: (msisdn, op) => `from ${msisdn} · ${op}`,
+      confirm_received: "Confirm received",
+      not_received: "Not received",
+      net_h2: "🔁 Pending payments — safety net",
+      net_sub: `Payments confirm <b>automatically</b> via pawaPay's signed callback, so you
+          rarely need this. It's a manual fallback: if a payment is stuck below, it asks pawaPay
+          directly for that payment's status and finishes it — so nothing stays stuck.`,
+      pend_cap: (n) => n === 1 ? "payment awaiting confirmation" : "payments awaiting confirmation",
+      reconcile_btn: "Force-check pending with pawaPay",
+      swept: (s, r) => `Swept ${s} pending · healed ${r}.`,
+      swept_still: " (still processing — try again in a moment)",
+      feed_title: "Payments",
+      refresh_btn: "⟳ Refresh",
+      feed_empty: "No payments yet — take one above.",
+      states: {
+        initiated:"Starting", collection_pending:"Awaiting payment", collection_succeeded:"Received",
+        payout_pending:"Settling", payout_succeeded:"Paid", payout_failed:"Settle failed",
+        refund_pending:"Refunding", refunded:"Refunded", collection_failed:"Declined", manual_review:"Needs review",
+      },
+      prov: { rail_verified:"rail-verified (pawaPay)", merchant_attested:"merchant-attested (on-net)" },
+      k_customer: "Customer", k_merchant: "Merchant", k_fee: "Fee (MDR)", k_nets: "Merchant nets",
+      k_assurance: "Assurance",
+      sect_ops: "pawaPay operation ids", k_deposit: "deposit", k_payout: "payout", k_refund: "refund",
+      sect_history: "state history",
+      sect_ledger: "ledger (double-entry — the source of truth)",
+      th_account: "Account", th_dir: "Dir", th_amount: "Amount",
+      ledger_empty: "No ledger postings yet (money hasn't moved).",
+      ops_lbl: `operations <span>— live trace: collect → settle → refund · reconciliation</span>`,
+      ops_empty: "// create a charge or take a payment to trace every operation",
+      err_api: (api, e) => `Couldn't reach the API at ${api} — is it running? (${e})`,
+      sticker_title: (name) => `USSD sticker — ${name}`,
+      sticker_lead: "Pay by mobile money — no app or internet needed",
+      sticker_body: `<b>Dial the code</b> on any phone, or <b>scan the QR</b> to auto-dial.<br>
+           Enter the amount, then confirm with your mobile-money PIN.`,
+    },
+    fr: {
+      brand: `DRC <span>Pay</span> — Console marchand`,
+      acting_as: "Marchand",
+      hero_line: "Choisissez un marchand ci-dessus, puis créez un paiement ci-dessous pour un montant précis.",
+      settles_to: (op, msisdn) => `Règlement vers ${op} · ${msisdn}`,
+      onnet_till: (op, till) => `Même réseau (on-net) : les clients paient votre till ${op} ${till}`,
+      onnet_no_till: (msisdn) => `Même réseau (on-net) : pas de till - les clients envoient au ${msisdn}`,
+      charge_h2: `🧾 Paiement par QR <span style="font-weight:600;color:var(--muted);font-size:12px;">· smartphone</span>`,
+      charge_sub: `Pour un client avec un <b>smartphone et des données</b> : saisissez un montant → obtenez un QR.
+          Il le scanne et paie exactement ce montant - son téléphone ne saisit jamais le montant.
+          (Les clients à téléphone basique sans internet utilisent la carte <b>USSD</b> ci-dessous.)`,
+      amount_usd: "Montant (USD)",
+      create_qr: "Créer le QR",
+      charge_line: (a, label) => `Paiement de ${a} $ · ${label}`,
+      charge_states: { awaiting_payment:"en attente de paiement - scannez le QR pour payer", processing:"en cours…",
+        paid:"✓ payé", declined:"refusé", refunded:"remboursé", review:"à vérifier" },
+      ussd_h2: `📟 Téléphone basique (USSD) <span style="font-weight:600;color:var(--muted);font-size:12px;">· sans internet</span>`,
+      ussd_sub: `Pour un client avec un <b>téléphone basique sans internet</b>. Il compose votre till sur
+          son propre téléphone - pas d'appli, pas de scan. Montrez ce code (ou collez l'autocollant
+          imprimé) ; il saisit le montant et confirme avec son PIN mobile money sur l'invite de l'opérateur.`,
+      sticker_dial: "Composez sur n'importe quel téléphone",
+      sticker_cap: "Smartphone ? Scannez pour composer automatiquement. Téléphone basique ? Composez simplement le code.",
+      print_sticker: "🖨 Imprimer l'autocollant",
+      ussd_sim_label: "Simuler un client qui compose (sandbox)",
+      ussd_sim_sub: `Parcourt le vrai menu USSD sur le rail sandbox - cela crée un paiement réel
+          que vous verrez ci-dessous.`,
+      customer_number: "Numéro du client",
+      dial_as: (code) => `📞 Composer ${code} comme ce client`,
+      dial_placeholder: "(composer)",
+      ussd_fail: "Échec de l'appel USSD : ",
+      take_h2: "💳 Encaisser un paiement",
+      take_sub: `Un client paie ce marchand via le sandbox pawaPay. Le paiement arrive <b>en attente</b> -
+          un vrai mouvement d'argent n'est jamais instantané - puis <b>se confirme automatiquement</b>
+          via le callback signé de pawaPay, généralement en quelques secondes. Le <b>numéro du client</b>
+          détermine le réseau et le résultat : les numéros finissant par <b>789</b> réussissent ; d'autres
+          fins déclenchent des échecs précis (voir le guide de test).`,
+      take_pay: "Encaisser",
+      pay_pending: (label) => `${label} - envoyé à pawaPay ; confirmation automatique dans quelques secondes.`,
+      onnet_h2: "📲 Paiements même réseau — confirmer la réception",
+      onnet_sub: `Les paiements même réseau arrivent <b>directement sur votre mobile money</b> - DRC Pay
+          n'y touche jamais. Quand le SMS de l'opérateur confirme l'argent reçu, touchez <b>Confirmer la
+          réception</b> pour marquer la vente payée. Ils sont <b>attestés par le marchand</b>, pas vérifiés
+          par le rail.`,
+      from_who: (msisdn, op) => `de ${msisdn} · ${op}`,
+      confirm_received: "Confirmer la réception",
+      not_received: "Non reçu",
+      net_h2: "🔁 Paiements en attente — filet de sécurité",
+      net_sub: `Les paiements se confirment <b>automatiquement</b> via le callback signé de pawaPay ;
+          vous en aurez rarement besoin. C'est un secours manuel : si un paiement reste bloqué ci-dessous,
+          il demande directement son statut à pawaPay et le termine - rien ne reste bloqué.`,
+      pend_cap: (n) => n === 1 ? "paiement en attente de confirmation" : "paiements en attente de confirmation",
+      reconcile_btn: "Vérifier les paiements en attente avec pawaPay",
+      swept: (s, r) => `Balayé ${s} en attente · résolu ${r}.`,
+      swept_still: " (encore en cours - réessayez dans un instant)",
+      feed_title: "Paiements",
+      refresh_btn: "⟳ Actualiser",
+      feed_empty: "Aucun paiement pour l'instant - encaissez-en un ci-dessus.",
+      states: {
+        initiated:"Démarrage", collection_pending:"En attente de paiement", collection_succeeded:"Reçu",
+        payout_pending:"Règlement…", payout_succeeded:"Payé", payout_failed:"Échec règlement",
+        refund_pending:"Remboursement…", refunded:"Remboursé", collection_failed:"Refusé", manual_review:"À vérifier",
+      },
+      prov: { rail_verified:"vérifié par le rail (pawaPay)", merchant_attested:"attesté par le marchand (même réseau)" },
+      k_customer: "Client", k_merchant: "Marchand", k_fee: "Frais (MDR)", k_nets: "Net marchand",
+      k_assurance: "Assurance",
+      sect_ops: "identifiants d'opération pawaPay", k_deposit: "dépôt", k_payout: "versement", k_refund: "remboursement",
+      sect_history: "historique des états",
+      sect_ledger: "grand livre (double entrée — la source de vérité)",
+      th_account: "Compte", th_dir: "Sens", th_amount: "Montant",
+      ledger_empty: "Aucune écriture pour l'instant (l'argent n'a pas bougé).",
+      ops_lbl: `opérations <span>— trace en direct : encaisser → régler → rembourser · réconciliation</span>`,
+      ops_empty: "// créez un paiement ou encaissez pour tracer chaque opération",
+      err_api: (api, e) => `Impossible de joindre l'API à ${api} - est-elle lancée ? (${e})`,
+      sticker_title: (name) => `Autocollant USSD — ${name}`,
+      sticker_lead: "Payez par mobile money - sans appli ni internet",
+      sticker_body: `<b>Composez le code</b> sur n'importe quel téléphone, ou <b>scannez le QR</b> pour
+           composer automatiquement.<br>Saisissez le montant, puis confirmez avec votre PIN mobile money.`,
+    },
   };
+  let lang = localStorage.getItem("drcpay.lang");
+  if(lang !== "en" && lang !== "fr") lang = "fr";
+  const t = () => STR[lang];
+  // Language-dependent lookups used all over the render code; refreshed by applyLang().
+  let LABEL = t().states, CHARGE_LABEL = t().charge_states, PROV = t().prov;
+
+  function applyLang(){
+    document.documentElement.lang = lang;
+    LABEL = t().states; CHARGE_LABEL = t().charge_states; PROV = t().prov;
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t()[el.dataset.i18n]; });
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => { el.innerHTML = t()[el.dataset.i18nHtml]; });
+    document.querySelectorAll("#langsw button").forEach((b) => b.classList.toggle("on", b.dataset.l === lang));
+    if(consoleEmpty) $("cbody").innerHTML = `<div class="empty2">${esc(t().ops_empty)}</div>`;
+    if(merchants.length){ renderMerchant(); renderFeed(); renderPending(); renderOnNet(); }
+  }
+
   // How a payment's "paid" was established (ADR 0009): pawaPay's signed callback vs the merchant's tap.
-  const PROV = { rail_verified:"rail-verified (pawaPay)", merchant_attested:"merchant-attested (on-net)" };
   const pillClass = (s) => s === "payout_succeeded" ? "ok"
     : PENDING.has(s) ? "wait"
     : (s === "refunded" || s === "initiated" || s === "collection_succeeded") ? "mut" : "bad";
@@ -282,7 +464,7 @@
 
   let merchants = [], txns = [];
   const current = () => merchants.find((m) => m.id === $("merchant").value) || merchants[0];
-  const showErr = (e) => { $("err").textContent = `Couldn't reach the API at ${API} — is it running? (${e})`;
+  const showErr = (e) => { $("err").textContent = t().err_api(API, e);
     $("err").classList.remove("hidden"); };
   const clearErr = () => $("err").classList.add("hidden");
 
@@ -300,14 +482,14 @@
     const m = current(); if(!m) return;
     $("m-name").textContent = m.name;
     $("m-till").textContent = m.ussd_string;
-    $("m-settle").textContent = `Settles to ${opName(m.settlement_provider)} · ${m.settlement_msisdn}`;
+    $("m-settle").textContent = t().settles_to(opName(m.settlement_provider), m.settlement_msisdn);
     $("m-onnet").textContent = m.operator_till
-      ? `On-net (same-network): customers pay your ${opName(m.settlement_provider)} till ${m.operator_till}`
-      : `On-net (same-network): no till set — customers send to ${m.settlement_msisdn}`;
+      ? t().onnet_till(opName(m.settlement_provider), m.operator_till)
+      : t().onnet_no_till(m.settlement_msisdn);
     // feature-phone (USSD) card — the merchant's static dial code + printable sticker QR
     $("ussd-code").textContent = m.ussd_string;
     $("ussd-qr").src = `${API}/merchants/${m.id}/qr.svg`;
-    $("ussd-dial").textContent = `📞 Dial ${m.ussd_string} as this customer`;
+    $("ussd-dial").textContent = t().dial_as(m.ussd_string);
     $("ussd-screen").classList.add("hidden");
   }
 
@@ -319,18 +501,18 @@
 
   function mineNewestFirst(){
     const m = current(); if(!m) return [];
-    return txns.filter((t)=>t.merchant_id === m.id).slice().reverse();
+    return txns.filter((t2)=>t2.merchant_id === m.id).slice().reverse();
   }
 
   function renderFeed(){
     const mine = mineNewestFirst();
     const ul = $("feed");
-    if(!mine.length){ ul.innerHTML = `<li class="empty">No payments yet — take one above.</li>`; return; }
-    ul.innerHTML = mine.slice(0,40).map((t)=>`
-      <li data-id="${esc(t.id)}">
-        <span><span class="amt">${esc(t.amount)} ${esc(t.currency)}</span> &nbsp;
-          <span class="who">${esc(t.customer_msisdn)}</span></span>
-        <span class="pill ${pillClass(t.state)}">${esc(LABEL[t.state]||t.state)}</span>
+    if(!mine.length){ ul.innerHTML = `<li class="empty">${esc(t().feed_empty)}</li>`; return; }
+    ul.innerHTML = mine.slice(0,40).map((t2)=>`
+      <li data-id="${esc(t2.id)}">
+        <span><span class="amt">${esc(t2.amount)} ${esc(t2.currency)}</span> &nbsp;
+          <span class="who">${esc(t2.customer_msisdn)}</span></span>
+        <span class="pill ${pillClass(t2.state)}">${esc(LABEL[t2.state]||t2.state)}</span>
       </li>`).join("");
     ul.querySelectorAll("li[data-id]").forEach((li)=>li.addEventListener("click",()=>openDetail(li.dataset.id)));
   }
@@ -339,12 +521,12 @@
     // Reconciliation is global, but show this merchant's share so the demo reads cleanly. On-net
     // (merchant-attested) awaiting payments are NOT pawaPay legs — they confirm via the card below,
     // not the sweep — so keep them out of this safety net.
-    const pend = mineNewestFirst().filter((t)=>PENDING.has(t.state) && t.provenance !== "merchant_attested");
+    const pend = mineNewestFirst().filter((t2)=>PENDING.has(t2.state) && t2.provenance !== "merchant_attested");
     $("pend-count").textContent = pend.length;
-    $("pend-cap").textContent = pend.length === 1 ? "payment awaiting confirmation" : "payments awaiting confirmation";
-    $("pend-list").innerHTML = pend.slice(0,6).map((t)=>`
-      <li><span>${esc(t.amount)} ${esc(t.currency)} · ${esc(t.customer_msisdn)}</span>
-          <span class="pill wait">${esc(LABEL[t.state]||t.state)}</span></li>`).join("");
+    $("pend-cap").textContent = t().pend_cap(pend.length);
+    $("pend-list").innerHTML = pend.slice(0,6).map((t2)=>`
+      <li><span>${esc(t2.amount)} ${esc(t2.currency)} · ${esc(t2.customer_msisdn)}</span>
+          <span class="pill wait">${esc(LABEL[t2.state]||t2.state)}</span></li>`).join("");
     $("reconcile").disabled = pend.length === 0;
   }
 
@@ -353,19 +535,19 @@
   // "awaiting confirmation" until the merchant taps Confirm received. They are exactly the
   // collection_pending rows tagged merchant_attested (rail-verified pawaPay legs confirm themselves).
   const awaitingOnNet = () =>
-    mineNewestFirst().filter((t)=>t.state === "collection_pending" && t.provenance === "merchant_attested");
+    mineNewestFirst().filter((t2)=>t2.state === "collection_pending" && t2.provenance === "merchant_attested");
 
   function renderOnNet(){
     const list = awaitingOnNet(), card = $("onnet-card"), ul = $("onnet-list");
     if(!list.length){ card.style.display = "none"; return; }
     card.style.display = "block";
-    ul.innerHTML = list.map((t)=>`
+    ul.innerHTML = list.map((t2)=>`
       <li>
-        <span><span class="amt">${esc(t.amount)} ${esc(t.currency)}</span> &nbsp;
-          <span class="who">from ${esc(t.customer_msisdn)} · ${esc(opName(t.customer_provider))}</span></span>
+        <span><span class="amt">${esc(t2.amount)} ${esc(t2.currency)}</span> &nbsp;
+          <span class="who">${esc(t().from_who(t2.customer_msisdn, opName(t2.customer_provider)))}</span></span>
         <span class="acts">
-          <button class="cta confirm" data-id="${esc(t.id)}" data-recv="1">Confirm received</button>
-          <button class="cta ghost" data-id="${esc(t.id)}" data-recv="0">Not received</button>
+          <button class="cta confirm" data-id="${esc(t2.id)}" data-recv="1">${esc(t().confirm_received)}</button>
+          <button class="cta ghost" data-id="${esc(t2.id)}" data-recv="0">${esc(t().not_received)}</button>
         </span>
       </li>`).join("");
     ul.querySelectorAll("button[data-id]").forEach((b)=>b.addEventListener("click",
@@ -374,18 +556,18 @@
 
   async function confirmOnNet(id, received){
     clearErr();
-    let t;
+    let t2;
     try {
       const r = await fetch(`${API}/transactions/${id}/confirm?received=${received}`, { method:"POST" });
-      t = await r.json();
-      if(!r.ok) throw new Error(t.detail || `HTTP ${r.status}`);
+      t2 = await r.json();
+      if(!r.ok) throw new Error(t2.detail || `HTTP ${r.status}`);
     } catch(e){ showErr(String(e.message||e)); return; }
     if(received){
-      const lines = [`✓ on-net confirmed — ${t.amount} ${t.currency} from ${t.customer_msisdn} (merchant-attested)`];
-      for(const l of (t.ledger||[])){ lines.push(`ledger · ${l.direction} ${l.account} ${l.amount} ${l.currency}`); }
+      const lines = [`✓ on-net confirmed — ${t2.amount} ${t2.currency} from ${t2.customer_msisdn} (merchant-attested)`];
+      for(const l of (t2.ledger||[])){ lines.push(`ledger · ${l.direction} ${l.account} ${l.amount} ${l.currency}`); }
       pushTrace(lines);
     } else {
-      pushTrace([`✕ on-net not received — ${t.amount} ${t.currency} from ${t.customer_msisdn}; no money moved`]);
+      pushTrace([`✕ on-net not received — ${t2.amount} ${t2.currency} from ${t2.customer_msisdn}; no money moved`]);
     }
     await refresh();
   }
@@ -406,7 +588,7 @@
       $("pay").disabled=false; return; }
     out.className = "out " + (PENDING.has(body.state) ? "" : body.state==="payout_succeeded" ? "ok" : "bad");
     out.textContent = PENDING.has(body.state)
-      ? `${LABEL[body.state]||body.state} — sent to pawaPay; it confirms automatically in a few seconds.`
+      ? t().pay_pending(LABEL[body.state]||body.state)
       : `${LABEL[body.state]||body.state}.`;
     out.classList.remove("hidden");
     pushTrace([`▸ POST /transactions — ${body.amount} ${body.currency} from ${body.customer_msisdn}`, ...(body.trace||[])]);
@@ -423,8 +605,8 @@
       if(!r.ok) throw new Error(res.detail || `HTTP ${r.status}`);
     } catch(e){ out.className="out bad"; out.textContent=String(e); out.classList.remove("hidden"); return; }
     out.className = "out " + (res.resolved ? "ok" : "");
-    out.textContent = `Swept ${res.swept} pending · healed ${res.resolved}.` +
-      (res.swept && !res.resolved ? " (still processing — try again in a moment)" : "");
+    out.textContent = t().swept(res.swept, res.resolved) +
+      (res.swept && !res.resolved ? t().swept_still : "");
     out.classList.remove("hidden");
     const lines = ["🔁 reconciliation sweep — polling pawaPay for missed outcomes"];
     for(const it of res.items){ lines.push(`reconcile · ${it.kind} ${it.transaction_id.slice(0,8)}… → ${it.disposition}`); }
@@ -435,8 +617,6 @@
 
   // ----- charge by QR -----
   let chargeTimer = null, chargeLastStatus = null;
-  const CHARGE_LABEL = { awaiting_payment:"awaiting payment — scan the QR to pay", processing:"processing…",
-    paid:"✓ paid", declined:"declined", refunded:"refunded", review:"needs review" };
   const CHARGE_TERMINAL = new Set(["paid","declined","refunded","review"]);
 
   async function createCharge(){
@@ -453,7 +633,7 @@
     $("charge-qr").src = `${API}${charge.qr_svg_path}`;
     $("charge-box").classList.remove("hidden");
     $("charge-status").className = "out";
-    $("charge-status").textContent = `Charge for $${charge.amount} · ${CHARGE_LABEL[charge.status]||charge.status}`;
+    $("charge-status").textContent = t().charge_line(charge.amount, CHARGE_LABEL[charge.status]||charge.status);
     chargeLastStatus = charge.status;
     pushTrace([`▸ charge created — $${charge.amount} for ${m.name}`, `waiting · customer scans the QR and pays…`]);
     if(chargeTimer) clearInterval(chargeTimer);
@@ -464,7 +644,7 @@
     let c; try { c = await jget(`/charges/${id}`); } catch(e){ return; }
     const cls = c.status==="paid" ? "ok" : (c.status==="declined"||c.status==="review") ? "bad" : "";
     $("charge-status").className = "out " + cls;
-    $("charge-status").textContent = `Charge for $${c.amount} · ${CHARGE_LABEL[c.status]||c.status}`;
+    $("charge-status").textContent = t().charge_line(c.amount, CHARGE_LABEL[c.status]||c.status);
     if(c.status !== chargeLastStatus){ chargeLastStatus = c.status; await traceCharge(c); }
     if(CHARGE_TERMINAL.has(c.status) && chargeTimer){ clearInterval(chargeTimer); chargeTimer = null; refresh(); }
   }
@@ -472,10 +652,10 @@
   // Log a charge's progress to the ops console; when paid, pull the transaction's ledger.
   async function traceCharge(c){
     if(c.status === "paid" && c.transaction_id){
-      let t; try { t = await jget(`/transactions/${c.transaction_id}`); } catch(e){ t = null; }
+      let t2; try { t2 = await jget(`/transactions/${c.transaction_id}`); } catch(e){ t2 = null; }
       const lines = ["webhook ← pawaPay confirmed the payment"];
-      for(const l of (t && t.ledger || [])){ lines.push(`ledger · ${l.direction} ${l.account} ${l.amount} ${l.currency}`); }
-      if(t){ lines.push(`✓ paid — customer ${t.amount}, merchant ${t.merchant_nets}, fee ${t.fee} ${t.currency}`); }
+      for(const l of (t2 && t2.ledger || [])){ lines.push(`ledger · ${l.direction} ${l.account} ${l.amount} ${l.currency}`); }
+      if(t2){ lines.push(`✓ paid — customer ${t2.amount}, merchant ${t2.merchant_nets}, fee ${t2.fee} ${t2.currency}`); }
       pushTrace(lines);
     } else if(c.status === "declined"){ pushTrace(["✕ declined — no money moved"]); }
     else if(c.status === "refunded"){ pushTrace(["↩ refunded — customer made whole"]); }
@@ -487,10 +667,10 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   function renderUssdScreen(transcript){
-    $("ussd-screen").innerHTML = transcript.map((t)=>{
-      const dialed = t.dialed === "" ? "(dial)" : t.dialed;
-      const ended = t.wire.startsWith("END");
-      const msg = t.wire.replace(/^(CON|END)\s*/, "");
+    $("ussd-screen").innerHTML = transcript.map((s)=>{
+      const dialed = s.dialed === "" ? t().dial_placeholder : s.dialed;
+      const ended = s.wire.startsWith("END");
+      const msg = s.wire.replace(/^(CON|END)\s*/, "");
       return `<div class="dl">📱 ${dialed.replace(/</g,"&lt;")}</div>`
         + `<div class="${ended?"end":"con"}">${msg.replace(/</g,"&lt;")}</div>`;
     }).join("");
@@ -517,10 +697,10 @@
         if(wire.startsWith("END")) break;
         await sleep(550);
       }
-    } catch(e){ showErr("USSD dial failed: " + e); $("ussd-dial").disabled = false; return; }
+    } catch(e){ showErr(t().ussd_fail + e); $("ussd-dial").disabled = false; return; }
     $("ussd-dial").disabled = false;
     pushTrace([`📟 USSD dial (feature phone) — ${amt} USD from ${cust} → ${m.name}`,
-      ...transcript.map((t)=>`ussd · ${t.wire.replace(/\n/g," ")}`)]);
+      ...transcript.map((s)=>`ussd · ${s.wire.replace(/\n/g," ")}`)]);
     await refresh();
   }
 
@@ -529,16 +709,15 @@
     const m = current(); if(!m) return;
     const w = window.open("", "_blank", "width=440,height=640");
     if(!w) return;
-    w.document.write(`<!doctype html><html><head><title>USSD sticker — ${m.name}</title>
+    w.document.write(`<!doctype html><html lang="${lang}"><head><title>${t().sticker_title(m.name)}</title>
       <style>body{font-family:Inter,-apple-system,sans-serif;text-align:center;padding:34px 26px;color:#1A1A1A;}
         h1{font-size:22px;margin:0 0 2px;} .lead{color:#5A5A57;font-size:13px;margin:0 0 18px;}
         img{width:270px;height:270px;} .code{font:800 32px "SF Mono",Menlo,monospace;color:#E2553F;margin:16px 0 6px;}
         p{color:#5A5A57;font-size:13px;line-height:1.55;}</style></head>
-      <body><h1>${m.name}</h1><div class="lead">Pay by mobile money — no app or internet needed</div>
+      <body><h1>${m.name}</h1><div class="lead">${t().sticker_lead}</div>
         <img src="${API}/merchants/${m.id}/qr.svg" alt="scan to dial" />
         <div class="code">${m.ussd_string}</div>
-        <p><b>Dial the code</b> on any phone, or <b>scan the QR</b> to auto-dial.<br>
-           Enter the amount, then confirm with your mobile-money PIN.</p>
+        <p>${t().sticker_body}</p>
       </body></html>`);
     w.document.close();
     const img = w.document.querySelector("img");
@@ -547,34 +726,34 @@
 
   // ----- detail modal -----
   async function openDetail(id){
-    let t; try { t = await jget(`/transactions/${id}`); } catch(e){ return; }
+    let d; try { d = await jget(`/transactions/${id}`); } catch(e){ return; }
     const opid = (v) => v ? `<span class="mono">${esc(v)}</span>` : "—";
-    const led = (t.ledger||[]).map((l)=>`<tr>
+    const led = (d.ledger||[]).map((l)=>`<tr>
         <td>${esc(l.account)}</td>
         <td class="${l.direction==='debit'?'dr':'cr'}">${esc(l.direction)}</td>
         <td class="num">${esc(l.amount)} ${esc(l.currency)}</td></tr>`).join("")
-      || `<tr><td colspan="3" class="empty">No ledger postings yet (money hasn't moved).</td></tr>`;
+      || `<tr><td colspan="3" class="empty">${esc(t().ledger_empty)}</td></tr>`;
     $("modal").innerHTML = `
       <button class="x" id="x">×</button>
-      <h3>${esc(t.amount)} ${esc(t.currency)} &nbsp;<span class="pill ${pillClass(t.state)}">${esc(LABEL[t.state]||t.state)}</span></h3>
-      <div class="mono">${esc(t.id)}</div>
+      <h3>${esc(d.amount)} ${esc(d.currency)} &nbsp;<span class="pill ${pillClass(d.state)}">${esc(LABEL[d.state]||d.state)}</span></h3>
+      <div class="mono">${esc(d.id)}</div>
       <div class="kv">
-        <div class="k">Customer</div><div class="v">${esc(t.customer_msisdn)} · ${esc(t.customer_provider||"—")}</div>
-        <div class="k">Merchant</div><div class="v">${esc(t.merchant_name||t.merchant_id||"—")} · ${esc(t.merchant_provider||"—")}</div>
-        <div class="k">Fee (MDR)</div><div class="v">${esc(t.fee)} ${esc(t.currency)}</div>
-        <div class="k">Merchant nets</div><div class="v">${t.state==='payout_succeeded'? esc(t.merchant_nets): '—'} ${esc(t.currency)}</div>
-        <div class="k">Assurance</div><div class="v">${esc(PROV[t.provenance]||t.provenance||"—")}</div>
+        <div class="k">${esc(t().k_customer)}</div><div class="v">${esc(d.customer_msisdn)} · ${esc(d.customer_provider||"—")}</div>
+        <div class="k">${esc(t().k_merchant)}</div><div class="v">${esc(d.merchant_name||d.merchant_id||"—")} · ${esc(d.merchant_provider||"—")}</div>
+        <div class="k">${esc(t().k_fee)}</div><div class="v">${esc(d.fee)} ${esc(d.currency)}</div>
+        <div class="k">${esc(t().k_nets)}</div><div class="v">${d.state==='payout_succeeded'? esc(d.merchant_nets): '—'} ${esc(d.currency)}</div>
+        <div class="k">${esc(t().k_assurance)}</div><div class="v">${esc(PROV[d.provenance]||d.provenance||"—")}</div>
       </div>
-      <div class="sectlabel">pawaPay operation ids</div>
+      <div class="sectlabel">${esc(t().sect_ops)}</div>
       <div class="kv">
-        <div class="k">deposit</div><div class="v">${opid(t.deposit_id)}</div>
-        <div class="k">payout</div><div class="v">${opid(t.payout_id)}</div>
-        <div class="k">refund</div><div class="v">${opid(t.refund_id)}</div>
+        <div class="k">${esc(t().k_deposit)}</div><div class="v">${opid(d.deposit_id)}</div>
+        <div class="k">${esc(t().k_payout)}</div><div class="v">${opid(d.payout_id)}</div>
+        <div class="k">${esc(t().k_refund)}</div><div class="v">${opid(d.refund_id)}</div>
       </div>
-      <div class="sectlabel">state history</div>
-      <div class="chain">${(t.history||[]).map((s)=>`<span>${esc(LABEL[s]||s)}</span>`).join("→ ")}</div>
-      <div class="sectlabel">ledger (double-entry — the source of truth)</div>
-      <table class="led"><thead><tr><th>Account</th><th>Dir</th><th class="num">Amount</th></tr></thead>
+      <div class="sectlabel">${esc(t().sect_history)}</div>
+      <div class="chain">${(d.history||[]).map((s)=>`<span>${esc(LABEL[s]||s)}</span>`).join("→ ")}</div>
+      <div class="sectlabel">${esc(t().sect_ledger)}</div>
+      <table class="led"><thead><tr><th>${esc(t().th_account)}</th><th>${esc(t().th_dir)}</th><th class="num">${esc(t().th_amount)}</th></tr></thead>
         <tbody>${led}</tbody></table>`;
     $("x").addEventListener("click", closeDetail);
     $("scrim").classList.add("show");
@@ -582,6 +761,8 @@
   function closeDetail(){ $("scrim").classList.remove("show"); }
 
   // ----- ops console -----
+  // The trace lines are intentionally NOT translated: this panel is a developer-style log (ledger
+  // postings, webhook/reconcile events) and classify() keys off the English line prefixes.
   function classify(line){
     if(line.startsWith("reconcile")||line.startsWith("🔁")) return "recon";
     if(line.startsWith("ledger")) return "ledger";
@@ -611,8 +792,14 @@
   $("ussd-print").addEventListener("click", printSticker);
   $("refresh").addEventListener("click", refresh);
   $("scrim").addEventListener("click", (e)=>{ if(e.target.id==="scrim") closeDetail(); });
+  document.querySelectorAll("#langsw button").forEach((b)=>b.addEventListener("click",()=>{
+    if(b.dataset.l === lang) return;
+    lang = b.dataset.l;
+    localStorage.setItem("drcpay.lang", lang);
+    applyLang();
+  }));
 
-  $("cbody").innerHTML = `<div class="empty2">// create a charge or take a payment to trace every operation</div>`;
+  applyLang();
   boot();
   setInterval(refresh, 6000);
 </script>
