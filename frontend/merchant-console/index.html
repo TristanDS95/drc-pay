@@ -312,6 +312,14 @@
     (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
   const PENDING = new Set(["collection_pending", "payout_pending", "refund_pending"]);
 
+  // localStorage can throw (Safari private windows, block-all-cookies configs). Persistence is
+  // a nicety, never a dependency: on failure the value simply lives for the tab's lifetime.
+  const store = {
+    get(key){ try { return localStorage.getItem(key); } catch(e){ return null; } },
+    set(key, value){ try { localStorage.setItem(key, value); } catch(e){ /* tab-lifetime only */ } },
+    del(key){ try { localStorage.removeItem(key); } catch(e){ /* nothing to forget */ } },
+  };
+
   // ----- i18n -----
   // Every merchant-facing string lives here, per language; French (the primary DRC language) is the
   // default and the choice persists in localStorage. Static markup is tagged data-i18n (textContent)
@@ -489,7 +497,7 @@
            composer automatiquement.<br>Saisissez le montant, puis confirmez avec votre PIN mobile money.`,
     },
   };
-  let lang = localStorage.getItem("drcpay.lang");
+  let lang = store.get("drcpay.lang");
   if(lang !== "en" && lang !== "fr") lang = "fr";
   const t = () => STR[lang];
   // Language-dependent lookups used all over the render code; refreshed by applyLang().
@@ -525,11 +533,11 @@
   // bearer token (kept in localStorage), every merchant-API call sends it, and a 401
   // anywhere drops back to the login screen. The old any-merchant picker is gone on
   // purpose - the server only ever shows a session its own merchant's data.
-  let session = localStorage.getItem("drcpay.session") || "";
+  let session = store.get("drcpay.session") || "";
   const authHeaders = () => session ? { authorization: `Bearer ${session}` } : {};
 
   function showLogin(){
-    session = ""; localStorage.removeItem("drcpay.session"); me = null;
+    session = ""; store.del("drcpay.session"); me = null;
     $("login").classList.remove("hidden");
     $("whoami").classList.add("hidden"); $("logout").classList.add("hidden");
     demoHint();
@@ -543,7 +551,7 @@
     // does not exist in production, so the chips never render there. Plain fetch (no Bearer):
     // /demo is behind the sandbox's Basic gate, which the browser handles itself.
     try {
-      const r = await fetch(`${API}/demo/credentials`);
+      const r = await fetch(`${API}/demo/credentials`, { cache: "no-store" });
       if(!r.ok) return;
       const creds = await r.json();
       $("login-demo-chips").innerHTML = creds.map((c) =>
@@ -896,7 +904,7 @@
       return;
     }
     session = body.token;
-    localStorage.setItem("drcpay.session", session);
+    store.set("drcpay.session", session);
     $("login-pass").value = "";
     boot();
   }
@@ -918,7 +926,7 @@
   document.querySelectorAll("#langsw button").forEach((b)=>b.addEventListener("click",()=>{
     if(b.dataset.l === lang) return;
     lang = b.dataset.l;
-    localStorage.setItem("drcpay.lang", lang);
+    store.set("drcpay.lang", lang);
     applyLang();
   }));
 
