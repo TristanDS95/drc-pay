@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.container import build_container
 from drc_pay_api.main import create_app
+
+from conftest import as_merchant
 from drc_pay_api.ussd.session import UssdHandler, UssdRequest, run_session
 
 
@@ -91,7 +93,9 @@ def test_ussd_run_session_helper_completes() -> None:
 
 
 def test_ussd_endpoint_shares_the_transaction_store() -> None:
-    client = TestClient(create_app())
+    # The /ussd posts themselves are unauthenticated (customer channel); only the merchant-side
+    # read of the resulting transaction needs the session.
+    client = as_merchant(TestClient(create_app()))
     sid, msisdn = "http-1", "243800000009"
     last = None
     for text in ["", "1001", "1001*10", "1001*10*1"]:  # accumulated, as an aggregator sends

@@ -6,6 +6,7 @@ unchanged.
 """
 from __future__ import annotations
 
+from ..domains.auth.models import MerchantCredential, MerchantSession
 from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
@@ -31,6 +32,37 @@ class InMemoryMerchantStore:
 
     def all(self) -> list[Merchant]:
         return list(self._rows.values())
+
+
+class InMemoryCredentialStore:
+    def __init__(self) -> None:
+        self._rows: dict[str, MerchantCredential] = {}  # keyed by username
+
+    def get_by_username(self, username: str) -> MerchantCredential | None:
+        return self._rows.get(username)
+
+    def get_by_merchant(self, merchant_id: str) -> MerchantCredential | None:
+        for credential in self._rows.values():
+            if credential.merchant_id == merchant_id:
+                return credential
+        return None
+
+    def save(self, credential: MerchantCredential) -> None:
+        self._rows[credential.username] = credential
+
+
+class InMemorySessionStore:
+    def __init__(self) -> None:
+        self._rows: dict[str, MerchantSession] = {}  # keyed by token hash
+
+    def get(self, token_hash: str) -> MerchantSession | None:
+        return self._rows.get(token_hash)
+
+    def save(self, session: MerchantSession) -> None:
+        self._rows[session.token_hash] = session
+
+    def delete(self, token_hash: str) -> None:
+        self._rows.pop(token_hash, None)
 
 
 class InMemoryChargeStore:

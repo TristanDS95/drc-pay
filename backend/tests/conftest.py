@@ -21,3 +21,20 @@ os.environ["DRCPAY_ENVIRONMENT"] = "local"
 os.environ["DRCPAY_BASIC_AUTH_PASSWORD"] = ""
 os.environ["DRCPAY_CONSOLE_DIR"] = ""
 os.environ["DRCPAY_CUSTOMER_DIR"] = ""
+
+from typing import Any  # noqa: E402
+
+
+def as_merchant(client: Any, username: str = "alpha", password: str | None = None) -> Any:
+    """Log the TestClient in as a (seeded demo) merchant and attach the session to its default
+    headers, so every subsequent call is authenticated. The merchant API is session-gated in
+    every environment — tests exercise the same auth path production runs.
+
+    Demo logins (seed.py): alpha / beta / gamma, password ``<username>-demo``.
+    """
+    response = client.post(
+        "/auth/login", json={"username": username, "password": password or f"{username}-demo"}
+    )
+    assert response.status_code == 200, f"demo login failed: {response.text}"
+    client.headers["Authorization"] = f"Bearer {response.json()['token']}"
+    return client

@@ -14,9 +14,24 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..jobs.reconciliation.sweep import run_reconciliation
+from ..seed import DEMO_LOGINS
 from .dependencies import ContainerDep
 
 demo_router = APIRouter()
+
+
+class DemoLogin(BaseModel):
+    username: str
+    password: str
+
+
+@demo_router.get("/demo/credentials", response_model=list[DemoLogin])
+def demo_credentials(container: ContainerDep) -> list[DemoLogin]:
+    """The seeded demo merchants' console logins — so demoing stays one copy-paste. Off the
+    real-money path only (the router isn't mounted in production, and this 404s as a belt)."""
+    if not container.demo_controls_enabled:
+        raise HTTPException(status_code=404, detail="demo controls are disabled in production")
+    return [DemoLogin(username=user, password=pw) for _, user, pw in DEMO_LOGINS]
 
 
 class ReconcileItem(BaseModel):

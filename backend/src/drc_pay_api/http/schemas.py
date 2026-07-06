@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field
 
 class CreateTransactionRequest(BaseModel):
     customer_msisdn: str  # the customer paying
-    merchant_id: str  # the registered merchant being paid
+    # The merchant being paid is the LOGGED-IN merchant (from the session). Optional and
+    # validated when sent: a mismatch with the session is rejected, never honored.
+    merchant_id: str | None = None
     amount: str  # major units, e.g. "10.00" — the sticker price the customer pays
     currency: str = "USD"
     # Demo control: which simulated pawaPay outcome to play out (ignored on the live rail).

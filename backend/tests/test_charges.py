@@ -16,6 +16,8 @@ from drc_pay_api.domains.charges.models import Charge
 from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.main import create_app
 
+from conftest import as_merchant
+
 
 def _factory() -> sessionmaker[Session]:
     engine = create_engine(
@@ -26,7 +28,8 @@ def _factory() -> sessionmaker[Session]:
 
 
 def _client() -> TestClient:
-    return TestClient(create_app())
+    # Logged in as the demo merchant "alpha" (m_alpha) — the merchant API is session-gated.
+    return as_merchant(TestClient(create_app()))
 
 
 def test_charge_store_roundtrip() -> None:

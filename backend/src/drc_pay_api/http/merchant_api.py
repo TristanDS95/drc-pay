@@ -1,10 +1,16 @@
-"""The merchant-facing HTTP API — every endpoint here is behind the merchant password (one
-trust tier), which is why they live in one file.
+"""The merchant-facing HTTP API — every endpoint is authenticated as a specific merchant
+(``CurrentMerchant``) and **scoped to that merchant's own data**: you list your payments,
+confirm your receipts, charge for your shop — never anyone else's. Cross-merchant reads
+return 404 (not 403), so responses don't confirm that another merchant's ids exist.
 
 Consolidates what were three modules (transactions, merchants, charges): they share an audience
 (the authenticated merchant console) and a change cadence, so they belong together. Each handler
 is a thin caller — it takes the shared ``Container`` via ``ContainerDep``, validates input,
 delegates to an ``application/`` service, and serializes the result. No money logic lives here.
+
+The two ``qr.svg`` endpoints are the deliberate exception to session auth: they're loaded by
+``<img>`` tags (which cannot send an Authorization header) and their content is public by
+design — a QR exists to be scanned by a customer.
 
 Sections below: transactions (the demo/core payment), merchants (read-only tills), charges
 (the scan-to-pay checkout).
@@ -27,7 +33,7 @@ from ..domains.ledger.money import Money
 from ..domains.transactions.models import MERCHANT_ATTESTED, Transaction
 from ..domains.transactions.on_net import OnNetOrchestrator
 from ..domains.transactions.state_machine import TxState
-from .dependencies import ContainerDep
+from .dependencies import ContainerDep, CurrentMerchant
 from .schemas import (
     CreateTransactionRequest,
     LedgerLine,
@@ -90,6 +96,7 @@ def _to_response(
 @merchant_api_router.post("/transactions", response_model=TransactionResponse)
 def create_transaction(
     body: CreateTransactionRequest,
+    merchant: CurrentMerchant,
     container: ContainerDep,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> TransactionResponse:
@@ -102,11 +109,10 @@ def create_transaction(
     if not amount.is_positive:
         raise HTTPException(status_code=422, detail="amount must be positive")
 
-    # Resolve the merchant being paid (server-derived settlement — never trust the client).
-    try:
-        merchant = container.merchants.get(body.merchant_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="merchant not found") from exc
+    # The merchant being paid IS the logged-in merchant — the session, not the body, decides
+    # where money settles. A mismatching body merchant_id is rejected, never honored.
+    if body.merchant_id is not None and body.merchant_id != merchant.id:
+        raise HTTPException(status_code=403, detail="cannot take payments for another merchant")
     if not merchant.is_active:
         raise HTTPException(status_code=422, detail="merchant is not active")
 
@@ -144,15 +150,18 @@ def create_transaction(
 
 @merchant_api_router.post("/transactions/{transaction_id}/confirm", response_model=TransactionResponse)
 def confirm_on_net_payment(
-    transaction_id: str, container: ContainerDep, received: bool = True
+    transaction_id: str, merchant: CurrentMerchant, container: ContainerDep, received: bool = True
 ) -> TransactionResponse:
     """The merchant confirms (``received`` True, the default) or denies (``received=false``) they got an
     on-net payment directly on their operator. Marks it paid (merchant-attested) or failed. On-net only;
-    idempotent — re-confirming an already-resolved payment is a no-op."""
+    idempotent — re-confirming an already-resolved payment is a no-op. Only the OWNING merchant can
+    attest — this is the endpoint whose word marks money received (ADR 0009)."""
     try:
         tx = container.store.get(transaction_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="transaction not found") from exc
+    if tx.merchant_id != merchant.id:
+        raise HTTPException(status_code=404, detail="transaction not found")
     if tx.provenance != MERCHANT_ATTESTED:
         raise HTTPException(status_code=422, detail="not an on-net payment — nothing to confirm")
     if tx.state is not TxState.COLLECTION_PENDING:
@@ -163,21 +172,32 @@ def confirm_on_net_payment(
 
 
 @merchant_api_router.get("/transactions/{transaction_id}", response_model=TransactionResponse)
-def get_transaction(transaction_id: str, container: ContainerDep) -> TransactionResponse:
+def get_transaction(
+    transaction_id: str, merchant: CurrentMerchant, container: ContainerDep
+) -> TransactionResponse:
     try:
         transaction = container.store.get(transaction_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="transaction not found") from exc
+    if transaction.merchant_id != merchant.id:  # 404, not 403 — don't confirm the id exists
+        raise HTTPException(status_code=404, detail="transaction not found")
     return _to_response(container, transaction, [])
 
 
 @merchant_api_router.get("/transactions", response_model=list[TransactionResponse])
-def list_transactions(container: ContainerDep) -> list[TransactionResponse]:
-    return [_to_response(container, tx, []) for tx in container.store.all()]
+def list_transactions(
+    merchant: CurrentMerchant, container: ContainerDep
+) -> list[TransactionResponse]:
+    return [
+        _to_response(container, tx, [])
+        for tx in container.store.all()
+        if tx.merchant_id == merchant.id
+    ]
 
 
 # ---- merchants --------------------------------------------------------------
-def _merchant_response(container: Container, merchant_id: str) -> MerchantResponse:
+def merchant_profile(container: Container, merchant_id: str) -> MerchantResponse:
+    """The merchant's own profile (also served as ``GET /auth/me``)."""
     merchant = container.merchants.get(merchant_id)  # raises KeyError if missing
     code = merchant_payment_code(container.ussd_shortcode, merchant.short_code)
     return MerchantResponse(
@@ -194,21 +214,25 @@ def _merchant_response(container: Container, merchant_id: str) -> MerchantRespon
 
 
 @merchant_api_router.get("/merchants", response_model=list[MerchantResponse])
-def list_merchants(container: ContainerDep) -> list[MerchantResponse]:
-    return [_merchant_response(container, merchant.id) for merchant in container.merchants.all()]
+def list_merchants(merchant: CurrentMerchant, container: ContainerDep) -> list[MerchantResponse]:
+    """One trust tier, one merchant: the list is always exactly the caller. (Kept for
+    API-shape compatibility; the console boots from ``/auth/me``.)"""
+    return [merchant_profile(container, merchant.id)]
 
 
 @merchant_api_router.get("/merchants/{merchant_id}", response_model=MerchantResponse)
-def get_merchant(merchant_id: str, container: ContainerDep) -> MerchantResponse:
-    try:
-        return _merchant_response(container, merchant_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="merchant not found") from exc
+def get_merchant(
+    merchant_id: str, merchant: CurrentMerchant, container: ContainerDep
+) -> MerchantResponse:
+    if merchant_id != merchant.id:  # 404, not 403 — don't confirm other merchants' ids
+        raise HTTPException(status_code=404, detail="merchant not found")
+    return merchant_profile(container, merchant.id)
 
 
 # ---- charges (scan-to-pay checkout) -----------------------------------------
 class CreateChargeRequest(BaseModel):
-    merchant_id: str
+    # The charged merchant is the logged-in merchant; optional and validated when sent.
+    merchant_id: str | None = None
     amount: str  # major units, e.g. "12.50"
 
 
@@ -248,12 +272,13 @@ def _charge_response(container: Container, charge: Charge) -> ChargeResponse:
 
 
 @merchant_api_router.post("/charges", response_model=ChargeResponse)
-def create_charge(body: CreateChargeRequest, container: ContainerDep) -> ChargeResponse:
-    """Create a charge for a posted amount. Returns the charge + the path to its QR."""
-    try:
-        merchant = container.merchants.get(body.merchant_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail="merchant not found") from exc
+def create_charge(
+    body: CreateChargeRequest, merchant: CurrentMerchant, container: ContainerDep
+) -> ChargeResponse:
+    """Create a charge for a posted amount — for the logged-in merchant, always. Returns the
+    charge + the path to its QR."""
+    if body.merchant_id is not None and body.merchant_id != merchant.id:
+        raise HTTPException(status_code=403, detail="cannot create charges for another merchant")
     if not merchant.is_active:
         raise HTTPException(status_code=422, detail="merchant is not active")
     try:
@@ -268,12 +293,16 @@ def create_charge(body: CreateChargeRequest, container: ContainerDep) -> ChargeR
 
 
 @merchant_api_router.get("/charges/{charge_id}", response_model=ChargeResponse)
-def get_charge(charge_id: str, container: ContainerDep) -> ChargeResponse:
+def get_charge(
+    charge_id: str, merchant: CurrentMerchant, container: ContainerDep
+) -> ChargeResponse:
     """The charge's current state — the console polls this to watch it go Paid."""
     try:
         charge = container.charges.get(charge_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="charge not found") from exc
+    if charge.merchant_id != merchant.id:  # 404, not 403 — don't confirm the id exists
+        raise HTTPException(status_code=404, detail="charge not found")
     return _charge_response(container, charge)
 
 

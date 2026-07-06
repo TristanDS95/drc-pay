@@ -10,11 +10,14 @@ from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
 from drc_pay_api.container import Container
 from drc_pay_api.main import create_app
 
+from conftest import as_merchant
+
 from fakes import FakePaymentRail
 
 
 def _client() -> TestClient:
-    return TestClient(create_app())
+    # Logged in as the demo merchant "alpha" (m_alpha) — the merchant API is session-gated.
+    return as_merchant(TestClient(create_app()))
 
 
 def _pay(client: TestClient, *, defer: bool) -> dict:

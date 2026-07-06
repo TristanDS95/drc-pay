@@ -29,18 +29,23 @@ from sqlalchemy.orm import sessionmaker
 
 from .adapters.memory import (
     InMemoryChargeStore,
+    InMemoryCredentialStore,
     InMemoryLedger,
     InMemoryMerchantStore,
+    InMemorySessionStore,
     InMemoryTransactionStore,
 )
 from .adapters.sql import (
     SqlChargeStore,
+    SqlCredentialStore,
     SqlLedger,
     SqlMerchantStore,
+    SqlSessionStore,
     SqlTransactionStore,
     make_engine,
 )
 from .application.payments import Predictor
+from .domains.auth.service import AuthService, CredentialStore, SessionStore
 from .domains.charges.models import Charge
 from .domains.ledger.ledger import Posting
 from .domains.merchants.models import Merchant
@@ -50,7 +55,7 @@ from .integrations.pawapay.client import PawaPayClient
 from .integrations.pawapay.rail import PawaPayRail
 from .integrations.pawapay.simulator import SimulatedPaymentRail
 from .integrations.pawapay.status import StatusPoller
-from .seed import seed_demo_merchants
+from .seed import seed_demo_credentials, seed_demo_merchants
 
 
 class TxStore(Protocol):
@@ -99,6 +104,14 @@ def _seeded_merchant_store() -> InMemoryMerchantStore:
     return store
 
 
+def _seeded_credential_store() -> InMemoryCredentialStore:
+    # Same zero-setup principle for logins: the demo merchants' credentials, so local dev
+    # and tests can authenticate immediately (the hashes are computed once per process).
+    store = InMemoryCredentialStore()
+    seed_demo_credentials(store)
+    return store
+
+
 @dataclass
 class Container:
     store: TxStore
@@ -109,10 +122,18 @@ class Container:
     environment: str = "local"  # local | sandbox | production — gates the demo/ops controls
     merchants: MerchantStore = field(default_factory=_seeded_merchant_store)
     charges: ChargeStore = field(default_factory=InMemoryChargeStore)
+    credentials: CredentialStore = field(default_factory=_seeded_credential_store)
+    sessions: SessionStore = field(default_factory=InMemorySessionStore)
     ussd_shortcode: str = "*123#"  # the code customers dial; each merchant's till appended
     pawapay_public_key: str = ""  # PEM; verifies signed callbacks (blank → reject all)
     poller: StatusPoller | None = None  # pawaPay status polling for reconciliation (live rail only)
     pawapay_client: PawaPayClient | None = None  # the live client, for the startup key fetch below
+    # Built from the two stores above in __post_init__ — one service instance per container,
+    # so the login throttle's state survives across requests.
+    auth: AuthService = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.auth = AuthService(self.credentials, self.sessions)
 
     @property
     def demo_controls_enabled(self) -> bool:
@@ -179,6 +200,8 @@ def build_container(
         ledger: LedgerStore = SqlLedger(session_factory)
         merchants: MerchantStore = SqlMerchantStore(session_factory)
         charges: ChargeStore = SqlChargeStore(session_factory)
+        credentials: CredentialStore = SqlCredentialStore(session_factory)
+        sessions: SessionStore = SqlSessionStore(session_factory)
         print(f"[container] persistence: Postgres ({environment})")
     elif environment != "local":
         raise RuntimeError(
@@ -191,6 +214,8 @@ def build_container(
         ledger = InMemoryLedger()
         merchants = _seeded_merchant_store()
         charges = InMemoryChargeStore()
+        credentials = _seeded_credential_store()
+        sessions = InMemorySessionStore()
         print("[container] persistence: in-memory (local dev — data is NOT durable)")
 
     return Container(
@@ -201,6 +226,8 @@ def build_container(
         simulated=simulated,
         merchants=merchants,
         charges=charges,
+        credentials=credentials,
+        sessions=sessions,
         ussd_shortcode=ussd_shortcode,
         pawapay_public_key=pawapay_public_key,
         poller=poller,
