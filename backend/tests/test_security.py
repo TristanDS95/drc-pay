@@ -53,6 +53,13 @@ def test_password_gates_the_demo_shell_not_the_merchant_api(monkeypatch) -> None
     assert no_session.headers.get("www-authenticate", "").startswith("Bearer")
     assert as_merchant(client).get("/transactions").status_code == 200  # no Basic needed
 
+    # /demo/credentials is exempt (the login page's chips fetch it in the background, and
+    # Safari won't attach Basic credentials to fetch()); it reveals nothing an outsider
+    # can't already use — /auth/login is public and the demo passwords are documented.
+    # The REST of the demo shell (reconcile) stays gated.
+    assert client.get("/demo/credentials").status_code == 200
+    assert client.post("/demo/reconcile").status_code == 401
+
 
 def test_sandbox_refuses_to_boot_without_a_password(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # The sandbox's demo shell is meant to be gated, and the Basic gate fails OPEN when no
