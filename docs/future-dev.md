@@ -54,18 +54,11 @@ Redis** (sessions / rate limits), **Secrets Manager**, an **ALB**, and **CloudWa
 
 ## Security hardening (pre-production / when auth exists)
 
-Forward-looking security work, kept out of `CLAUDE.md` so the active standards reflect the Railway
-MVP (which has no user auth yet and stores only sandbox test-number MSISDNs). Revisit before there is
-real customer PII or real money:
-
-- **PIN / customer auth:** hash PINs with **Argon2id**; never log them, never make them recoverable
-  (reset only via OTP). Currently unbuilt — no auth code exists yet; create `domains/auth/` when starting it.
-- **Encrypt PII at rest:** phone numbers (`customer_msisdn` / `merchant_msisdn` / `settlement_msisdn`)
-  are stored in plaintext today. Railway's disk encryption is the baseline; add **application-level
-  field encryption** before storing real customer numbers at scale.
-- **Least-privilege IAM:** per-service on AWS (see Production infrastructure above); on Railway, keep
-  dashboard / DB-credential access tight.
-- **TLS** is handled by the platform (Railway serves HTTPS), so it is not a standing task.
+The full staged checklist now lives in **[`security-roadmap.md`](./security-roadmap.md)** - the single
+source of truth for what is done, what gates the first real-money pilot (Gate A: merchant auth +
+per-merchant authorization, USSD/aggregator hardening, rate limits, CORS, charge expiry, audit
+logging), and what gates production at scale (Gate B: PII field encryption, Argon2id PINs if own auth
+is built, monitoring, KYC, backups). Tick items there, not here.
 
 ## Webhook receiver as its own deployable
 
