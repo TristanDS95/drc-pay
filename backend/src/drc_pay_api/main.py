@@ -126,6 +126,24 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Cache discipline. StaticFiles sends no Cache-Control, so browsers heuristically cache
+    # the console/customer pages — Safari kept serving OLD page code across reloads, making
+    # every frontend fix invisible until caches were manually cleared. ``no-cache`` = store
+    # but ALWAYS revalidate (ETag/304 keeps it cheap); a plain reload is then guaranteed to
+    # run the deployed code. The session-gated API gets ``no-store``: auth responses must
+    # never be replayed from a cache.
+    @app.middleware("http")
+    async def _cache_discipline(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith(_SESSION_GATED_PREFIXES) or path == "/demo/credentials":
+            response.headers["Cache-Control"] = "no-store"
+        elif path == "/" or path.startswith(("/console", "/customer")):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     # Optional shared-password gate for the hosted sandbox demo SHELL. Off when no password is
     # set (local dev / tests / production). Exempts the webhook + health + customer paths, the
     # session-gated merchant API, and CORS preflights.

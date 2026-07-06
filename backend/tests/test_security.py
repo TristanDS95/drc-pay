@@ -61,6 +61,16 @@ def test_password_gates_the_demo_shell_not_the_merchant_api(monkeypatch) -> None
     assert client.post("/demo/reconcile").status_code == 401
 
 
+def test_cache_discipline_headers() -> None:
+    # Browsers (Safari especially) heuristically cached the console page and kept running
+    # OLD code across reloads - every frontend fix was invisible until caches were cleared.
+    # The HTML shell must always revalidate; auth/API responses must never be cached at all.
+    client = as_merchant(TestClient(create_app()))
+    assert client.get("/transactions").headers.get("cache-control") == "no-store"
+    assert client.get("/auth/me").headers.get("cache-control") == "no-store"
+    # (console/customer dirs aren't mounted in tests; the same middleware covers them.)
+
+
 def test_sandbox_refuses_to_boot_without_a_password(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # The sandbox's demo shell is meant to be gated, and the Basic gate fails OPEN when no
     # password is set — so a sandbox without one must refuse to start. (Production instead

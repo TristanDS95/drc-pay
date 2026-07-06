@@ -149,6 +149,8 @@
         border-radius:10px;padding:10px 0;font-size:13px;font-weight:700;color:var(--charcoal);
         cursor:pointer;}
   .logincard .demo .chips button:hover{border-color:var(--coral);color:var(--coral-dark);}
+  .logincard .ver{margin-top:12px;font-size:10px;color:#b9b4a8;text-align:right;
+        font-family:"SF Mono",Menlo,Consolas,monospace;}
 </style>
 </head>
 <body>
@@ -177,6 +179,8 @@
       <input id="login-pass" type="password" autocomplete="current-password" />
       <button class="cta" type="submit" data-i18n="login_btn">Log in</button>
       <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
+      <!-- bump per console change: makes "which version is my browser running?" answerable -->
+      <div class="ver">build 2026-07-07a</div>
       <div id="login-demo" class="demo hidden">
         <div class="cap" data-i18n="login_demo">Demo accounts - one click signs you in:</div>
         <div class="chips" id="login-demo-chips"></div>
