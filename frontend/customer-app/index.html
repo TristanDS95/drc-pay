@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 <meta name="theme-color" content="#1f2933" />
-<title>Pay — DRC Pay</title>
+<title>Pay - DRC Pay</title>
 <style>
   :root{
     --coral:#FF6B5B; --coral-dark:#E2553F; --cream:#FFFCF8; --charcoal:#1A1A1A;
@@ -15,10 +15,14 @@
   body{margin:0;min-height:100vh;background:var(--bg);display:flex;justify-content:center;
        align-items:flex-start;padding:0;color:var(--charcoal);}
   .app{width:100%;max-width:430px;min-height:100vh;background:var(--cream);display:flex;flex-direction:column;}
-  .top{background:#0c0f12;color:#e7edf2;padding:18px 20px;}
+  .top{background:#0c0f12;color:#e7edf2;padding:18px 20px;position:relative;}
   .top .brand{font-size:11px;letter-spacing:.1em;color:#8aa;text-transform:uppercase;}
   .top .name{font-size:22px;font-weight:800;margin-top:2px;}
   .top .sub{font-size:12.5px;color:#9fb0bd;margin-top:2px;}
+  .langsw{position:absolute;top:16px;right:16px;display:flex;border:1px solid #2b3640;border-radius:8px;overflow:hidden;}
+  .langsw button{border:none;background:#161c22;color:#9fb0bd;font-size:11px;font-weight:700;padding:5px 9px;
+        cursor:pointer;letter-spacing:.04em;}
+  .langsw button.on{background:var(--coral);color:#fff;}
   .body{padding:20px;flex:1;}
   label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:14px 0 6px;}
   input{width:100%;padding:14px;border:1px solid var(--border);border-radius:12px;font-size:18px;
@@ -65,9 +69,13 @@
 <body>
   <div class="app">
     <div class="top">
-      <div class="brand">Pay with your phone</div>
+      <div class="brand" data-i18n="brand">Pay with your phone</div>
       <div class="name" id="m-name">…</div>
-      <div class="sub">via DRC Pay · sandbox test</div>
+      <div class="sub" data-i18n="sub">via DRC Pay · sandbox test</div>
+      <div class="langsw" id="langsw">
+        <button data-l="fr">FR</button>
+        <button data-l="en">EN</button>
+      </div>
     </div>
     <div id="err" class="err"></div>
 
@@ -75,14 +83,14 @@
     <div class="body" id="panel-pay">
       <div id="amount-due" style="font-size:30px;font-weight:800;margin:4px 0 16px;">…</div>
 
-      <label>Your mobile-money network</label>
+      <label data-i18n="network_label">Your mobile-money network</label>
       <div class="seg" id="network">
         <button data-n="vodacom" class="on">Vodacom</button>
         <button data-n="airtel">Airtel</button>
         <button data-n="orange">Orange</button>
       </div>
 
-      <button class="cta" id="pay">Pay</button>
+      <button class="cta" id="pay" data-i18n="pay">Pay</button>
       <div class="result" id="result">
         <div class="icon" id="r-icon"></div>
         <div class="head" id="r-head"></div>
@@ -90,40 +98,29 @@
         <div class="msg" id="r-fee" style="font-size:12px;margin-top:8px;color:var(--muted);"></div>
       </div>
       <div class="handoff" id="handoff">
-        <div class="ho-head">Same-network payment</div>
-        <div class="ho-sub">Pay <b id="ho-merchant">the merchant</b> directly on <b id="ho-op">your network</b> —
-          DRC Pay doesn't touch this one. Open your mobile-money menu and send:</div>
+        <div class="ho-head" data-i18n="ho_head">Same-network payment</div>
+        <div class="ho-sub" id="ho-sub"></div>
         <div class="ho-method">
-          <div class="lab" id="ho-lab">Pay to</div>
-          <div class="val" id="ho-target">—</div>
+          <div class="lab" id="ho-lab"></div>
+          <div class="val" id="ho-target">-</div>
         </div>
-        <div class="ho-amt">Amount to send: <b id="ho-amount">—</b></div>
-        <div class="ho-status" id="ho-status">⏳ Waiting for the merchant to confirm they received it…</div>
+        <div class="ho-amt"><span data-i18n="ho_amt_label">Amount to send:</span> <b id="ho-amount">-</b></div>
+        <div class="ho-status" id="ho-status"></div>
       </div>
-      <details class="trace" id="trace"><summary>What happened (for testing)</summary><pre id="trace-pre"></pre></details>
-      <details class="trace"><summary>Testing options</summary>
-        <label style="margin-top:10px;">Simulated outcome</label>
+      <details class="trace" id="trace"><summary data-i18n="trace_summary">What happened (for testing)</summary><pre id="trace-pre"></pre></details>
+      <details class="trace"><summary data-i18n="testing_summary">Testing options</summary>
+        <label style="margin-top:10px;" data-i18n="outcome_label">Simulated outcome</label>
         <div class="seg" id="outcome">
-          <button data-o="success" class="on">Succeeds</button>
-          <button data-o="decline">Declined</button>
-          <button data-o="refund">Refunded</button>
+          <button data-o="success" class="on" data-i18n="outcome_success">Succeeds</button>
+          <button data-o="decline" data-i18n="outcome_decline">Declined</button>
+          <button data-o="refund" data-i18n="outcome_refund">Refunded</button>
         </div>
-        <div class="hint">In real life your wallet decides this; here you pick it to test each case.</div>
+        <div class="hint" data-i18n="outcome_hint">In real life your wallet decides this; here you pick it to test each case.</div>
       </details>
-      <details class="trace"><summary>Sandbox test numbers</summary><pre>Network sets the prefix · outcome sets the last 3 digits —
-pick from the menus above; the app sends the right number.
-
-  Vodacom   243 813456 _ _ _
-  Airtel    243 973456 _ _ _
-  Orange    243 893456 _ _ _
-
-  …789 = success      …049 = insufficient funds (declined)
-
-Merchant payout network = which merchant you open:
-  Alpha = Airtel · Beta = Orange · Gamma = Vodacom</pre></details>
+      <details class="trace"><summary data-i18n="numbers_summary">Sandbox test numbers</summary><pre data-i18n="numbers_pre"></pre></details>
     </div>
 
-    <div class="powered">DRC Pay · pay with your mobile money · sandbox test</div>
+    <div class="powered" data-i18n="powered">DRC Pay · pay with your mobile money · sandbox test</div>
   </div>
 
 <script>
@@ -133,15 +130,150 @@ Merchant payout network = which merchant you open:
   const $ = (id) => document.getElementById(id);
   const showErr = (m) => { $("err").textContent = m; $("err").classList.add("show"); };
 
+  // ----- i18n -----
+  // All user-facing copy lives here, per language. French is the default (primary DRC language);
+  // the choice persists in localStorage. Static HTML text is applied via data-i18n; JS-built
+  // messages read the dictionary at render time, so switching mid-flow updates the next render.
+  const STR = {
+    en: {
+      brand: "Pay with your phone",
+      sub: "via DRC Pay · sandbox test",
+      network_label: "Your mobile-money network",
+      pay: "Pay",
+      pay_amount: (a) => `Pay ${a}`,
+      err_no_charge: "Scan a merchant's charge QR to pay.",
+      err_load: "Couldn't load this charge. Is the server running?",
+      err_not_found: "Charge not found.",
+      result: {
+        payout_succeeded: ["ok","✓","Paid", (a,n)=>`You paid ${a} to ${n}.`],
+        collection_failed: ["bad","✕","Declined", ()=>`Your payment was declined - nothing was charged.`],
+        refunded: ["wait","↩","Refunded", (a)=>`Settlement failed, so you were refunded ${a}. No money lost.`],
+        manual_review: ["wait","⚠","Needs review", ()=>`Something went wrong; it's been flagged for a human.`],
+        collection_pending: ["wait","⏳","Sent", (a,n)=>`${a} sent to ${n} - awaiting confirmation.`],
+        payout_pending: ["wait","⏳","Settling", (a,n)=>`Confirmed - settling to ${n}…`],
+      },
+      fee_line: (pair,pct,fee,nets) => `${pair} · fee ${pct}% = $${fee} · merchant nets $${nets}`,
+      ho_head: "Same-network payment",
+      ho_sub: (m,op) => `Pay <b>${m}</b> directly on <b>${op}</b> -
+          DRC Pay doesn't touch this one. Open your mobile-money menu and send:`,
+      ho_your_network: "your network",
+      ho_lab_till: "Pay to till (buy goods)",
+      ho_lab_number: "Send to number",
+      ho_amt_label: "Amount to send:",
+      ho_waiting: (m) => `Waiting for ${m} to confirm they received it…`,
+      ho_confirmed: (m) => `✓ ${m} confirmed - you're paid.`,
+      ho_not_received: (m) => `✕ ${m} hasn't received it. Check you sent it, or try again.`,
+      ho_still_waiting: "Still waiting - keep this page open; it updates when the merchant confirms.",
+      trace_summary: "What happened (for testing)",
+      trace_step: {
+        collection_succeeded: "✓ payment collected from your wallet",
+        payout_pending: "→ settling to the merchant…",
+        payout_succeeded: "✓ settled - merchant paid",
+        refunded: "↩ settlement failed - you were refunded in full",
+        collection_failed: "✕ payment declined - nothing was charged",
+        manual_review: "⚠ flagged for manual review",
+      },
+      testing_summary: "Testing options",
+      outcome_label: "Simulated outcome",
+      outcome_success: "Succeeds", outcome_decline: "Declined", outcome_refund: "Refunded",
+      outcome_hint: "In real life your wallet decides this; here you pick it to test each case.",
+      numbers_summary: "Sandbox test numbers",
+      numbers_pre: `Network sets the prefix · outcome sets the last 3 digits -
+pick from the menus above; the app sends the right number.
+
+  Vodacom   243 813456 _ _ _
+  Airtel    243 973456 _ _ _
+  Orange    243 893456 _ _ _
+
+  …789 = success      …049 = insufficient funds (declined)
+
+Merchant payout network = which merchant you open:
+  Alpha = Airtel · Beta = Orange · Gamma = Vodacom`,
+      powered: "DRC Pay · pay with your mobile money · sandbox test",
+    },
+    fr: {
+      brand: "Payez avec votre téléphone",
+      sub: "via DRC Pay · test sandbox",
+      network_label: "Votre réseau mobile money",
+      pay: "Payer",
+      pay_amount: (a) => `Payer ${a}`,
+      err_no_charge: "Scannez le QR d'un marchand pour payer.",
+      err_load: "Impossible de charger ce paiement. Le serveur est-il lancé ?",
+      err_not_found: "Paiement introuvable.",
+      result: {
+        payout_succeeded: ["ok","✓","Payé", (a,n)=>`Vous avez payé ${a} à ${n}.`],
+        collection_failed: ["bad","✕","Refusé", ()=>`Votre paiement a été refusé - rien n'a été débité.`],
+        refunded: ["wait","↩","Remboursé", (a)=>`Le règlement a échoué : vous avez été remboursé de ${a}. Aucune perte.`],
+        manual_review: ["wait","⚠","À vérifier", ()=>`Un problème est survenu ; il a été signalé à un humain.`],
+        collection_pending: ["wait","⏳","Envoyé", (a,n)=>`${a} envoyé à ${n} - en attente de confirmation.`],
+        payout_pending: ["wait","⏳","Règlement", (a,n)=>`Confirmé - règlement vers ${n}…`],
+      },
+      fee_line: (pair,pct,fee,nets) => `${pair} · frais ${pct} % = ${fee} $ · le marchand reçoit ${nets} $`,
+      ho_head: "Paiement même réseau",
+      ho_sub: (m,op) => `Payez <b>${m}</b> directement sur <b>${op}</b> -
+          DRC Pay ne touche pas à ce paiement. Ouvrez votre menu mobile money et envoyez :`,
+      ho_your_network: "votre réseau",
+      ho_lab_till: "Payer au till (compte marchand)",
+      ho_lab_number: "Envoyer au numéro",
+      ho_amt_label: "Montant à envoyer :",
+      ho_waiting: (m) => `En attente que ${m} confirme la réception…`,
+      ho_confirmed: (m) => `✓ ${m} a confirmé la réception - c'est payé.`,
+      ho_not_received: (m) => `✕ ${m} n'a pas reçu le paiement. Vérifiez l'envoi, ou réessayez.`,
+      ho_still_waiting: "Toujours en attente - gardez cette page ouverte ; elle se met à jour quand le marchand confirme.",
+      trace_summary: "Ce qui s'est passé (pour les tests)",
+      trace_step: {
+        collection_succeeded: "✓ paiement débité de votre portefeuille",
+        payout_pending: "→ règlement vers le marchand…",
+        payout_succeeded: "✓ réglé - marchand payé",
+        refunded: "↩ règlement échoué - vous avez été remboursé intégralement",
+        collection_failed: "✕ paiement refusé - rien n'a été débité",
+        manual_review: "⚠ signalé pour vérification manuelle",
+      },
+      testing_summary: "Options de test",
+      outcome_label: "Résultat simulé",
+      outcome_success: "Réussit", outcome_decline: "Refusé", outcome_refund: "Remboursé",
+      outcome_hint: "En réalité, c'est votre portefeuille qui décide ; ici vous choisissez pour tester chaque cas.",
+      numbers_summary: "Numéros de test sandbox",
+      numbers_pre: `Le réseau fixe le préfixe · le résultat fixe les 3 derniers chiffres -
+choisissez dans les menus ci-dessus ; l'appli envoie le bon numéro.
+
+  Vodacom   243 813456 _ _ _
+  Airtel    243 973456 _ _ _
+  Orange    243 893456 _ _ _
+
+  …789 = succès      …049 = solde insuffisant (refusé)
+
+Réseau de versement du marchand = le marchand que vous ouvrez :
+  Alpha = Airtel · Beta = Orange · Gamma = Vodacom`,
+      powered: "DRC Pay · payez avec votre mobile money · test sandbox",
+    },
+  };
+  let lang = localStorage.getItem("drcpay.lang");
+  if(lang !== "en" && lang !== "fr") lang = "fr";
+  const t = () => STR[lang];
+
+  function applyLang(){
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t()[el.dataset.i18n]; });
+    document.querySelectorAll("#langsw button").forEach((b) => b.classList.toggle("on", b.dataset.l === lang));
+    if(charge) $("amount-due").textContent = t().pay_amount(`$${charge.amount}`);
+  }
+  document.querySelectorAll("#langsw button").forEach((b)=>b.addEventListener("click",()=>{
+    if(b.dataset.l === lang) return;
+    lang = b.dataset.l;
+    localStorage.setItem("drcpay.lang", lang);
+    applyLang();
+  }));
+
   let charge = null, outcome = "success", network = "vodacom";
 
   async function boot(){
-    if(!CHARGE_ID){ showErr("Scan a merchant's charge QR to pay."); return; }
+    if(!CHARGE_ID){ showErr(t().err_no_charge); return; }
     try { charge = await (await fetch(`${API}/public/charge/${CHARGE_ID}`)).json(); }
-    catch(e){ showErr("Couldn't load this charge. Is the server running?"); return; }
-    if(!charge || !charge.charge_id){ showErr("Charge not found."); return; }
+    catch(e){ showErr(t().err_load); return; }
+    if(!charge || !charge.charge_id){ showErr(t().err_not_found); return; }
     $("m-name").textContent = charge.merchant_name;
-    $("amount-due").textContent = `Pay $${charge.amount}`;
+    $("amount-due").textContent = t().pay_amount(`$${charge.amount}`);
     // If the charge was already paid (or is mid-flight), reflect it and lock the button.
     if(charge.status && charge.status !== "awaiting_payment" && charge.status !== "declined"){
       showResult(charge.status === "paid" ? "payout_succeeded" : "payout_pending",
@@ -160,20 +292,11 @@ Merchant payout network = which merchant you open:
     document.querySelectorAll("#network button").forEach((x)=>x.classList.toggle("on", x===b));
   }));
 
-  const PAY_RESULT = {
-    payout_succeeded: ["ok","✓","Paid", (a,n)=>`You paid ${a} to ${n}.`],
-    collection_failed: ["bad","✕","Declined", ()=>`Your payment was declined — nothing was charged.`],
-    refunded: ["wait","↩","Refunded", (a)=>`Settlement failed, so you were refunded ${a}. No money lost.`],
-    manual_review: ["wait","⚠","Needs review", ()=>`Something went wrong; it's been flagged for a human.`],
-    collection_pending: ["wait","⏳","Sent", (a,n)=>`${a} sent to ${n} — awaiting confirmation.`],
-    payout_pending: ["wait","⏳","Settling", (a,n)=>`Confirmed — settling to ${n}…`],
-  };
-
   // Once the state is one of these the payment is resolved; until then we keep polling.
   const TERMINAL = new Set(["payout_succeeded", "collection_failed", "refunded", "manual_review"]);
 
   function showResult(state, amountStr, merchantName){
-    const spec = PAY_RESULT[state] || ["wait", "•", state, () => ""];
+    const spec = t().result[state] || ["wait", "•", state, () => ""];
     const res = $("result");
     res.className = "result show " + spec[0];
     $("r-icon").textContent = spec[1];
@@ -188,7 +311,7 @@ Merchant payout network = which merchant you open:
     const amt = parseFloat(body.amount), fee = parseFloat(body.fee);
     const pct = amt > 0 ? (fee / amt * 100).toFixed(1) : "0";
     const pair = `${NET[body.customer_provider] || body.customer_provider} → ${NET[body.merchant_provider] || body.merchant_provider}`;
-    $("r-fee").textContent = `${pair} · fee ${pct}% = $${body.fee} · merchant nets $${body.merchant_nets}`;
+    $("r-fee").textContent = t().fee_line(pair, pct, body.fee, body.merchant_nets);
   }
 
   // ----- on-net (same-network) hand-off -----
@@ -203,47 +326,39 @@ Merchant payout network = which merchant you open:
   function showOnNetHandoff(body){
     $("result").className = "result";                 // hide the routed (pawaPay) result card
     const usingTill = !!body.pay_to_till;
-    $("ho-merchant").textContent = body.merchant_name;
-    $("ho-op").textContent = NET[body.pay_to_operator] || body.pay_to_operator || "your network";
-    $("ho-lab").textContent = usingTill ? "Pay to till (buy goods)" : "Send to number";
+    $("ho-sub").innerHTML = t().ho_sub(body.merchant_name,
+      NET[body.pay_to_operator] || body.pay_to_operator || t().ho_your_network);
+    $("ho-lab").textContent = usingTill ? t().ho_lab_till : t().ho_lab_number;
     $("ho-target").textContent = usingTill ? body.pay_to_till : body.pay_to_msisdn;
     $("ho-amount").textContent = `$${body.amount}`;
-    setHoStatus("wait", `⏳ Waiting for ${body.merchant_name} to confirm they received it…`);
+    setHoStatus("wait", t().ho_waiting(body.merchant_name));
     $("handoff").classList.add("show");
   }
   async function pollOnNet(txId, body){
     const merchant = body.merchant_name;
-    for(let i = 0; i < 150; i++){                      // ~150 × 2s ≈ 5 min — a manual merchant tap can lag
+    for(let i = 0; i < 150; i++){                      // ~150 × 2s ≈ 5 min - a manual merchant tap can lag
       await new Promise((r) => setTimeout(r, 2000));
-      let t;
-      try { const r = await fetch(`${API}/public/transaction/${txId}`); if(!r.ok) continue; t = await r.json(); }
+      let t2;
+      try { const r = await fetch(`${API}/public/transaction/${txId}`); if(!r.ok) continue; t2 = await r.json(); }
       catch(e){ continue; }
-      if(!t || !t.state) continue;
-      renderTrace(t.history);
-      if(t.state === "payout_succeeded"){ setHoStatus("ok", `✓ ${merchant} confirmed — you're paid.`); return; }
-      if(t.state === "collection_failed"){
-        setHoStatus("bad", `✕ ${merchant} hasn't received it. Check you sent it, or try again.`);
+      if(!t2 || !t2.state) continue;
+      renderTrace(t2.history);
+      if(t2.state === "payout_succeeded"){ setHoStatus("ok", t().ho_confirmed(merchant)); return; }
+      if(t2.state === "collection_failed"){
+        setHoStatus("bad", t().ho_not_received(merchant));
         $("pay").disabled = false;                    // let them re-initiate
         return;
       }
     }
-    setHoStatus("wait", "Still waiting — keep this page open; it updates when the merchant confirms.");
+    setHoStatus("wait", t().ho_still_waiting);
   }
 
   // The "What happened" log: the detailed steps from /pay, plus a friendly line for each
   // lifecycle milestone the payment reaches afterwards (the async deposit/settle confirmations).
   let payTrace = [];
-  const TRACE_STEP = {
-    collection_succeeded: "✓ payment collected from your wallet",
-    payout_pending: "→ settling to the merchant…",
-    payout_succeeded: "✓ settled — merchant paid",
-    refunded: "↩ settlement failed — you were refunded in full",
-    collection_failed: "✕ payment declined — nothing was charged",
-    manual_review: "⚠ flagged for manual review",
-  };
   function renderTrace(history){
     const lines = payTrace.slice();
-    (history || []).forEach((s) => { if(TRACE_STEP[s]) lines.push(TRACE_STEP[s]); });
+    (history || []).forEach((s) => { if(t().trace_step[s]) lines.push(t().trace_step[s]); });
     $("trace-pre").textContent = lines.join("\n");
     $("trace").style.display = "block";
   }
@@ -253,13 +368,13 @@ Merchant payout network = which merchant you open:
     // usually "pending". Poll the public status until it resolves, updating the card AND the log.
     for(let i = 0; i < 20; i++){              // ~20 × 2s ≈ 40s, then give up quietly
       await new Promise((r) => setTimeout(r, 2000));
-      let t;
-      try { const r = await fetch(`${API}/public/transaction/${txId}`); if(!r.ok) continue; t = await r.json(); }
+      let t2;
+      try { const r = await fetch(`${API}/public/transaction/${txId}`); if(!r.ok) continue; t2 = await r.json(); }
       catch(e){ continue; }
-      if(!t || !t.state) continue;
-      showResult(t.state, `$${t.amount}`, t.merchant_name || merchantName);
-      renderTrace(t.history);
-      if(TERMINAL.has(t.state)) return;
+      if(!t2 || !t2.state) continue;
+      showResult(t2.state, `$${t2.amount}`, t2.merchant_name || merchantName);
+      renderTrace(t2.history);
+      if(TERMINAL.has(t2.state)) return;
     }
   }
 
@@ -277,7 +392,7 @@ Merchant payout network = which merchant you open:
     renderTrace([]);                          // show them now; polling appends the rest live
     if(body.on_net){                          // same-network → pay the merchant directly on the operator
       showOnNetHandoff(body);
-      $("pay").disabled = true;               // committed to paying on-net — avoid a duplicate record
+      $("pay").disabled = true;               // committed to paying on-net - avoid a duplicate record
       pollOnNet(body.transaction_id, body);
       return;
     }
@@ -289,6 +404,7 @@ Merchant payout network = which merchant you open:
     if(!TERMINAL.has(body.state)) pollStatus(body.transaction_id, `$${body.amount}`, body.merchant_name);
   });
 
+  applyLang();
   boot();
 </script>
 </body>
