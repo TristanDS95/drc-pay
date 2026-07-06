@@ -7,6 +7,8 @@ Engineering-side documentation for drc-pay.
 - **[`DEVLOG.md`](./DEVLOG.md)** — the development log + handoff (read first to resume work); active roadmap.
 - **[`future-dev.md`](./future-dev.md)** — longer-horizon / someday work (mobile app, admin dashboard,
   AWS infra, split webhook service), consolidated when the placeholder folders were removed (ADR 0008).
+- **[`security-roadmap.md`](./security-roadmap.md)** — the staged security checklist: what's in place,
+  what gates the first real-money pilot (Gate A), what gates production at scale (Gate B).
 - **[`design-tokens.md`](./design-tokens.md)** — the design system (palette, type, spacing), mirroring
   the product spec's `ui-spec.md`.
 - **[`architecture-guide.md`](./architecture-guide.md)** — the plain-language "new user's guide" to the

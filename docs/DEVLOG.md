@@ -189,13 +189,14 @@ payer page.
 ---
 
 ## Open items / TODOs
-**USSD channel build-out + tests** (above — the next priority) · **real USSD aggregator** · **merchant
-onboarding + KYC** · **reconciliation age filter + batch limit** (now scheduled in-process on a live rail;
-the unbounded `find_pending` scan is the remaining gap) · **merchant auth** (not started; plan in
-`future-dev.md` "Security hardening") ·
-**per-merchant authorization** (one shared credential today; any merchant can read/confirm any other's) ·
-**lock CORS** before prod · **native mobile app** (deferred,
-web-first) · **charge expiry** (none — charges stay payable until paid) · **refund-leg fee** (pawaPay bills refunds ≈
+**Security items now live in [`security-roadmap.md`](./security-roadmap.md)** (the staged checklist:
+merchant auth, per-merchant authorization, USSD hardening, rate limits, CORS, charge expiry, audit
+logging gate the first real-money pilot; PII encryption, KYC, monitoring gate production).
+Non-security items:
+**USSD channel build-out + tests** (above — the next priority) · **real USSD aggregator** ·
+**reconciliation age filter + batch limit** (now scheduled in-process on a live rail;
+the unbounded `find_pending` scan is the remaining gap) · **native mobile app** (deferred,
+web-first) · **refund-leg fee** (pawaPay bills refunds ≈
 the disbursement rate — Plans page; our refund path books only the sunk collection fee, and whether
 pawaPay reverses that collection fee is unconfirmed; research `fees-and-costs.md`) · **monetization model**
 (above — not urgent; margin vs subscription vs VAS) · **Legal/licensing (BCC)** — standing flag.
