@@ -142,8 +142,13 @@
   .logincard .lbrand{font-weight:800;font-size:18px;} .logincard .lbrand span{color:var(--coral);}
   .logincard h3{margin:14px 0 4px;font-size:16px;}
   .logincard .sub{font-size:12.5px;color:var(--muted);margin:0 0 6px;line-height:1.5;}
-  .logincard .demo{font:11.5px "SF Mono",Menlo,Consolas,monospace;color:var(--muted);margin-top:12px;
-        line-height:1.6;}
+  .logincard .demo{margin-top:16px;border-top:1px solid var(--border);padding-top:12px;}
+  .logincard .demo .cap{font-size:11px;font-weight:600;color:var(--muted);}
+  .logincard .demo .chips{display:flex;gap:8px;margin-top:8px;}
+  .logincard .demo .chips button{flex:1;border:1px solid var(--border);background:var(--surface);
+        border-radius:10px;padding:10px 0;font-size:13px;font-weight:700;color:var(--charcoal);
+        cursor:pointer;}
+  .logincard .demo .chips button:hover{border-color:var(--coral);color:var(--coral-dark);}
 </style>
 </head>
 <body>
@@ -172,7 +177,10 @@
       <input id="login-pass" type="password" autocomplete="current-password" />
       <button class="cta" type="submit" data-i18n="login_btn">Log in</button>
       <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
-      <div id="login-demo" class="demo hidden"></div>
+      <div id="login-demo" class="demo hidden">
+        <div class="cap" data-i18n="login_demo">Demo accounts - one click signs you in:</div>
+        <div class="chips" id="login-demo-chips"></div>
+      </div>
     </form>
   </div>
 
@@ -320,7 +328,7 @@
       login_pass: "Password",
       login_btn: "Log in",
       login_err: "Invalid username or password.",
-      login_demo: "Demo logins: ",
+      login_demo: "Demo accounts - one click signs you in:",
       hero_line: "Your till and settlement details; create a charge below for a specific amount.",
       settles_to: (op, msisdn) => `Settles to ${op} · ${msisdn}`,
       onnet_till: (op, till) => `On-net (same-network): customers pay your ${op} till ${till}`,
@@ -404,7 +412,7 @@
       login_pass: "Mot de passe",
       login_btn: "Se connecter",
       login_err: "Nom d'utilisateur ou mot de passe invalide.",
-      login_demo: "Comptes démo : ",
+      login_demo: "Comptes démo - un clic pour se connecter :",
       hero_line: "Votre till et vos coordonnées de règlement ; créez un paiement ci-dessous pour un montant précis.",
       settles_to: (op, msisdn) => `Règlement vers ${op} · ${msisdn}`,
       onnet_till: (op, till) => `Même réseau (on-net) : les clients paient votre till ${op} ${till}`,
@@ -531,14 +539,18 @@
     $("whoami").classList.remove("hidden"); $("logout").classList.remove("hidden");
   }
   async function demoHint(){
-    // Sandbox/local convenience: list the seeded demo logins on the login card. The endpoint
-    // does not exist in production, so this quietly no-ops there. Plain fetch (no Bearer):
+    // Sandbox/local convenience: one-click chips for the seeded demo logins. The endpoint
+    // does not exist in production, so the chips never render there. Plain fetch (no Bearer):
     // /demo is behind the sandbox's Basic gate, which the browser handles itself.
     try {
       const r = await fetch(`${API}/demo/credentials`);
       if(!r.ok) return;
       const creds = await r.json();
-      $("login-demo").textContent = t().login_demo + creds.map((c)=>`${c.username} / ${c.password}`).join(" · ");
+      $("login-demo-chips").innerHTML = creds.map((c) =>
+        `<button type="button" data-u="${esc(c.username)}" data-p="${esc(c.password)}">${esc(c.username)}</button>`
+      ).join("");
+      $("login-demo-chips").querySelectorAll("button").forEach((b) =>
+        b.addEventListener("click", () => doLogin(b.dataset.u, b.dataset.p)));
       $("login-demo").classList.remove("hidden");
     } catch(e){ /* not a demo environment */ }
   }
@@ -869,14 +881,13 @@
   }
 
   // ----- wiring -----
-  $("login-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
+  async function doLogin(username, password){
     $("login-err").classList.add("hidden");
     let body;
     try {
       const r = await fetch(`${API}/auth/login`, { method:"POST",
         headers:{ "content-type":"application/json" },
-        body: JSON.stringify({ username: $("login-user").value.trim(), password: $("login-pass").value }) });
+        body: JSON.stringify({ username, password }) });
       body = await r.json();
       if(!r.ok) throw new Error();
     } catch(err){
@@ -888,6 +899,10 @@
     localStorage.setItem("drcpay.session", session);
     $("login-pass").value = "";
     boot();
+  }
+  $("login-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    doLogin($("login-user").value.trim(), $("login-pass").value);
   });
   $("logout").addEventListener("click", async () => {
     try { await fetch(`${API}/auth/logout`, { method:"POST", headers: authHeaders() }); } catch(e){ /* revoked or unreachable - either way we drop it */ }
