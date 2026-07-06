@@ -180,7 +180,7 @@
       <button class="cta" type="submit" data-i18n="login_btn">Log in</button>
       <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
       <!-- bump per console change: makes "which version is my browser running?" answerable -->
-      <div class="ver">build 2026-07-07a</div>
+      <div class="ver">build 2026-07-07b</div>
       <div id="login-demo" class="demo hidden">
         <div class="cap" data-i18n="login_demo">Demo accounts - one click signs you in:</div>
         <div class="chips" id="login-demo-chips"></div>
@@ -318,6 +318,11 @@
 
   // localStorage can throw (Safari private windows, block-all-cookies configs). Persistence is
   // a nicety, never a dependency: on failure the value simply lives for the tab's lifetime.
+  // Login-flow breadcrumbs: visible in any browser's JS console, prefixed [drcpay]. They
+  // exist because the flow once failed silently in ways no local engine reproduced - a user
+  // reading their console can now tell us exactly which step diverged.
+  const crumb = (...args) => { try { console.log("[drcpay]", ...args); } catch(e){} };
+
   const store = {
     get(key){ try { return localStorage.getItem(key); } catch(e){ return null; } },
     set(key, value){ try { localStorage.setItem(key, value); } catch(e){ /* tab-lifetime only */ } },
@@ -543,6 +548,7 @@
   const authHeaders = () => session ? { "x-session-token": session } : {};
 
   function showLogin(){
+    crumb("showLogin: session cleared, login screen shown");
     session = ""; store.del("drcpay.session"); me = null;
     $("login").classList.remove("hidden");
     $("whoami").classList.add("hidden"); $("logout").classList.add("hidden");
@@ -558,6 +564,7 @@
     // /demo is behind the sandbox's Basic gate, which the browser handles itself.
     try {
       const r = await fetch(`${API}/demo/credentials`, { cache: "no-store" });
+      crumb("demoHint: /demo/credentials ->", r.status);
       if(!r.ok) return;
       const creds = await r.json();
       $("login-demo-chips").innerHTML = creds.map((c) =>
@@ -571,15 +578,30 @@
 
   async function jget(path){
     const r = await fetch(`${API}${path}`, { headers: authHeaders() });
-    if(r.status === 401){ showLogin(); throw new Error("session expired"); }
+    if(r.status === 401){
+      crumb("jget:", path, "-> 401 (session rejected); returning to login");
+      showLogin();
+      loginErr(`${t().login_err} [${path} -> 401]`);
+      throw new Error("session expired");
+    }
     if(!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   }
+  function loginErr(text){
+    $("login-err").textContent = text;
+    $("login-err").classList.remove("hidden");
+  }
 
   async function boot(){
+    crumb("boot: session present:", !!session);
     if(!session){ showLogin(); return; }
     try { me = await jget("/auth/me"); }
-    catch(e){ if(!String(e).includes("session expired")) showErr(e); return; }
+    catch(e){
+      crumb("boot: /auth/me failed:", String(e));
+      if(!String(e).includes("session expired")){ showErr(e); loginErr(String(e)); }
+      return;
+    }
+    crumb("boot: logged in as", me && me.name);
     hideLogin(); clearErr();
     $("whoami-name").textContent = me.name;
     renderMerchant();
@@ -897,18 +919,20 @@
   // ----- wiring -----
   async function doLogin(username, password){
     $("login-err").classList.add("hidden");
+    crumb("doLogin: attempting", username);
     let body;
     try {
       const r = await fetch(`${API}/auth/login`, { method:"POST",
         headers:{ "content-type":"application/json" },
         body: JSON.stringify({ username, password }) });
+      crumb("doLogin: /auth/login ->", r.status);
       body = await r.json();
       if(!r.ok) throw new Error();
     } catch(err){
-      $("login-err").textContent = t().login_err;
-      $("login-err").classList.remove("hidden");
+      loginErr(t().login_err);
       return;
     }
+    crumb("doLogin: token received; verifying session");
     session = body.token;
     store.set("drcpay.session", session);
     $("login-pass").value = "";
