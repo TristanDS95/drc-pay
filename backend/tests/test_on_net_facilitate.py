@@ -12,9 +12,12 @@ from fastapi.testclient import TestClient
 
 from drc_pay_api.main import create_app
 
+from conftest import as_merchant
+
 
 def _client() -> TestClient:
-    return TestClient(create_app())
+    # Logged in as the demo merchant "alpha" (m_alpha) — the merchant API is session-gated.
+    return as_merchant(TestClient(create_app()))
 
 
 def test_same_network_pay_is_awaiting_confirmation_not_routed() -> None:

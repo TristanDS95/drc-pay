@@ -8,9 +8,12 @@ from fastapi.testclient import TestClient
 from drc_pay_api.application.payment_codes import merchant_payment_code
 from drc_pay_api.main import create_app
 
+from conftest import as_merchant
+
 
 def _client() -> TestClient:
-    return TestClient(create_app())
+    # Logged in as the demo merchant "alpha" (m_alpha) — the merchant API is session-gated.
+    return as_merchant(TestClient(create_app()))
 
 
 def test_payment_code_builds_ussd_and_tel_uri() -> None:
@@ -19,12 +22,15 @@ def test_payment_code_builds_ussd_and_tel_uri() -> None:
     assert code.tel_uri == "tel:*123*1001%23"  # '#' percent-encoded for the QR/dialer
 
 
-def test_list_merchants_exposes_codes() -> None:
+def test_list_merchants_is_scoped_to_the_caller() -> None:
+    # One trust tier, one merchant: the list is exactly the logged-in merchant.
     body = _client().get("/merchants").json()
-    by_id = {m["id"]: m for m in body}
-    assert by_id["m_alpha"]["ussd_string"] == "*123*1001#"
-    assert by_id["m_alpha"]["tel_uri"] == "tel:*123*1001%23"
-    assert by_id["m_beta"]["ussd_string"] == "*123*1002#"
+    assert [m["id"] for m in body] == ["m_alpha"]
+    assert body[0]["ussd_string"] == "*123*1001#"
+    assert body[0]["tel_uri"] == "tel:*123*1001%23"
+    beta = as_merchant(TestClient(create_app()), "beta").get("/merchants").json()
+    assert [m["id"] for m in beta] == ["m_beta"]
+    assert beta[0]["ussd_string"] == "*123*1002#"
 
 
 def test_get_merchant() -> None:
@@ -35,6 +41,11 @@ def test_get_merchant() -> None:
 
 def test_get_unknown_merchant_404() -> None:
     assert _client().get("/merchants/nope").status_code == 404
+
+
+def test_get_other_merchant_is_404_too() -> None:
+    # Cross-merchant reads 404 (not 403) so responses don't confirm the id exists.
+    assert _client().get("/merchants/m_beta").status_code == 404
 
 
 def test_merchant_ussd_qr_svg() -> None:

@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .container import build_container
+from .http.auth_routes import auth_router
 from .http.demo_routes import demo_router
 from .http.merchant_api import merchant_api_router
 from .http.public_routes import public_router
@@ -30,13 +31,17 @@ from .http.webhook_routes import webhook_router
 from .jobs.reconciliation.sweep import run_reconciliation
 from .ussd.session import UssdHandler
 
-# Paths reachable WITHOUT the shared password: the pawaPay callback under /webhooks/ (an operator
-# can't send our password — it's verified by RFC-9421 signature instead) and the platform's health
-# probe.
+# The shared Basic password is now ONLY the sandbox demo's outer gate (console static files,
+# docs, demo endpoints). It never gates:
+#   - the pawaPay callback under /webhooks/ (verified by RFC-9421 signature instead),
+#   - the platform's health probe,
+#   - customer-facing paths (a customer who scans a QR has no login),
+#   - the merchant API + /auth (each merchant authenticates with their OWN session — a shared
+#     password would have to be handed to every merchant, defeating per-merchant auth).
 _AUTH_EXEMPT = {"/health"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
-# Customer-facing paths are public — a customer who scans a merchant's QR has no login.
 _PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
+_SESSION_GATED_PREFIXES = ("/auth", "/transactions", "/merchants", "/charges")
 
 
 async def _reconcile_loop(app: FastAPI, interval: int) -> None:
@@ -92,15 +97,16 @@ def _basic_auth_ok(authorization: str, password: str) -> bool:
 
 
 def create_app() -> FastAPI:
-    # A deployed environment MUST gate the merchant API. The password gate fails OPEN when no
-    # password is set (see ``_gate`` below), so refuse to boot a non-local env without one rather
-    # than silently serve /transactions, /merchants, etc. unauthenticated. Mirrors the DB
-    # fail-fast in ``build_container``. Local dev / tests (environment == "local") stay open.
-    if settings.environment != "local" and not settings.basic_auth_password:
+    # The merchant API is session-gated in EVERY environment (per-merchant login — see
+    # http/dependencies.py), so it no longer depends on the shared password. The sandbox still
+    # refuses to boot without one: its demo shell (console page, docs, demo endpoints) is
+    # meant to be gated, and the gate fails OPEN when no password is set. Production runs
+    # without a shared password by design; local dev / tests stay open.
+    if settings.environment == "sandbox" and not settings.basic_auth_password:
         raise RuntimeError(
-            f"No DRCPAY_BASIC_AUTH_PASSWORD set in environment '{settings.environment}'. "
-            "Refusing to start: the merchant API would be served with no authentication. Set a "
-            "password, or use DRCPAY_ENVIRONMENT=local for unauthenticated local dev."
+            "No DRCPAY_BASIC_AUTH_PASSWORD set in environment 'sandbox'. Refusing to start: "
+            "the hosted demo shell (console, docs, demo endpoints) would be public. Set a "
+            "password, or use DRCPAY_ENVIRONMENT=local for ungated local dev."
         )
 
     app = FastAPI(title="DRC Pay — Merchant Acquiring API", version="0.0.1", lifespan=_lifespan)
@@ -114,8 +120,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Optional shared-password gate for a hosted sandbox demo. Off when no password is set
-    # (local dev / tests). Exempts the webhook + health paths and CORS preflights.
+    # Optional shared-password gate for the hosted sandbox demo SHELL. Off when no password is
+    # set (local dev / tests / production). Exempts the webhook + health + customer paths, the
+    # session-gated merchant API, and CORS preflights.
     @app.middleware("http")
     async def _gate(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -126,6 +133,7 @@ def create_app() -> FastAPI:
             path not in _AUTH_EXEMPT
             and not path.startswith(_AUTH_EXEMPT_PREFIXES)
             and not path.startswith(_PUBLIC_PREFIXES)
+            and not path.startswith(_SESSION_GATED_PREFIXES)
         )
         if password and request.method != "OPTIONS" and gated:
             if not _basic_auth_ok(request.headers.get("authorization", ""), password):
@@ -147,6 +155,7 @@ def create_app() -> FastAPI:
     app.state.container.ensure_callback_public_key()
     # The USSD channel is another thin caller into the same container/orchestrator.
     app.state.ussd_handler = UssdHandler(app.state.container)
+    app.include_router(auth_router)
     app.include_router(merchant_api_router)
     app.include_router(ussd_router)
     app.include_router(webhook_router)

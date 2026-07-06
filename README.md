@@ -28,8 +28,12 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
   channel, and **on-net same-network handling** — *facilitate & record*
   ([ADR 0009](docs/adr/0009-on-net-facilitate-and-record.md)): same-network payments are paid
   merchant-direct on the operator's own rail (non-custodial), and we record/confirm them.
-- **Web UIs** (`frontend/`): the gated **Merchant Console** and the public **Customer** scan-to-pay page.
-  Both are **bilingual - French (default) / English** - via an FR|EN switch persisted per device.
+- **Web UIs** (`frontend/`): the **Merchant Console** (per-merchant login) and the public **Customer**
+  scan-to-pay page. Both are **bilingual - French (default) / English** - via an FR|EN switch persisted
+  per device.
+- **Merchant auth + per-merchant authorization:** every merchant signs in with their own account
+  (Argon2id-hashed passwords, opaque expiring sessions), and every merchant endpoint is scoped to the
+  session's merchant - you can only see, confirm, and charge your own payments (security roadmap, Gate A).
 - **Not started:** the native mobile app (React Native/Expo — deliberately web-first for now; plan in
   [`docs/future-dev.md`](docs/future-dev.md)) and merchant onboarding/KYC.
 
@@ -37,7 +41,9 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
 ## Live demo (sandbox)
 
 - **URL:** `https://drc-pay-sandbox-production.up.railway.app`
-- **Merchant Console:** open the URL → log in (user `drcpay` + the shared demo password).
+- **Merchant Console:** open the URL → pass the demo gate (user `drcpay` + the shared demo password)
+  → sign in as a demo merchant (`alpha` / `beta` / `gamma`, password `<username>-demo`; the login
+  screen lists them). Each account sees only its own payments.
 - **Customer pay page:** the Console's "Charge by QR" makes a charge whose QR opens
   `…/customer/?charge=<id>` (no login) — scan, pick a network, pay.
 - It runs on pawaPay's **sandbox** (test money only).

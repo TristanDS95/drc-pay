@@ -26,6 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
+from ..domains.auth.models import MerchantCredential, MerchantSession
 from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Direction, Entry, Posting
 from ..domains.ledger.money import Money
@@ -49,6 +50,31 @@ class MerchantRow(Base):
     status: Mapped[str] = mapped_column(String)
     # The merchant's own operator "buy goods" till (on-net hand-off prefers it). See ADR 0009.
     operator_till: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MerchantCredentialRow(Base):
+    """A merchant's login. Stores only the Argon2id hash — never a password."""
+
+    __tablename__ = "merchant_credentials"
+
+    merchant_id: Mapped[str] = mapped_column(
+        ForeignKey("merchants.id"), primary_key=True
+    )
+    username: Mapped[str] = mapped_column(String, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MerchantSessionRow(Base):
+    """A live login. Keyed by the SHA-256 of the bearer token — the token itself is
+    never persisted, so a database read cannot mint a valid Authorization header."""
+
+    __tablename__ = "merchant_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String, primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -307,6 +333,72 @@ class SqlMerchantStore:
         with self._sf() as session:
             rows = session.scalars(select(MerchantRow).order_by(MerchantRow.created_at)).all()
             return [_merchant_to_domain(row) for row in rows]
+
+
+class SqlCredentialStore:
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._sf = session_factory
+
+    def get_by_username(self, username: str) -> MerchantCredential | None:
+        with self._sf() as session:
+            row = session.scalars(
+                select(MerchantCredentialRow).where(MerchantCredentialRow.username == username)
+            ).first()
+            return self._to_domain(row) if row is not None else None
+
+    def get_by_merchant(self, merchant_id: str) -> MerchantCredential | None:
+        with self._sf() as session:
+            row = session.get(MerchantCredentialRow, merchant_id)
+            return self._to_domain(row) if row is not None else None
+
+    def save(self, credential: MerchantCredential) -> None:
+        with self._sf() as session:
+            row = session.get(MerchantCredentialRow, credential.merchant_id)
+            if row is None:
+                row = MerchantCredentialRow(merchant_id=credential.merchant_id)
+                session.add(row)
+            row.username = credential.username
+            row.password_hash = credential.password_hash
+            session.commit()
+
+    @staticmethod
+    def _to_domain(row: MerchantCredentialRow) -> MerchantCredential:
+        return MerchantCredential(
+            merchant_id=row.merchant_id, username=row.username, password_hash=row.password_hash
+        )
+
+
+class SqlSessionStore:
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._sf = session_factory
+
+    def get(self, token_hash: str) -> MerchantSession | None:
+        with self._sf() as session:
+            row = session.get(MerchantSessionRow, token_hash)
+            if row is None:
+                return None
+            return MerchantSession(
+                token_hash=row.token_hash,
+                merchant_id=row.merchant_id,
+                expires_at=row.expires_at,
+            )
+
+    def save(self, merchant_session: MerchantSession) -> None:
+        with self._sf() as session:
+            row = session.get(MerchantSessionRow, merchant_session.token_hash)
+            if row is None:
+                row = MerchantSessionRow(token_hash=merchant_session.token_hash)
+                session.add(row)
+            row.merchant_id = merchant_session.merchant_id
+            row.expires_at = merchant_session.expires_at
+            session.commit()
+
+    def delete(self, token_hash: str) -> None:
+        with self._sf() as session:
+            row = session.get(MerchantSessionRow, token_hash)
+            if row is not None:
+                session.delete(row)
+                session.commit()
 
 
 def _charge_to_domain(row: ChargeRow) -> Charge:

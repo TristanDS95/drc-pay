@@ -1,6 +1,6 @@
 # DRC Pay — Development Log & Handoff
 
-**Last updated:** 2026-07-05 · **Read this first to resume work.**
+**Last updated:** 2026-07-06 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC: merchants accept mobile-money payments across
 networks (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure pass-through**
@@ -34,8 +34,26 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
   scan → locked amount → pick network → pay, confirms live with the fee shown, or an **on-net hand-off**
   (pay the merchant directly on the operator — their till when set, else their number) when same-network.
   **Both web UIs are bilingual: French (default) / English**, via an FR|EN switch persisted per device.
+- **Merchant auth + per-merchant authorization (Gate A) — DONE.** Every merchant signs in with their
+  own account; the merchant API is session-gated in every environment and scoped to the session's
+  merchant. The console has a login screen (demo accounts `alpha`/`beta`/`gamma`, password
+  `<username>-demo`); the shared Basic password now gates only the sandbox demo shell.
 
 ## ▶ NEXT — biggest open rocks (rough priority; confirm the pick before building)
+
+**Merchant authentication + per-merchant authorization — DONE ✅ (2026-07-06).**
+`domains/auth/` (Argon2id password hashing via argon2-cffi; opaque sessions stored as SHA-256 with a
+24h TTL; an in-process login throttle), in-memory + SQL stores (migration `e9b3c5d7f1a2`),
+**`POST /auth/login` / `GET /auth/me` / `POST /auth/logout`**, and a `CurrentMerchant` dependency that
+fences every merchant endpoint to the logged-in merchant (cross-merchant reads 404 — no id oracle; the
+on-net **confirm** is owner-only; `POST /transactions` and `/charges` take the merchant from the
+session, never the body). The two `qr.svg` endpoints stay session-exempt by design (`<img>` can't send
+headers; QR content is public pay info). The shared `DRCPAY_BASIC_AUTH_PASSWORD` gates only the
+sandbox demo shell (console static, docs, `/demo/*`) — production boots without it; **sandbox still
+refuses to boot without one**. Demo logins are seeded (`seed.py`), printed at seed time, and listed by
+sandbox-only `GET /demo/credentials` (the console login screen shows them). Remaining, related:
+rate limiting beyond the login throttle, audit logging, session-store cleanup job (expired rows are
+lazily deleted on resolve) — see the security roadmap.
 
 **French localisation (i18n) — web UIs DONE ✅ (2026-07-05); backend USSD copy remains.**
 Both web UIs (merchant console + customer page, incl. its testing panels) carry an **FR|EN switch**:
@@ -184,7 +202,7 @@ payer page.
   as *awaiting confirmation*, no rail, no money movement; the merchant taps **Confirm received** to mark
   it paid (merchant-attested). No toggle: on-net is always facilitate & record (ADR 0009).
 - **AWS is the eventual production target** (notes in `future-dev.md`); the Docker image is portable. Alembic head:
-  `c3e8f1a9b7d2` (adds `merchants.operator_till`).
+  `e9b3c5d7f1a2` (adds `merchant_credentials` + `merchant_sessions`).
 
 ---
 
@@ -212,6 +230,7 @@ ruff check . && mypy src && pytest                          # all green (offline
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
+# console login (per-merchant auth): alpha / alpha-demo (also beta, gamma — password <username>-demo)
 # live sandbox rail: token in backend/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
 # Postgres: docker compose up -d ; export DRCPAY_DATABASE_URL=… ; alembic upgrade head
 ```

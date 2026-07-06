@@ -12,11 +12,14 @@ from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
 from drc_pay_api.container import Container
 from drc_pay_api.main import create_app
 
+from conftest import as_merchant
+
 from fakes import FakePaymentRail, FakePredictor
 
 
 def _client() -> TestClient:
-    return TestClient(create_app())
+    # Logged in as the demo merchant "alpha" (m_alpha) — the merchant API is session-gated.
+    return as_merchant(TestClient(create_app()))
 
 
 def test_health() -> None:
@@ -73,12 +76,19 @@ def test_settlement_failure_refunds_the_customer() -> None:
     assert "payout_failed" in body["history"]
 
 
-def test_unknown_merchant_returns_404() -> None:
+def test_foreign_merchant_id_is_rejected() -> None:
+    # The session decides who gets paid; a body merchant_id that isn't the logged-in
+    # merchant (unknown or someone else's) is refused outright.
     response = _client().post(
         "/transactions",
         json={"customer_msisdn": "243a", "merchant_id": "does-not-exist", "amount": "10.00"},
     )
-    assert response.status_code == 404
+    assert response.status_code == 403
+    other = _client().post(
+        "/transactions",
+        json={"customer_msisdn": "243a", "merchant_id": "m_beta", "amount": "10.00"},
+    )
+    assert other.status_code == 403
 
 
 def test_unknown_transaction_returns_404() -> None:
@@ -137,7 +147,7 @@ def test_live_rail_leaves_transaction_pending_and_resolves_provider() -> None:
         predictor=FakePredictor("ORANGE_COD"),
         simulated=False,
     )
-    body = TestClient(app).post(
+    body = as_merchant(TestClient(app)).post(
         "/transactions",
         json={"customer_msisdn": "243a", "merchant_id": "m_alpha", "amount": "10.00"},
     ).json()

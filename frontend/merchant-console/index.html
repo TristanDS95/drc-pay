@@ -130,6 +130,25 @@
         font:12.5px/1.6 "SF Mono",Menlo,Consolas,monospace;white-space:pre-wrap;}
   .ussd-screen .con{color:#cfe9da;} .ussd-screen .end{color:#67e0a3;font-weight:600;}
   .ussd-screen .dl{color:#8a98a4;margin-top:8px;}
+  /* merchant session: who's logged in + the login screen */
+  .topbar .who{font-size:13px;font-weight:700;color:#e7edf2;display:flex;align-items:center;gap:8px;}
+  .topbar .who .dot{width:8px;height:8px;border-radius:50%;background:#28c840;}
+  .topbar button.logout{border:1px solid #2b3640;background:#161c22;color:#9aa6b2;border-radius:8px;
+        padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+  .loginwrap{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
+        justify-content:center;z-index:60;padding:20px;}
+  .logincard{background:var(--cream);border-radius:18px;padding:26px;width:100%;max-width:380px;
+        box-shadow:0 12px 40px rgba(0,0,0,.28);}
+  .logincard .lbrand{font-weight:800;font-size:18px;} .logincard .lbrand span{color:var(--coral);}
+  .logincard h3{margin:14px 0 4px;font-size:16px;}
+  .logincard .sub{font-size:12.5px;color:var(--muted);margin:0 0 6px;line-height:1.5;}
+  .logincard .demo{margin-top:16px;border-top:1px solid var(--border);padding-top:12px;}
+  .logincard .demo .cap{font-size:11px;font-weight:600;color:var(--muted);}
+  .logincard .demo .chips{display:flex;gap:8px;margin-top:8px;}
+  .logincard .demo .chips button{flex:1;border:1px solid var(--border);background:var(--surface);
+        border-radius:10px;padding:10px 0;font-size:13px;font-weight:700;color:var(--charcoal);
+        cursor:pointer;}
+  .logincard .demo .chips button:hover{border-color:var(--coral);color:var(--coral-dark);}
 </style>
 </head>
 <body>
@@ -141,10 +160,29 @@
       <button data-l="fr">FR</button>
       <button data-l="en">EN</button>
     </div>
-    <label for="merchant" data-i18n="acting_as">Acting as</label>
-    <select id="merchant"></select>
+    <span class="who hidden" id="whoami"><span class="dot"></span><span id="whoami-name"></span></span>
+    <button class="logout hidden" id="logout" data-i18n="logout">Log out</button>
   </div>
   <div id="err" class="err hidden"></div>
+
+  <!-- merchant login: each merchant signs in with their OWN account (per-merchant auth) -->
+  <div class="loginwrap hidden" id="login">
+    <form class="logincard" id="login-form">
+      <div class="lbrand">DRC <span>Pay</span></div>
+      <h3 data-i18n="login_title">Merchant login</h3>
+      <p class="sub" data-i18n="login_sub">Sign in with your merchant account. You only ever see your own payments.</p>
+      <label class="fld" for="login-user" data-i18n="login_user">Username</label>
+      <input id="login-user" autocomplete="username" autocapitalize="none" />
+      <label class="fld" for="login-pass" data-i18n="login_pass">Password</label>
+      <input id="login-pass" type="password" autocomplete="current-password" />
+      <button class="cta" type="submit" data-i18n="login_btn">Log in</button>
+      <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
+      <div id="login-demo" class="demo hidden">
+        <div class="cap" data-i18n="login_demo">Demo accounts - one click signs you in:</div>
+        <div class="chips" id="login-demo-chips"></div>
+      </div>
+    </form>
+  </div>
 
   <div class="wrap">
     <!-- LEFT: merchant + take payment + safety net + feed -->
@@ -283,8 +321,15 @@
   const STR = {
     en: {
       brand: `DRC <span>Pay</span> - Merchant Console`,
-      acting_as: "Acting as",
-      hero_line: "Pick a merchant above, then create a charge below for a specific amount.",
+      logout: "Log out",
+      login_title: "Merchant login",
+      login_sub: "Sign in with your merchant account. You only ever see your own payments.",
+      login_user: "Username",
+      login_pass: "Password",
+      login_btn: "Log in",
+      login_err: "Invalid username or password.",
+      login_demo: "Demo accounts - one click signs you in:",
+      hero_line: "Your till and settlement details; create a charge below for a specific amount.",
       settles_to: (op, msisdn) => `Settles to ${op} · ${msisdn}`,
       onnet_till: (op, till) => `On-net (same-network): customers pay your ${op} till ${till}`,
       onnet_no_till: (msisdn) => `On-net (same-network): no till set - customers send to ${msisdn}`,
@@ -360,8 +405,15 @@
     },
     fr: {
       brand: `DRC <span>Pay</span> - Console marchand`,
-      acting_as: "Marchand",
-      hero_line: "Choisissez un marchand ci-dessus, puis créez un paiement ci-dessous pour un montant précis.",
+      logout: "Déconnexion",
+      login_title: "Connexion marchand",
+      login_sub: "Connectez-vous avec votre compte marchand. Vous ne voyez que vos propres paiements.",
+      login_user: "Nom d'utilisateur",
+      login_pass: "Mot de passe",
+      login_btn: "Se connecter",
+      login_err: "Nom d'utilisateur ou mot de passe invalide.",
+      login_demo: "Comptes démo - un clic pour se connecter :",
+      hero_line: "Votre till et vos coordonnées de règlement ; créez un paiement ci-dessous pour un montant précis.",
       settles_to: (op, msisdn) => `Règlement vers ${op} · ${msisdn}`,
       onnet_till: (op, till) => `Même réseau (on-net) : les clients paient votre till ${op} ${till}`,
       onnet_no_till: (msisdn) => `Même réseau (on-net) : pas de till - les clients envoient au ${msisdn}`,
@@ -450,7 +502,7 @@
     document.querySelectorAll("[data-i18n-html]").forEach((el) => { el.innerHTML = t()[el.dataset.i18nHtml]; });
     document.querySelectorAll("#langsw button").forEach((b) => b.classList.toggle("on", b.dataset.l === lang));
     if(consoleEmpty) $("cbody").innerHTML = `<div class="empty2">${esc(t().ops_empty)}</div>`;
-    if(merchants.length){ renderMerchant(); renderFeed(); renderPending(); renderOnNet(); }
+    if(me){ renderMerchant(); renderFeed(); renderPending(); renderOnNet(); }
   }
 
   // How a payment's "paid" was established (ADR 0009): pawaPay's signed callback vs the merchant's tap.
@@ -462,18 +514,60 @@
   const NETWORK = { VODACOM_MPESA_COD:"Vodacom M-Pesa", AIRTEL_COD:"Airtel", ORANGE_COD:"Orange" };
   const opName = (code) => NETWORK[code] || code || "-";
 
-  let merchants = [], txns = [];
-  const current = () => merchants.find((m) => m.id === $("merchant").value) || merchants[0];
+  let me = null, txns = [];
+  const current = () => me;
   const showErr = (e) => { $("err").textContent = t().err_api(API, e);
     $("err").classList.remove("hidden"); };
   const clearErr = () => $("err").classList.add("hidden");
 
-  async function jget(path){ const r = await fetch(`${API}${path}`); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+  // ----- merchant session (per-merchant auth) -----
+  // The console talks to the API as ONE logged-in merchant: /auth/login mints an opaque
+  // bearer token (kept in localStorage), every merchant-API call sends it, and a 401
+  // anywhere drops back to the login screen. The old any-merchant picker is gone on
+  // purpose - the server only ever shows a session its own merchant's data.
+  let session = localStorage.getItem("drcpay.session") || "";
+  const authHeaders = () => session ? { authorization: `Bearer ${session}` } : {};
+
+  function showLogin(){
+    session = ""; localStorage.removeItem("drcpay.session"); me = null;
+    $("login").classList.remove("hidden");
+    $("whoami").classList.add("hidden"); $("logout").classList.add("hidden");
+    demoHint();
+  }
+  function hideLogin(){
+    $("login").classList.add("hidden");
+    $("whoami").classList.remove("hidden"); $("logout").classList.remove("hidden");
+  }
+  async function demoHint(){
+    // Sandbox/local convenience: one-click chips for the seeded demo logins. The endpoint
+    // does not exist in production, so the chips never render there. Plain fetch (no Bearer):
+    // /demo is behind the sandbox's Basic gate, which the browser handles itself.
+    try {
+      const r = await fetch(`${API}/demo/credentials`);
+      if(!r.ok) return;
+      const creds = await r.json();
+      $("login-demo-chips").innerHTML = creds.map((c) =>
+        `<button type="button" data-u="${esc(c.username)}" data-p="${esc(c.password)}">${esc(c.username)}</button>`
+      ).join("");
+      $("login-demo-chips").querySelectorAll("button").forEach((b) =>
+        b.addEventListener("click", () => doLogin(b.dataset.u, b.dataset.p)));
+      $("login-demo").classList.remove("hidden");
+    } catch(e){ /* not a demo environment */ }
+  }
+
+  async function jget(path){
+    const r = await fetch(`${API}${path}`, { headers: authHeaders() });
+    if(r.status === 401){ showLogin(); throw new Error("session expired"); }
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
 
   async function boot(){
-    try { merchants = await jget("/merchants"); } catch(e){ showErr(e); return; }
-    clearErr();
-    $("merchant").innerHTML = merchants.map((m)=>`<option value="${esc(m.id)}">${esc(m.name)} (${esc(opName(m.settlement_provider))}) · ${esc(m.ussd_string)}</option>`).join("");
+    if(!session){ showLogin(); return; }
+    try { me = await jget("/auth/me"); }
+    catch(e){ if(!String(e).includes("session expired")) showErr(e); return; }
+    hideLogin(); clearErr();
+    $("whoami-name").textContent = me.name;
     renderMerchant();
     await refresh();
   }
@@ -494,6 +588,7 @@
   }
 
   async function refresh(){
+    if(!me) return;  // logged out - the poll keeps ticking but has nothing to fetch
     try { txns = await jget("/transactions"); } catch(e){ return; }
     clearErr();
     renderFeed(); renderPending(); renderOnNet();
@@ -558,7 +653,8 @@
     clearErr();
     let t2;
     try {
-      const r = await fetch(`${API}/transactions/${id}/confirm?received=${received}`, { method:"POST" });
+      const r = await fetch(`${API}/transactions/${id}/confirm?received=${received}`,
+        { method:"POST", headers: authHeaders() });
       t2 = await r.json();
       if(!r.ok) throw new Error(t2.detail || `HTTP ${r.status}`);
     } catch(e){ showErr(String(e.message||e)); return; }
@@ -581,7 +677,7 @@
     let body;
     try {
       const r = await fetch(`${API}/transactions`, { method:"POST",
-        headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
+        headers:{ "content-type":"application/json", ...authHeaders() }, body: JSON.stringify(payload) });
       body = await r.json();
       if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
     } catch(e){ out.className="out bad"; out.textContent=String(e); out.classList.remove("hidden");
@@ -624,8 +720,9 @@
     $("charge-make").disabled = true;
     let charge;
     try {
-      const r = await fetch(`${API}/charges`, { method:"POST", headers:{ "content-type":"application/json" },
-        body: JSON.stringify({ merchant_id: m.id, amount: $("charge-amt").value.trim() }) });
+      const r = await fetch(`${API}/charges`, { method:"POST",
+        headers:{ "content-type":"application/json", ...authHeaders() },
+        body: JSON.stringify({ amount: $("charge-amt").value.trim() }) });
       charge = await r.json();
       if(!r.ok) throw new Error(charge.detail || `HTTP ${r.status}`);
     } catch(e){ showErr(String(e.message||e)); $("charge-make").disabled=false; return; }
@@ -784,7 +881,33 @@
   }
 
   // ----- wiring -----
-  $("merchant").addEventListener("change", () => { renderMerchant(); renderFeed(); renderPending(); renderOnNet(); });
+  async function doLogin(username, password){
+    $("login-err").classList.add("hidden");
+    let body;
+    try {
+      const r = await fetch(`${API}/auth/login`, { method:"POST",
+        headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ username, password }) });
+      body = await r.json();
+      if(!r.ok) throw new Error();
+    } catch(err){
+      $("login-err").textContent = t().login_err;
+      $("login-err").classList.remove("hidden");
+      return;
+    }
+    session = body.token;
+    localStorage.setItem("drcpay.session", session);
+    $("login-pass").value = "";
+    boot();
+  }
+  $("login-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    doLogin($("login-user").value.trim(), $("login-pass").value);
+  });
+  $("logout").addEventListener("click", async () => {
+    try { await fetch(`${API}/auth/logout`, { method:"POST", headers: authHeaders() }); } catch(e){ /* revoked or unreachable - either way we drop it */ }
+    showLogin();
+  });
   $("pay").addEventListener("click", takePayment);
   $("reconcile").addEventListener("click", runReconcile);
   $("charge-make").addEventListener("click", createCharge);
