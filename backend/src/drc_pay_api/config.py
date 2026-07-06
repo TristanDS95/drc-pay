@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     # (*123*1001#). The real code is assigned by the USSD aggregator/operator — this is a
     # placeholder until it's provisioned.
     ussd_shortcode: str = "*123#"
+    # Menu language for the USSD channel: "fr" (default — the DRC's primary language) or "en".
+    # A deployment-level default, not an in-menu step: every extra step costs completion.
+    ussd_lang: str = "fr"
+    # Shared secret the USSD aggregator must send in X-USSD-Secret. Blank disables the check
+    # (local/sandbox, where the console's dial simulator drives /ussd from the browser);
+    # production REFUSES TO BOOT without it — see create_app.
+    ussd_shared_secret: str = ""
 
     # Hosting (a deployed sandbox demo). When CONSOLE_DIR is set, the app also serves the
     # static Merchant Console from that directory, same-origin with the API. When

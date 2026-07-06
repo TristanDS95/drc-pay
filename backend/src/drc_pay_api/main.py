@@ -26,7 +26,7 @@ from .http.auth_routes import auth_router
 from .http.demo_routes import demo_router
 from .http.merchant_api import merchant_api_router
 from .http.public_routes import public_router
-from .http.ussd_routes import ussd_router
+from .http.ussd_routes import SlidingWindowLimiter, ussd_router
 from .http.webhook_routes import webhook_router
 from .jobs.reconciliation.sweep import run_reconciliation
 from .ussd.session import UssdHandler
@@ -108,6 +108,15 @@ def create_app() -> FastAPI:
             "the hosted demo shell (console, docs, demo endpoints) would be public. Set a "
             "password, or use DRCPAY_ENVIRONMENT=local for ungated local dev."
         )
+    # /ussd initiates real payment prompts and is necessarily public to the aggregator; in
+    # production it must be locked to that aggregator (security roadmap, Gate A). Fail-fast
+    # like the DB and sandbox-password guards. Local/sandbox stay open so the console's dial
+    # simulator works.
+    if settings.environment == "production" and not settings.ussd_shared_secret:
+        raise RuntimeError(
+            "No DRCPAY_USSD_SHARED_SECRET set in environment 'production'. Refusing to start: "
+            "/ussd would accept payment prompts from anyone. Set the aggregator's shared secret."
+        )
 
     app = FastAPI(title="DRC Pay — Merchant Acquiring API", version="0.0.1", lifespan=_lifespan)
 
@@ -153,8 +162,11 @@ def create_app() -> FastAPI:
     # On a live rail with no statically-set key, fetch pawaPay's callback-verification public
     # key from their API now (best-effort; a no-op on the simulator, so tests stay offline).
     app.state.container.ensure_callback_public_key()
-    # The USSD channel is another thin caller into the same container/orchestrator.
-    app.state.ussd_handler = UssdHandler(app.state.container)
+    # The USSD channel is another thin caller into the same container/orchestrator. Menus
+    # default to French (DRCPAY_USSD_LANG); the per-msisdn rate limiter lives on app.state
+    # so tests get a fresh one per app.
+    app.state.ussd_handler = UssdHandler(app.state.container, lang=settings.ussd_lang)
+    app.state.ussd_limiter = SlidingWindowLimiter()
     app.include_router(auth_router)
     app.include_router(merchant_api_router)
     app.include_router(ussd_router)

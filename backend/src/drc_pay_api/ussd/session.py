@@ -3,28 +3,90 @@
 The customer dials our shortcode (or **scans a QR that pre-fills it**) and pays by giving
 the merchant's till and an amount. USSD aggregators (Africa's Talking, Infobip, …) manage
 the session on their side and deliver the user's **full accumulated input** on every step
-(`text = "1001*10*1"`). So we parse that text positionally — `till * amount * choice` —
-and hold no server-side session of our own.
+(`text = "1001*10*1"`). So we re-interpret that text positionally on every request —
+`till * amount * choice` — and hold no server-side session of our own.
+
+**Retries are part of the flow**: a mistyped till or amount re-prompts (CON) instead of
+killing the session, and the parser simply skips the invalid entries when re-reading the
+accumulated text. Three misses on any one field ends the session — a brake against menu
+fuzzing and endless sessions, matching how operator menus behave.
 
 A QR / dial-through is simply a session whose text **starts** pre-filled: `*123*1001#`
 arrives as `text="1001"` (jump to the amount), `*123*1001*10#` as `text="1001*10"` (jump
 straight to Confirm). Same handler, no special case.
 
+**Menus are French by default** (the DRC's primary language; `DRCPAY_USSD_LANG=en` flips
+the deployment). No in-menu language step: every extra step costs completion on USSD.
+Replies stay well under the ~180-char USSD ceiling.
+
 On confirmation we drive the **same** Orchestrator as the HTTP API via
-`application.start_merchant_payment` — the money logic is never reimplemented. Adapting a
-specific aggregator's wire format (form fields, field names) is a thin concern at the
-`/ussd` HTTP boundary; this handler is provider-neutral and offline-testable.
+`application.start_merchant_payment` — the money logic is never reimplemented. Same-network
+payments route on-net (ADR 0009): nothing is initiated, and the closing message tells the
+customer to pay the merchant's till (or number) directly. Adapting a specific aggregator's
+wire format is a thin concern at the `/ussd` HTTP boundary (which also owns the shared
+secret + rate limit); this handler is provider-neutral and offline-testable.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from ..application.payments import start_merchant_payment
+from ..container import Container
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
-from ..container import Container
+from ..domains.transactions.models import MERCHANT_ATTESTED
 
 _CURRENCY = "USD"  # MVP: the USSD flow is single-currency for now
+_MAX_AMOUNT = Money.from_major("10000", _CURRENCY)  # fat-finger guard, not a business rule
+_MAX_ATTEMPTS = 3  # per field; the aggregator's own session timeout is the other backstop
+
+# Every customer-facing string, per language. French first — it is the default.
+_STRINGS: dict[str, dict[str, str]] = {
+    "fr": {
+        "ask_till": "Entrez le code du till marchand :",
+        "bad_till": "Till inconnu. Entrez le code du till marchand :",
+        "ask_amount": "Payer {name}\nEntrez le montant ({cur}) :",
+        "bad_amount": "Montant invalide (0 a {max} {cur}). Entrez le montant :",
+        "confirm": "Payer {amount} {cur} a {name} ?\n1. Confirmer\n2. Annuler",
+        "cancelled": "Annule. Aucun paiement effectue.",
+        "too_many": "Trop de tentatives. Veuillez recomposer.",
+        "routed_done": (
+            "Paiement de {amount} {cur} a {name} initie. Confirmez avec votre PIN "
+            "mobile money sur votre telephone."
+        ),
+        "onnet_till_done": (
+            "Payez {amount} {cur} a {name} directement : till {till} sur votre reseau. "
+            "Le marchand confirme a reception."
+        ),
+        "onnet_msisdn_done": (
+            "Payez {amount} {cur} a {name} directement au {msisdn} sur votre reseau. "
+            "Le marchand confirme a reception."
+        ),
+    },
+    "en": {
+        "ask_till": "Enter merchant till code:",
+        "bad_till": "Unknown till. Enter merchant till code:",
+        "ask_amount": "Pay {name}\nEnter amount ({cur}):",
+        "bad_amount": "Invalid amount (0 to {max} {cur}). Enter amount:",
+        "confirm": "Pay {amount} {cur} to {name}?\n1. Confirm\n2. Cancel",
+        "cancelled": "Cancelled. No payment made.",
+        "too_many": "Too many attempts. Please dial again.",
+        "routed_done": (
+            "Payment of {amount} {cur} to {name} initiated. Approve with your mobile "
+            "money PIN on your phone."
+        ),
+        "onnet_till_done": (
+            "Pay {amount} {cur} to {name} directly: till {till} on your network. "
+            "The merchant confirms on receipt."
+        ),
+        "onnet_msisdn_done": (
+            "Pay {amount} {cur} to {name} directly to {msisdn} on your network. "
+            "The merchant confirms on receipt."
+        ),
+    },
+}
+# NOTE: deliberately ASCII-only (no accents). GSM-7 USSD transports mangle characters
+# outside the basic set on some feature phones; "Annule" always renders, "Annulé" may not.
 
 
 @dataclass
@@ -53,59 +115,111 @@ class UssdResponse:
 
 
 class UssdHandler:
-    """Derives the step from the `*`-joined text and, on confirm, starts the payment:
+    """Re-reads the ``*``-joined text as ``till * amount * choice``, skipping invalid
+    entries (each miss was already re-prompted on a previous step):
 
     ``""``            → ask for the till
     ``till``          → resolve the merchant, ask for the amount
     ``till*amount``   → ask to confirm
-    ``till*amount*1`` → confirm → start the payment
+    ``till*amount*1`` → confirm → start the payment (routed or on-net)
     ``till*amount*2`` → cancel
     """
 
-    def __init__(self, container: Container) -> None:
+    def __init__(self, container: Container, lang: str = "fr") -> None:
         self._container = container
+        self._s = _STRINGS.get(lang, _STRINGS["fr"])
+
+    def _msg(self, key: str, **kwargs: str) -> str:
+        return self._s[key].format(cur=_CURRENCY, max=_MAX_AMOUNT.to_major_str(), **kwargs)
 
     def handle(self, request: UssdRequest) -> UssdResponse:
         parts = [p for p in request.text.split("*") if p]
-        if not parts:
-            return UssdResponse.con("Enter merchant till code:")
+        idx = 0
 
-        merchant = self._container.merchants.get_by_short_code(parts[0])
-        if merchant is None or not merchant.is_active:
-            return UssdResponse.end("Merchant not found.")
-        if len(parts) == 1:
-            return UssdResponse.con(f"Pay {merchant.name}\nEnter amount ({_CURRENCY}):")
+        # --- till: consume parts until one resolves to an active merchant ---------------
+        merchant: Merchant | None = None
+        misses = 0
+        while idx < len(parts):
+            candidate = self._container.merchants.get_by_short_code(parts[idx])
+            idx += 1
+            if candidate is not None and candidate.is_active:
+                merchant = candidate
+                break
+            misses += 1
+            if misses >= _MAX_ATTEMPTS:
+                return UssdResponse.end(self._msg("too_many"))
+        if merchant is None:
+            return UssdResponse.con(self._msg("bad_till" if misses else "ask_till"))
 
-        amount = _parse_amount(parts[1])
+        # --- amount: same retry pattern ---------------------------------------------------
+        amount: Money | None = None
+        misses = 0
+        while idx < len(parts):
+            candidate_amount = _parse_amount(parts[idx])
+            idx += 1
+            if candidate_amount is not None:
+                amount = candidate_amount
+                break
+            misses += 1
+            if misses >= _MAX_ATTEMPTS:
+                return UssdResponse.end(self._msg("too_many"))
         if amount is None:
-            return UssdResponse.end("Invalid amount. Please dial again.")
-        if len(parts) == 2:
-            return UssdResponse.con(
-                f"Pay {amount.to_major_str()} {_CURRENCY} to {merchant.name}?\n1. Confirm\n2. Cancel"
-            )
+            key = "bad_amount" if misses else "ask_amount"
+            return UssdResponse.con(self._msg(key, name=merchant.name))
 
-        choice = parts[2]
-        if choice == "2":
-            return UssdResponse.end("Cancelled.")
-        if choice != "1":
-            return UssdResponse.end("Invalid choice. Please dial again.")
-        self._start_payment(request.session_id, request.msisdn, merchant, amount)
+        # --- confirm / cancel --------------------------------------------------------------
+        confirmed: bool | None = None
+        misses = 0
+        while idx < len(parts):
+            choice = parts[idx]
+            idx += 1
+            if choice == "1":
+                confirmed = True
+                break
+            if choice == "2":
+                confirmed = False
+                break
+            misses += 1
+            if misses >= _MAX_ATTEMPTS:
+                return UssdResponse.end(self._msg("too_many"))
+        if confirmed is None:  # first ask, or re-ask after an invalid choice
+            return UssdResponse.con(
+                self._msg("confirm", amount=amount.to_major_str(), name=merchant.name)
+            )
+        if not confirmed:
+            return UssdResponse.end(self._msg("cancelled"))
+
+        on_net = self._start_payment(request.session_id, request.msisdn, merchant, amount)
+        amount_str = amount.to_major_str()
+        if on_net:
+            # Same-network (ADR 0009): we moved nothing — the customer pays the merchant
+            # directly on the operator's own rail; the merchant confirms receipt.
+            if merchant.operator_till:
+                return UssdResponse.end(
+                    self._msg("onnet_till_done", amount=amount_str, name=merchant.name,
+                              till=merchant.operator_till)
+                )
+            return UssdResponse.end(
+                self._msg("onnet_msisdn_done", amount=amount_str, name=merchant.name,
+                          msisdn=merchant.settlement_msisdn)
+            )
         return UssdResponse.end(
-            f"Payment of {amount.to_major_str()} {_CURRENCY} to {merchant.name} "
-            "initiated. Approve on your phone."
+            self._msg("routed_done", amount=amount_str, name=merchant.name)
         )
 
     def _start_payment(
         self, session_id: str, customer_msisdn: str, merchant: Merchant, amount: Money
-    ) -> None:
+    ) -> bool:
+        """Start (or idempotently find) the payment; True when it routed on-net."""
         # Idempotency (CLAUDE.md: every money-moving request carries a key). Aggregators resend the
         # confirm step on timeout, and an unauthenticated caller could replay it — either way, keying
         # on (session, till, amount) makes the retry return the original transaction, never a second
         # collection. The session id is stable across one dial's steps.
         key = f"ussd:{session_id}:{merchant.short_code}:{amount.amount_minor}"
-        if self._container.store.find_by_idempotency_key(key) is not None:
-            return  # this session already initiated this payment — no double charge
-        start_merchant_payment(
+        existing = self._container.store.find_by_idempotency_key(key)
+        if existing is not None:  # this session already initiated this payment — no double charge
+            return existing.provenance == MERCHANT_ATTESTED
+        transaction_id = start_merchant_payment(
             store=self._container.store,
             ledger=self._container.ledger,
             rail=self._container.rail,
@@ -116,14 +230,19 @@ class UssdHandler:
             amount=amount,
             idempotency_key=key,
         )
+        return self._container.store.get(transaction_id).provenance == MERCHANT_ATTESTED
 
 
 def _parse_amount(text: str) -> Money | None:
+    """A positive amount within the sanity cap. Accepts a comma decimal separator —
+    what a francophone feature-phone user naturally types."""
     try:
-        amount = Money.from_major(text, _CURRENCY)
+        amount = Money.from_major(text.replace(",", "."), _CURRENCY)
     except (ValueError, ArithmeticError):
         return None
-    return amount if amount.is_positive else None
+    if not amount.is_positive or amount.amount_minor > _MAX_AMOUNT.amount_minor:
+        return None
+    return amount
 
 
 def run_session(
