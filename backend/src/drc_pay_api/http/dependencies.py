@@ -25,28 +25,8 @@ def get_container(request: Request) -> Container:
 ContainerDep = Annotated[Container, Depends(get_container)]
 
 
-def session_token(x_session_token: str, authorization: str) -> str:
-    """The session token from a request, from either carrier:
-
-    - ``X-Session-Token`` — the PRIMARY carrier, and the one the console uses. It exists
-      because of a WebKit behavior: once a browser holds cached HTTP **Basic** credentials
-      for an origin (the sandbox's demo-shell gate), Safari REPLACES any custom
-      ``Authorization`` header on same-origin fetches with those Basic credentials — the
-      Bearer token never reaches the server and every login appears to silently fail.
-      A custom header is untouchable by that mechanism.
-    - ``Authorization: Bearer`` — kept for API clients and curl, where no Basic
-      credentials interfere.
-    """
-    if x_session_token:
-        return x_session_token
-    if authorization.startswith("Bearer "):
-        return authorization[len("Bearer "):]
-    return ""
-
-
 def get_current_merchant(
     container: ContainerDep,
-    x_session_token: Annotated[str, Header()] = "",
     authorization: Annotated[str, Header()] = "",
 ) -> Merchant:
     """The merchant behind the request's session token — the authentication AND the
@@ -54,10 +34,9 @@ def get_current_merchant(
     returned merchant. 401 (never 403) on any failure, without distinguishing missing /
     invalid / expired, so the response leaks nothing about token validity."""
     challenge = {"WWW-Authenticate": "Bearer"}
-    token = session_token(x_session_token, authorization)
-    if not token:
+    if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="merchant login required", headers=challenge)
-    merchant_id = container.auth.resolve(token)
+    merchant_id = container.auth.resolve(authorization[len("Bearer "):])
     if merchant_id is None:
         raise HTTPException(
             status_code=401, detail="session invalid or expired", headers=challenge

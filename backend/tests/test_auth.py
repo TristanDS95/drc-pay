@@ -54,25 +54,6 @@ def test_logout_revokes_the_session() -> None:
     assert client.get("/auth/me").status_code == 401  # same token no longer works
 
 
-def test_x_session_token_is_the_primary_carrier() -> None:
-    # The console sends the session in X-Session-Token because Safari REPLACES custom
-    # Authorization headers with the cached Basic credentials of the sandbox demo gate.
-    client = _client()
-    token = client.post(
-        "/auth/login", json={"username": "gamma", "password": "gamma-demo"}
-    ).json()["token"]
-    assert client.get("/auth/me", headers={"X-Session-Token": token}).status_code == 200
-    # The Safari situation itself: our header present AND a Basic Authorization header
-    # injected by the browser. The session must still resolve.
-    safari = {"X-Session-Token": token, "Authorization": "Basic ZHJjcGF5OnNlc2FtZQ=="}
-    me = client.get("/auth/me", headers=safari)
-    assert me.status_code == 200 and me.json()["id"] == "m_gamma"
-    assert client.get("/transactions", headers=safari).status_code == 200
-    # Logout works through the same carrier and actually revokes.
-    assert client.post("/auth/logout", headers=safari).status_code == 200
-    assert client.get("/auth/me", headers=safari).status_code == 401
-
-
 def test_garbage_and_missing_tokens_are_401() -> None:
     client = _client()
     assert client.get("/auth/me").status_code == 401

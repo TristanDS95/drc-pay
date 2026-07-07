@@ -13,7 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
-from .dependencies import ContainerDep, CurrentMerchant, session_token
+from .dependencies import ContainerDep, CurrentMerchant
 from .merchant_api import merchant_profile
 from .schemas import MerchantResponse
 
@@ -49,13 +49,10 @@ def me(merchant: CurrentMerchant, container: ContainerDep) -> MerchantResponse:
 @auth_router.post("/auth/logout")
 def logout(
     container: ContainerDep,
-    x_session_token: Annotated[str, Header()] = "",
     authorization: Annotated[str, Header()] = "",
 ) -> dict[str, str]:
-    """Revoke the presented session (either carrier — see ``session_token``). Idempotent: an
-    unknown/expired token is still a 200 — the caller's goal (this token no longer works) is
-    met either way."""
-    token = session_token(x_session_token, authorization)
-    if token:
-        container.auth.logout(token)
+    """Revoke the presented session. Idempotent: an unknown/expired token is still a 200 —
+    the caller's goal (this token no longer works) is met either way."""
+    if authorization.startswith("Bearer "):
+        container.auth.logout(authorization[len("Bearer "):])
     return {"status": "logged_out"}

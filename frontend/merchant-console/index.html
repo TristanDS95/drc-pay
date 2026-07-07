@@ -534,9 +534,7 @@
   // anywhere drops back to the login screen. The old any-merchant picker is gone on
   // purpose - the server only ever shows a session its own merchant's data.
   let session = store.get("drcpay.session") || "";
-  // x-session-token, NOT Authorization: Safari replaces custom Authorization headers with
-  // the cached Basic credentials of the demo-shell gate - the token would never arrive.
-  const authHeaders = () => session ? { "x-session-token": session } : {};
+  const authHeaders = () => session ? { authorization: `Bearer ${session}` } : {};
 
   function showLogin(){
     session = ""; store.del("drcpay.session"); me = null;
