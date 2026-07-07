@@ -91,16 +91,19 @@ def test_login_throttle_locks_after_repeated_failures() -> None:
 
 
 def test_passwords_and_tokens_are_never_stored_in_plaintext() -> None:
+    # The canary password must be long enough that it cannot appear BY CHANCE inside the
+    # hash's ~90 chars of random base64 (a 2-char canary flaked in CI at ~1-in-50 odds).
+    password = "plaintext-canary-hunter2-battery-staple"
     credentials = InMemoryCredentialStore()
     credentials.save(
-        MerchantCredential(merchant_id="m_x", username="x", password_hash=hash_password("pw"))
+        MerchantCredential(merchant_id="m_x", username="x", password_hash=hash_password(password))
     )
     sessions = InMemorySessionStore()
     service = AuthService(credentials, sessions)
-    token = service.login("x", "pw")
+    token = service.login("x", password)
     assert token is not None
     stored_credential = credentials.get_by_username("x")
-    assert stored_credential is not None and "pw" not in stored_credential.password_hash
+    assert stored_credential is not None and password not in stored_credential.password_hash
     assert stored_credential.password_hash.startswith("$argon2id$")
     assert token not in sessions._rows  # keyed by hash, not by the token itself
 
