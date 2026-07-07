@@ -169,18 +169,18 @@
 
   <!-- merchant login: each merchant signs in with their OWN account (per-merchant auth) -->
   <div class="loginwrap hidden" id="login">
-    <form class="logincard" id="login-form" method="post" action="/auth/login-form">
+    <form class="logincard" id="login-form">
       <div class="lbrand">DRC <span>Pay</span></div>
       <h3 data-i18n="login_title">Merchant login</h3>
       <p class="sub" data-i18n="login_sub">Sign in with your merchant account. You only ever see your own payments.</p>
       <label class="fld" for="login-user" data-i18n="login_user">Username</label>
-      <input id="login-user" name="username" autocomplete="username" autocapitalize="none" />
+      <input id="login-user" autocomplete="username" autocapitalize="none" />
       <label class="fld" for="login-pass" data-i18n="login_pass">Password</label>
-      <input id="login-pass" name="password" type="password" autocomplete="current-password" />
+      <input id="login-pass" type="password" autocomplete="current-password" />
       <button class="cta" type="submit" data-i18n="login_btn">Log in</button>
       <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
       <!-- bump per console change: makes "which version is my browser running?" answerable -->
-      <div class="ver">build 2026-07-07c</div>
+      <div class="ver">build 2026-07-07b</div>
       <div id="login-demo" class="demo hidden">
         <div class="cap" data-i18n="login_demo">Demo accounts - one click signs you in:</div>
         <div class="chips" id="login-demo-chips"></div>
@@ -593,13 +593,8 @@
   }
 
   async function boot(){
-    crumb("boot: js token:", !!session, "(the HttpOnly session cookie rides along regardless)");
-    if(new URLSearchParams(location.search).get("login") === "failed"){
-      history.replaceState(null, "", location.pathname);   // clean the URL, then say why
-      showLogin();
-      loginErr(t().login_err);
-      return;
-    }
+    crumb("boot: session present:", !!session);
+    if(!session){ showLogin(); return; }
     try { me = await jget("/auth/me"); }
     catch(e){
       crumb("boot: /auth/me failed:", String(e));
