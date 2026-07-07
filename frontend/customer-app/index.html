@@ -248,8 +248,7 @@ Réseau de versement du marchand = le marchand que vous ouvrez :
       powered: "DRC Pay · payez avec votre mobile money · test sandbox",
     },
   };
-  let lang = null;
-  try { lang = localStorage.getItem("drcpay.lang"); } catch(e){ /* storage blocked - default applies */ }
+  let lang = localStorage.getItem("drcpay.lang");
   if(lang !== "en" && lang !== "fr") lang = "fr";
   const t = () => STR[lang];
 
@@ -262,7 +261,7 @@ Réseau de versement du marchand = le marchand que vous ouvrez :
   document.querySelectorAll("#langsw button").forEach((b)=>b.addEventListener("click",()=>{
     if(b.dataset.l === lang) return;
     lang = b.dataset.l;
-    try { localStorage.setItem("drcpay.lang", lang); } catch(e){ /* tab-lifetime only */ }
+    localStorage.setItem("drcpay.lang", lang);
     applyLang();
   }));
 

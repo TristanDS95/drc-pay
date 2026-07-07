@@ -51,10 +51,7 @@ session, never the body). The two `qr.svg` endpoints stay session-exempt by desi
 headers; QR content is public pay info). The shared `DRCPAY_BASIC_AUTH_PASSWORD` gates only the
 sandbox demo shell (console static, docs, `/demo/*`) — production boots without it; **sandbox still
 refuses to boot without one**. Demo logins are seeded (`seed.py`), printed at seed time, and listed by
-sandbox-only `GET /demo/credentials` (the console login screen shows them). Sessions ride an
-**HttpOnly SameSite=Strict cookie** as the primary carrier (browser-attached - immune to header
-rewriting/extensions; the login form also works as a plain HTML form with zero JS), with
-`X-Session-Token` / `Authorization: Bearer` kept for API clients. Remaining, related:
+sandbox-only `GET /demo/credentials` (the console login screen shows them). Remaining, related:
 rate limiting beyond the login throttle, audit logging, session-store cleanup job (expired rows are
 lazily deleted on resolve) — see the security roadmap.
 

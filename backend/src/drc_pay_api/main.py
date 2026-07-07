@@ -38,13 +38,7 @@ from .ussd.session import UssdHandler
 #   - customer-facing paths (a customer who scans a QR has no login),
 #   - the merchant API + /auth (each merchant authenticates with their OWN session — a shared
 #     password would have to be handed to every merchant, defeating per-merchant auth).
-#   - /demo/credentials: the login page's demo chips fetch it in the background, and some
-#     browsers (Safari) don't attach cached Basic credentials to fetch() — the chips would
-#     silently vanish on the hosted sandbox. Exempting it gives up nothing: the demo logins
-#     are deterministic, documented in the README, and /auth/login is public anyway — the
-#     list reveals nothing an outsider can't already use. (It still 404s in production;
-#     /demo/reconcile and the rest of the demo shell stay gated.)
-_AUTH_EXEMPT = {"/health", "/demo/credentials"}
+_AUTH_EXEMPT = {"/health"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
 _PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
 _SESSION_GATED_PREFIXES = ("/auth", "/transactions", "/merchants", "/charges")
@@ -125,24 +119,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # Cache discipline. StaticFiles sends no Cache-Control, so browsers heuristically cache
-    # the console/customer pages — Safari kept serving OLD page code across reloads, making
-    # every frontend fix invisible until caches were manually cleared. ``no-cache`` = store
-    # but ALWAYS revalidate (ETag/304 keeps it cheap); a plain reload is then guaranteed to
-    # run the deployed code. The session-gated API gets ``no-store``: auth responses must
-    # never be replayed from a cache.
-    @app.middleware("http")
-    async def _cache_discipline(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        response = await call_next(request)
-        path = request.url.path
-        if path.startswith(_SESSION_GATED_PREFIXES) or path == "/demo/credentials":
-            response.headers["Cache-Control"] = "no-store"
-        elif path == "/" or path.startswith(("/console", "/customer")):
-            response.headers["Cache-Control"] = "no-cache"
-        return response
 
     # Optional shared-password gate for the hosted sandbox demo SHELL. Off when no password is
     # set (local dev / tests / production). Exempts the webhook + health + customer paths, the
