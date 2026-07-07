@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, Request
+from fastapi import Cookie, Depends, Header, HTTPException, Request
 
 from ..container import Container
 from ..domains.merchants.models import Merchant
@@ -28,15 +28,29 @@ ContainerDep = Annotated[Container, Depends(get_container)]
 def get_current_merchant(
     container: ContainerDep,
     authorization: Annotated[str, Header()] = "",
+    drcpay_session: Annotated[str, Cookie()] = "",
 ) -> Merchant:
-    """The merchant behind the request's session token — the authentication AND the
+    """The merchant behind the request's session — the authentication AND the
     authorization anchor: every merchant endpoint takes this and fences its data to the
     returned merchant. 401 (never 403) on any failure, without distinguishing missing /
-    invalid / expired, so the response leaks nothing about token validity."""
+    invalid / expired, so the response leaks nothing about token validity.
+
+    Two session carriers, browser first:
+    - the ``drcpay_session`` **HttpOnly cookie** — what the console relies on. The browser
+      attaches it by itself, on EVERY page version: no JavaScript, no custom headers,
+      nothing a browser quirk, an extension, or a stale cached page can break. (Hard-won:
+      Safari replaces custom Authorization headers with cached HTTP Basic credentials from
+      the sandbox demo gate, and browsers ran heuristically-cached old console code whose
+      header protocol no longer matched the server.)
+    - ``Authorization: Bearer`` — for curl and API clients, free of those quirks.
+    """
     challenge = {"WWW-Authenticate": "Bearer"}
-    if not authorization.startswith("Bearer "):
+    token = (
+        authorization[len("Bearer "):] if authorization.startswith("Bearer ") else drcpay_session
+    )
+    if not token:
         raise HTTPException(status_code=401, detail="merchant login required", headers=challenge)
-    merchant_id = container.auth.resolve(authorization[len("Bearer "):])
+    merchant_id = container.auth.resolve(token)
     if merchant_id is None:
         raise HTTPException(
             status_code=401, detail="session invalid or expired", headers=challenge

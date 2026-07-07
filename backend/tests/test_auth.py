@@ -54,6 +54,52 @@ def test_logout_revokes_the_session() -> None:
     assert client.get("/auth/me").status_code == 401  # same token no longer works
 
 
+def test_login_sets_an_httponly_strict_cookie_that_authenticates_alone() -> None:
+    # The cookie is the console's primary carrier: attached by the browser itself, on every
+    # page version - immune to header rewriting, script blocking, and stale cached pages.
+    client = _client()
+    r = client.post("/auth/login", json={"username": "alpha", "password": "alpha-demo"})
+    set_cookie = r.headers.get("set-cookie", "").lower()
+    assert "drcpay_session=" in set_cookie
+    assert "httponly" in set_cookie
+    assert "samesite=strict" in set_cookie  # cross-site pages can never ride the session
+    # No Authorization header at all: the cookie alone authenticates.
+    assert client.get("/auth/me").json()["id"] == "m_alpha"
+    assert client.get("/transactions").status_code == 200
+
+
+def test_native_form_login_works_with_zero_javascript() -> None:
+    # The plain HTML form path: urlencoded POST -> cookie + 303 redirect. Exists so login
+    # cannot depend on anything a browser quirk or extension can interfere with.
+    client = _client()
+    ok = client.post(
+        "/auth/login-form",
+        content="username=gamma&password=gamma-demo",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+    assert ok.status_code == 303 and ok.headers["location"] == "/console/"
+    assert "drcpay_session=" in ok.headers.get("set-cookie", "")
+    assert client.get("/auth/me").json()["id"] == "m_gamma"
+
+    bad = client.post(
+        "/auth/login-form",
+        content="username=gamma&password=wrong",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+        follow_redirects=False,
+    )
+    assert bad.status_code == 303 and "login=failed" in bad.headers["location"]
+    assert "drcpay_session=" not in (bad.headers.get("set-cookie") or "")
+
+
+def test_logout_revokes_and_clears_the_cookie_session() -> None:
+    client = _client()
+    client.post("/auth/login", json={"username": "alpha", "password": "alpha-demo"})
+    assert client.get("/auth/me").status_code == 200  # cookie-only
+    client.post("/auth/logout")  # the cookie identifies which session to revoke
+    assert client.get("/auth/me").status_code == 401  # revoked server-side AND cookie cleared
+
+
 def test_garbage_and_missing_tokens_are_401() -> None:
     client = _client()
     assert client.get("/auth/me").status_code == 401

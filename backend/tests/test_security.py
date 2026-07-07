@@ -54,6 +54,25 @@ def test_password_gates_the_demo_shell_not_the_merchant_api(monkeypatch) -> None
     assert as_merchant(client).get("/transactions").status_code == 200  # no Basic needed
 
 
+def test_demo_credentials_exempt_but_demo_shell_gated(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    # The login page's chips fetch /demo/credentials in the background; some browsers don't
+    # attach Basic credentials to fetch(). Exempting it reveals nothing an outsider can't
+    # already use (public /auth/login + documented demo passwords). Reconcile stays gated.
+    monkeypatch.setattr(config.settings, "basic_auth_password", "sesame")
+    client = TestClient(create_app())
+    assert client.get("/demo/credentials").status_code == 200
+    assert client.post("/demo/reconcile").status_code == 401
+
+
+def test_cache_discipline_headers() -> None:
+    # Browsers heuristically cached the console page and kept running OLD code across
+    # reloads - stale pages spoke a header protocol the server no longer had. The HTML
+    # shell must always revalidate; auth/API responses must never be cached at all.
+    client = as_merchant(TestClient(create_app()))
+    assert client.get("/transactions").headers.get("cache-control") == "no-store"
+    assert client.get("/auth/me").headers.get("cache-control") == "no-store"
+
+
 def test_sandbox_refuses_to_boot_without_a_password(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # The sandbox's demo shell is meant to be gated, and the Basic gate fails OPEN when no
     # password is set — so a sandbox without one must refuse to start. (Production instead
