@@ -117,7 +117,11 @@
   table.led td{padding:5px 6px;border-bottom:1px solid var(--border);}
   table.led td.dr{color:var(--bad);} table.led td.cr{color:var(--ok);} table.led .num{text-align:right;font-weight:700;}
   .err{color:#ffb3ab;font-size:12.5px;padding:6px 22px;background:#2a1310;}
-  .hidden{display:none;}
+  /* !important so this utility ALWAYS wins: the login overlay is `.loginwrap.hidden`, and
+     `.loginwrap{display:flex}` is defined later with equal specificity - without !important
+     it overrode `.hidden`, leaving the overlay covering a fully-logged-in console (the
+     "login succeeds but nothing happens" bug). Utility hide classes must be authoritative. */
+  .hidden{display:none !important;}
   .sectlabel{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin:14px 0 4px;}
   /* feature-phone / USSD card */
   .ussd{border:1.5px solid #cdddf0;background:#f6f9fd;}
