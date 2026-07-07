@@ -8,6 +8,8 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
 # Node / Expo / React Native
 node_modules/

@@ -41,12 +41,6 @@ class InMemoryCredentialStore:
     def get_by_username(self, username: str) -> MerchantCredential | None:
         return self._rows.get(username)
 
-    def get_by_merchant(self, merchant_id: str) -> MerchantCredential | None:
-        for credential in self._rows.values():
-            if credential.merchant_id == merchant_id:
-                return credential
-        return None
-
     def save(self, credential: MerchantCredential) -> None:
         self._rows[credential.username] = credential
 

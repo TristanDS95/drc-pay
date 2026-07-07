@@ -243,17 +243,3 @@ def _parse_amount(text: str) -> Money | None:
     if not amount.is_positive or amount.amount_minor > _MAX_AMOUNT.amount_minor:
         return None
     return amount
-
-
-def run_session(
-    handler: UssdHandler, session_id: str, msisdn: str, inputs: list[str]
-) -> list[UssdResponse]:
-    """Simulate an aggregator driving a whole conversation: the initial dial, then each
-    input — sending the **accumulated** text each step, as real aggregators do. Returns
-    every response (the last is the terminal END)."""
-    responses = [handler.handle(UssdRequest(session_id, msisdn, ""))]
-    accumulated: list[str] = []
-    for value in inputs:
-        accumulated.append(value)
-        responses.append(handler.handle(UssdRequest(session_id, msisdn, "*".join(accumulated))))
-    return responses

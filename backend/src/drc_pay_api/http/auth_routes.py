@@ -69,7 +69,8 @@ def login(
     if token is None:  # unknown user, wrong password, or throttled — indistinguishable
         raise HTTPException(status_code=401, detail="invalid username or password")
     credential = container.credentials.get_by_username(body.username)
-    assert credential is not None  # login just verified it
+    if credential is None:  # deleted between verify and fetch - treat as a failed login
+        raise HTTPException(status_code=401, detail="invalid username or password")
     _set_session_cookie(response, token, secure=request.url.scheme == "https")
     return LoginResponse(token=token, merchant=merchant_profile(container, credential.merchant_id))
 

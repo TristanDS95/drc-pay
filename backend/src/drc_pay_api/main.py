@@ -166,11 +166,13 @@ def create_app() -> FastAPI:
             and not path.startswith(_PUBLIC_PREFIXES)
             and not path.startswith(_SESSION_GATED_PREFIXES)
         )
-        if password and request.method != "OPTIONS" and gated:
-            if not _basic_auth_ok(request.headers.get("authorization", ""), password):
-                return Response(
-                    status_code=401, headers={"WWW-Authenticate": 'Basic realm="DRC Pay"'}
-                )
+        if (
+            password
+            and request.method != "OPTIONS"
+            and gated
+            and not _basic_auth_ok(request.headers.get("authorization", ""), password)
+        ):
+            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="DRC Pay"'})
         return await call_next(request)
 
     app.state.container = build_container(

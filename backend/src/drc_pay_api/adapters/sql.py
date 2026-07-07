@@ -346,11 +346,6 @@ class SqlCredentialStore:
             ).first()
             return self._to_domain(row) if row is not None else None
 
-    def get_by_merchant(self, merchant_id: str) -> MerchantCredential | None:
-        with self._sf() as session:
-            row = session.get(MerchantCredentialRow, merchant_id)
-            return self._to_domain(row) if row is not None else None
-
     def save(self, credential: MerchantCredential) -> None:
         with self._sf() as session:
             row = session.get(MerchantCredentialRow, credential.merchant_id)

@@ -1,6 +1,8 @@
 """Transaction state machine: legal paths, illegal transitions, terminals."""
 from __future__ import annotations
 
+import itertools
+
 from drc_pay_api.domains.transactions.state_machine import (
     TERMINAL_STATES,
     IllegalTransition,
@@ -19,7 +21,7 @@ def test_happy_path() -> None:
         TxState.PAYOUT_PENDING,
         TxState.PAYOUT_SUCCEEDED,
     ]
-    for src, dst in zip(path, path[1:]):
+    for src, dst in itertools.pairwise(path):
         assert can_transition(src, dst), f"{src} -> {dst} should be legal"
         assert_transition(src, dst)  # must not raise
     assert is_terminal(TxState.PAYOUT_SUCCEEDED)
@@ -32,7 +34,7 @@ def test_refund_path() -> None:
         TxState.REFUND_PENDING,
         TxState.REFUNDED,
     ]
-    for src, dst in zip(path, path[1:]):
+    for src, dst in itertools.pairwise(path):
         assert_transition(src, dst)
     assert is_terminal(TxState.REFUNDED)
 
@@ -48,9 +50,9 @@ def test_illegal_transition_raises() -> None:
 
 
 def test_terminal_states_have_no_exits() -> None:
-    assert TERMINAL_STATES == frozenset(
+    assert frozenset(
         {TxState.COLLECTION_FAILED, TxState.PAYOUT_SUCCEEDED, TxState.REFUNDED}
-    )
+    ) == TERMINAL_STATES
     for state in TERMINAL_STATES:
         assert not can_transition(state, TxState.MANUAL_REVIEW)
 

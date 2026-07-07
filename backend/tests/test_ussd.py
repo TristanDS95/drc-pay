@@ -21,7 +21,21 @@ from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.main import create_app
 
 from conftest import as_merchant
-from drc_pay_api.ussd.session import UssdHandler, UssdRequest, run_session
+from drc_pay_api.ussd.session import UssdHandler, UssdRequest, UssdResponse
+
+
+def run_session(
+    handler: UssdHandler, session_id: str, msisdn: str, inputs: list[str]
+) -> list[UssdResponse]:
+    """Simulate an aggregator driving a whole conversation: the initial dial, then each
+    input - sending the **accumulated** text each step, as real aggregators do. Returns
+    every response (the last is the terminal END)."""
+    responses = [handler.handle(UssdRequest(session_id, msisdn, ""))]
+    accumulated: list[str] = []
+    for value in inputs:
+        accumulated.append(value)
+        responses.append(handler.handle(UssdRequest(session_id, msisdn, "*".join(accumulated))))
+    return responses
 
 
 # ---- the happy path (French default) -----------------------------------------
