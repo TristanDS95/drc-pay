@@ -38,13 +38,7 @@ from .ussd.session import UssdHandler
 #   - customer-facing paths (a customer who scans a QR has no login),
 #   - the merchant API + /auth (each merchant authenticates with their OWN session — a shared
 #     password would have to be handed to every merchant, defeating per-merchant auth).
-#   - /demo/credentials: the login page's demo chips fetch it in the background, and some
-#     browsers (Safari) don't attach cached Basic credentials to fetch() — the chips would
-#     silently vanish on the hosted sandbox. Exempting it gives up nothing: the demo logins
-#     are deterministic, documented in the README, and /auth/login is public anyway — the
-#     list reveals nothing an outsider can't already use. (It still 404s in production;
-#     /demo/reconcile and the rest of the demo shell stay gated.)
-_AUTH_EXEMPT = {"/health", "/demo/credentials"}
+_AUTH_EXEMPT = {"/health"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
 _PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
 _SESSION_GATED_PREFIXES = ("/auth", "/transactions", "/merchants", "/charges")
