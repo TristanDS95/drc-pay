@@ -32,9 +32,9 @@ The bar: no real merchant or customer money until every box is ticked.
 - [ ] **Merchant authentication** - replace the single shared Basic-auth password with per-merchant credentials (plan sketch in `future-dev.md`; `domains/auth/` when started).
 - [ ] **Per-merchant authorization** - today any holder of the shared password can read and confirm ANY merchant's transactions.
       Directly fraud-relevant: on-net payments are merchant-attested, so the confirm endpoint must be scoped to the owning merchant.
-- [ ] **USSD channel hardening** - `/ussd` is public and initiates real deposit pushes on a live rail.
-      Authenticate the aggregator (shared secret and/or IP allowlist; the handler is provider-neutral so this lands in one place) and rate-limit the endpoint.
-      Without it, anyone can spam payment prompts to arbitrary DRC numbers (harassment / social-engineering vector, even though no money moves without the payer's operator PIN).
+- [x] **USSD channel hardening** (ADR 0010) - `/ussd` is public and initiates real deposit pushes on a live rail.
+      The aggregator now authenticates with a shared secret (`X-USSD-Secret`, constant-time; production refuses to boot without it), and the endpoint is rate-limited per customer number; the handler is provider-neutral so this lives in one place. IP allowlisting stays available as later defense-in-depth (see ADR 0010).
+      Without it, anyone could spam payment prompts to arbitrary DRC numbers (harassment / social-engineering vector, even though no money moves without the payer's operator PIN).
 - [ ] **Rate limiting + velocity/amount caps** - none exist anywhere today.
       Per-customer and per-merchant velocity caps are the first real fraud-detection layer; pawaPay's own per-operator amount limits (e.g. Vodacom 500 < x < 1,000,000 CDF) are not a substitute.
 - [ ] **Lock CORS** - `allow_origins=["*"]` in `main.py`; restrict to known origins (the code comment already promises this).
