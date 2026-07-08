@@ -6,6 +6,7 @@ Schema (Postgres in production; the same code runs on SQLite for fast unit tests
   - transactions    : one row per transfer (workflow state + ordered state history)
   - ledger_entries  : append-only double-entry lines, grouped by posting_id
 """
+
 from __future__ import annotations
 
 import uuid
@@ -24,6 +25,7 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from ..domains.auth.models import MerchantCredential, MerchantSession
@@ -32,6 +34,7 @@ from ..domains.ledger.ledger import Direction, Entry, Posting
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
+from ..domains.transactions.ports import DuplicateIdempotencyKey
 from ..domains.transactions.state_machine import PENDING_STATES, TxState
 
 
@@ -58,9 +61,7 @@ class MerchantCredentialRow(Base):
 
     __tablename__ = "merchant_credentials"
 
-    merchant_id: Mapped[str] = mapped_column(
-        ForeignKey("merchants.id"), primary_key=True
-    )
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id"), primary_key=True)
     username: Mapped[str] = mapped_column(String, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -143,7 +144,7 @@ def normalize_db_url(url: str) -> str:
     Shared by the app engine and the Alembic migrations (``migrations/env.py``)."""
     for prefix in ("postgresql://", "postgres://"):
         if url.startswith(prefix):
-            return "postgresql+psycopg://" + url[len(prefix):]
+            return "postgresql+psycopg://" + url[len(prefix) :]
     return url
 
 
@@ -208,7 +209,14 @@ class SqlTransactionStore:
             row.payout_id = transaction.payout_id
             row.refund_id = transaction.refund_id
             row.provenance = transaction.provenance
-            session.commit()
+            try:
+                session.commit()
+            except IntegrityError as exc:
+                # The unique idempotency_key constraint fired: a concurrent request already
+                # created a transaction under this key. Surface the domain error so the
+                # application layer returns that original instead of 500ing.
+                session.rollback()
+                raise DuplicateIdempotencyKey(transaction.idempotency_key or "") from exc
 
     def all(self) -> list[Transaction]:
         with self._sf() as session:

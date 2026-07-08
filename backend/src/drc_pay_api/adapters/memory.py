@@ -4,6 +4,7 @@ Good enough for local dev, the built-in simulator, and tests. The production ver
 (Postgres, append-only ledger, real logging) implement the same ports and slot in
 unchanged.
 """
+
 from __future__ import annotations
 
 from ..domains.auth.models import MerchantCredential, MerchantSession
@@ -11,6 +12,7 @@ from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
 from ..domains.transactions.models import Transaction
+from ..domains.transactions.ports import DuplicateIdempotencyKey
 from ..domains.transactions.state_machine import PENDING_STATES
 
 
@@ -81,6 +83,16 @@ class InMemoryTransactionStore:
         return self._rows[transaction_id]
 
     def save(self, transaction: Transaction) -> None:
+        # Mirror the SQL store's unique idempotency_key constraint: a second, distinct
+        # transaction under a key another already holds is a double-charge attempt, rejected.
+        # (Re-saving the same transaction — the normal state-transition path — is fine.)
+        if transaction.idempotency_key is not None:
+            for existing in self._rows.values():
+                if (
+                    existing.idempotency_key == transaction.idempotency_key
+                    and existing.id != transaction.id
+                ):
+                    raise DuplicateIdempotencyKey(transaction.idempotency_key)
         self._rows[transaction.id] = transaction
 
     def all(self) -> list[Transaction]:

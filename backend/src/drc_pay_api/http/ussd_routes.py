@@ -18,6 +18,7 @@ This boundary also owns the channel's hardening (security roadmap, Gate A):
   honest for today's single-container deploys; the shared-state limiter is a separate
   roadmap item.
 """
+
 from __future__ import annotations
 
 import re
@@ -38,6 +39,12 @@ ussd_router = APIRouter()
 # in the merchant console, so an unvalidated free-text msisdn would be an injection vector.
 _MSISDN_RE = re.compile(r"^\+?\d{6,15}$")
 
+# How many admitted requests between amortized sweeps of the limiter's key map. Caps the map at
+# its working set — distinct msisdns seen within a trailing window, plus up to this many keys of
+# slack — instead of leaking one entry per msisdn ever seen. A unique-msisdn spray can no longer
+# grow it without bound over time; it plateaus at peak-distinct-keys-per-window.
+_SWEEP_EVERY = 1024
+
 
 class SlidingWindowLimiter:
     """Per-key request cap over a rolling window. One instance per app (``app.state``), so
@@ -47,9 +54,11 @@ class SlidingWindowLimiter:
         self._limit = limit
         self._window = window_seconds
         self._hits: dict[str, deque[float]] = {}
+        self._ops_since_sweep = 0
 
     def allow(self, key: str) -> bool:
         now = time.monotonic()
+        self._sweep_if_due(now)
         hits = self._hits.setdefault(key, deque())
         while hits and now - hits[0] > self._window:
             hits.popleft()
@@ -57,6 +66,18 @@ class SlidingWindowLimiter:
             return False
         hits.append(now)
         return True
+
+    def _sweep_if_due(self, now: float) -> None:
+        # Without this, setdefault leaks one entry per distinct key forever (a key seen once is
+        # never revisited to prune its now-empty deque). Amortized O(keys) every _SWEEP_EVERY calls
+        # drops every key whose most recent hit has aged out of the window.
+        self._ops_since_sweep += 1
+        if self._ops_since_sweep < _SWEEP_EVERY:
+            return
+        self._ops_since_sweep = 0
+        stale = [k for k, d in self._hits.items() if not d or now - d[-1] > self._window]
+        for k in stale:
+            del self._hits[k]
 
 
 class UssdHttpRequest(BaseModel):
@@ -92,10 +113,15 @@ def _limiter(request: Request) -> SlidingWindowLimiter:
 
 @ussd_router.post("/ussd", response_class=Response)
 def ussd(body: UssdHttpRequest, request: Request) -> Response:
-    # Aggregator auth: enforced whenever the secret is configured.
+    # Aggregator auth: enforced whenever the secret is configured. Compare on encoded bytes —
+    # Starlette decodes headers as latin-1, and secrets.compare_digest raises TypeError (→ 500)
+    # on a str carrying any non-ASCII char, so a crafted header could otherwise crash the endpoint
+    # instead of being cleanly rejected.
     if settings.ussd_shared_secret:
         supplied = request.headers.get("x-ussd-secret", "")
-        if not secrets.compare_digest(supplied, settings.ussd_shared_secret):
+        if not secrets.compare_digest(
+            supplied.encode("utf-8"), settings.ussd_shared_secret.encode("utf-8")
+        ):
             raise HTTPException(status_code=401, detail="invalid USSD shared secret")
     # Rate limit per customer number — the unit an abuser would spray prompts at.
     if not _limiter(request).allow(body.msisdn):

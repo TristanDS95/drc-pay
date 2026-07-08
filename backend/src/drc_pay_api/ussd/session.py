@@ -26,6 +26,7 @@ customer to pay the merchant's till (or number) directly. Adapting a specific ag
 wire format is a thin concern at the `/ussd` HTTP boundary (which also owns the shared
 secret + rate limit); this handler is provider-neutral and offline-testable.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -45,6 +46,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "fr": {
         "ask_till": "Entrez le code du till marchand :",
         "bad_till": "Till inconnu. Entrez le code du till marchand :",
+        "inactive_till": "Ce marchand n'accepte pas de paiements pour le moment.",
         "ask_amount": "Payer {name}\nEntrez le montant ({cur}) :",
         "bad_amount": "Montant invalide (0 a {max} {cur}). Entrez le montant :",
         "confirm": "Payer {amount} {cur} a {name} ?\n1. Confirmer\n2. Annuler",
@@ -66,6 +68,7 @@ _STRINGS: dict[str, dict[str, str]] = {
     "en": {
         "ask_till": "Enter merchant till code:",
         "bad_till": "Unknown till. Enter merchant till code:",
+        "inactive_till": "This merchant is not accepting payments right now.",
         "ask_amount": "Pay {name}\nEnter amount ({cur}):",
         "bad_amount": "Invalid amount (0 to {max} {cur}). Enter amount:",
         "confirm": "Pay {amount} {cur} to {name}?\n1. Confirm\n2. Cancel",
@@ -137,6 +140,11 @@ class UssdHandler:
         idx = 0
 
         # --- till: consume parts until one resolves to an active merchant ---------------
+        # An *unknown* code is treated as a typo — skipped, re-prompted (a genuine re-entry
+        # arrives appended to the accumulated text). A *known but inactive* till is NOT a typo:
+        # we END on it rather than skipping ahead, because skipping would let a later token
+        # (e.g. a dial-through amount that happens to match another merchant's till) silently
+        # retarget the payment to the wrong merchant.
         merchant: Merchant | None = None
         misses = 0
         while idx < len(parts):
@@ -145,6 +153,8 @@ class UssdHandler:
             if candidate is not None and candidate.is_active:
                 merchant = candidate
                 break
+            if candidate is not None:  # real till, switched off — do not skip past it
+                return UssdResponse.end(self._msg("inactive_till"))
             misses += 1
             if misses >= _MAX_ATTEMPTS:
                 return UssdResponse.end(self._msg("too_many"))
@@ -196,29 +206,34 @@ class UssdHandler:
             # directly on the operator's own rail; the merchant confirms receipt.
             if merchant.operator_till:
                 return UssdResponse.end(
-                    self._msg("onnet_till_done", amount=amount_str, name=merchant.name,
-                              till=merchant.operator_till)
+                    self._msg(
+                        "onnet_till_done",
+                        amount=amount_str,
+                        name=merchant.name,
+                        till=merchant.operator_till,
+                    )
                 )
             return UssdResponse.end(
-                self._msg("onnet_msisdn_done", amount=amount_str, name=merchant.name,
-                          msisdn=merchant.settlement_msisdn)
+                self._msg(
+                    "onnet_msisdn_done",
+                    amount=amount_str,
+                    name=merchant.name,
+                    msisdn=merchant.settlement_msisdn,
+                )
             )
-        return UssdResponse.end(
-            self._msg("routed_done", amount=amount_str, name=merchant.name)
-        )
+        return UssdResponse.end(self._msg("routed_done", amount=amount_str, name=merchant.name))
 
     def _start_payment(
         self, session_id: str, customer_msisdn: str, merchant: Merchant, amount: Money
     ) -> bool:
         """Start (or idempotently find) the payment; True when it routed on-net."""
         # Idempotency (CLAUDE.md: every money-moving request carries a key). Aggregators resend the
-        # confirm step on timeout, and an unauthenticated caller could replay it — either way, keying
-        # on (session, till, amount) makes the retry return the original transaction, never a second
-        # collection. The session id is stable across one dial's steps.
-        key = f"ussd:{session_id}:{merchant.short_code}:{amount.amount_minor}"
-        existing = self._container.store.find_by_idempotency_key(key)
-        if existing is not None:  # this session already initiated this payment — no double charge
-            return existing.provenance == MERCHANT_ATTESTED
+        # confirm step on timeout, and an unauthenticated caller could replay it. The key includes
+        # the CUSTOMER msisdn: aggregators recycle session ids, and (session, till, amount) alone
+        # would let a *different* customer's identical confirm resolve to this transaction — telling
+        # them "paid" while nothing was initiated for their number. start_merchant_payment owns the
+        # atomic find-or-create, so a concurrent resend can never open a second collection.
+        key = f"ussd:{session_id}:{customer_msisdn}:{merchant.short_code}:{amount.amount_minor}"
         transaction_id = start_merchant_payment(
             store=self._container.store,
             ledger=self._container.ledger,
@@ -234,10 +249,11 @@ class UssdHandler:
 
 
 def _parse_amount(text: str) -> Money | None:
-    """A positive amount within the sanity cap. Accepts a comma decimal separator —
-    what a francophone feature-phone user naturally types."""
+    """A positive amount within the sanity cap. Accepts the francophone comma decimal
+    ('10,50'); rejects anything that isn't a plain decimal (scientific notation, digit
+    separators, Unicode digits, thousands-grouped input) rather than silently misreading it."""
     try:
-        amount = Money.from_major(text.replace(",", "."), _CURRENCY)
+        amount = Money.from_user_input(text, _CURRENCY)
     except (ValueError, ArithmeticError):
         return None
     if not amount.is_positive or amount.amount_minor > _MAX_AMOUNT.amount_minor:
