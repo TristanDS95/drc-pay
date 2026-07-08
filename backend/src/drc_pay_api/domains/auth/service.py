@@ -16,6 +16,7 @@ merchant id or ``None``. Design choices, per the security roadmap:
 - Passwords and tokens are **never logged** and never stored; failure reasons are not
   distinguished to the caller (unknown user == wrong password).
 """
+
 from __future__ import annotations
 
 import hashlib

@@ -31,6 +31,7 @@ RUN IT
       PAWAPAY_SANDBOX_TIMEOUT=45                       # seconds to wait for a terminal outcome
       PAWAPAY_SANDBOX_COMPLETED_DEPOSIT_ID=...         # enables the refund test
 """
+
 from __future__ import annotations
 
 import os
@@ -53,7 +54,9 @@ from drc_pay_api.integrations.pawapay.status import Outcome, PawaPayStatus, clas
 _ENABLED = os.environ.get("RUN_PAWAPAY_SANDBOX_E2E") == "1"
 pytestmark = [
     pytest.mark.sandbox,
-    pytest.mark.skipif(not _ENABLED, reason="set RUN_PAWAPAY_SANDBOX_E2E=1 to run live sandbox tests"),
+    pytest.mark.skipif(
+        not _ENABLED, reason="set RUN_PAWAPAY_SANDBOX_E2E=1 to run live sandbox tests"
+    ),
 ]
 
 # Read sandbox creds from backend/.env directly (conftest blanks them in os.environ).
@@ -85,7 +88,9 @@ def _client() -> PawaPayClient:
 def _network() -> str:
     network = _env("PAWAPAY_SANDBOX_NETWORK", "vodacom")
     if network not in _NETWORK_BASE:
-        pytest.skip(f"PAWAPAY_SANDBOX_NETWORK must be one of {sorted(_NETWORK_BASE)}; got {network!r}")
+        pytest.skip(
+            f"PAWAPAY_SANDBOX_NETWORK must be one of {sorted(_NETWORK_BASE)}; got {network!r}"
+        )
     return network
 
 
@@ -105,7 +110,9 @@ def _amount() -> Money:
     return Money(minor, _env("PAWAPAY_SANDBOX_CURRENCY", "CDF"))
 
 
-def _poll_deposit_until_terminal(client: PawaPayClient, deposit_id: str, timeout_s: float) -> PawaPayStatus:
+def _poll_deposit_until_terminal(
+    client: PawaPayClient, deposit_id: str, timeout_s: float
+) -> PawaPayStatus:
     """Poll the real status endpoint until the deposit is terminal or we time out. Mirrors the
     reconciliation sweep's polled path (the production safety net for a missed callback)."""
     deadline = time.monotonic() + timeout_s
@@ -131,6 +138,7 @@ def _request_success_deposit(client: PawaPayClient) -> str:
 
 # --- credential-only contract checks (no money moves) -----------------------
 
+
 def test_callback_public_key_loads_as_ec_p256() -> None:
     """The single most important live check: the real callback public key must load as an
     EC P-256 key via the exact crypto path our signature verifier uses. If this fails, every
@@ -151,10 +159,13 @@ def test_status_of_unknown_deposit_is_fail_safe() -> None:
     not-found response, or reconciliation could resolve money on a phantom status."""
     status = _client().get_deposit_status(f"e2e-unknown-{uuid.uuid4()}")
     assert isinstance(status, PawaPayStatus)
-    assert classify(status.status) is Outcome.PENDING, f"unknown id classified terminal: {status.status!r}"
+    assert classify(status.status) is Outcome.PENDING, (
+        f"unknown id classified terminal: {status.status!r}"
+    )
 
 
 # --- money-moving lifecycle checks (documented sandbox numbers) -------------
+
 
 def test_predict_provider_returns_sane_shape() -> None:
     """predict-provider maps a number to its operator. We validate the request/response
@@ -163,7 +174,9 @@ def test_predict_provider_returns_sane_shape() -> None:
     assert isinstance(prediction, ProviderPrediction)
     assert prediction.provider or prediction.country or prediction.phone_number
     if prediction.phone_number:
-        assert prediction.phone_number.lstrip("+").isdigit(), "pawaPay should return a sanitised number"
+        assert prediction.phone_number.lstrip("+").isdigit(), (
+            "pawaPay should return a sanitised number"
+        )
 
 
 def test_deposit_is_accepted_and_status_is_readable() -> None:
@@ -184,7 +197,9 @@ def test_deposit_is_accepted_and_status_is_readable() -> None:
 
     time.sleep(_POLL_INTERVAL_S)
     status = client.get_deposit_status(deposit_id)
-    assert status.status is not None, "status endpoint returned nothing readable for an accepted deposit"
+    assert status.status is not None, (
+        "status endpoint returned nothing readable for an accepted deposit"
+    )
 
 
 def test_successful_deposit_completes() -> None:
@@ -222,7 +237,9 @@ def test_declined_deposit_fails() -> None:
     outcome = classify(status.status)
     if outcome is Outcome.PENDING:
         pytest.skip(f"deposit {deposit_id} still pending after {timeout_s:.0f}s (sandbox latency)")
-    assert outcome is Outcome.FAILURE, f"expected failure (insufficient funds), got {status.status!r}"
+    assert outcome is Outcome.FAILURE, (
+        f"expected failure (insufficient funds), got {status.status!r}"
+    )
 
 
 def test_rail_request_collection_returns_id_on_real_rail() -> None:
@@ -244,13 +261,16 @@ def test_rail_request_collection_returns_id_on_real_rail() -> None:
 
 # --- refund (needs a deposit that has already COMPLETED) --------------------
 
+
 def test_refund_is_accepted_for_completed_deposit() -> None:
     """Refund reverses a completed deposit. A live refund needs an already-COMPLETED depositId,
     which we don't manufacture inline (it depends on sandbox settlement timing) — supply one via
     PAWAPAY_SANDBOX_COMPLETED_DEPOSIT_ID to exercise this path."""
     deposit_id = _env("PAWAPAY_SANDBOX_COMPLETED_DEPOSIT_ID")
     if not deposit_id:
-        pytest.skip("set PAWAPAY_SANDBOX_COMPLETED_DEPOSIT_ID (an already-COMPLETED deposit) for the refund test")
+        pytest.skip(
+            "set PAWAPAY_SANDBOX_COMPLETED_DEPOSIT_ID (an already-COMPLETED deposit) for the refund test"
+        )
     client = _client()
     ack = client.request_refund(
         refund_id=str(uuid.uuid4()), deposit_id=deposit_id, amount=_amount(), provider=_provider()

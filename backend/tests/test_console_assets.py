@@ -4,6 +4,7 @@ These catch regressions the Python suite otherwise can't see: it renders no CSS,
 purely visual bug (like the `.hidden` overlay collision) passes every functional test
 while the real page is broken. A cheap string assertion locks the fix in CI.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

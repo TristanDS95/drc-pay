@@ -1,6 +1,7 @@
 """The pawaPay webhook receiver, end to end: a signed deposit-completed callback advances
 the transaction; bad signatures are rejected; replays and unmatched op-ids are no-ops.
 """
+
 from __future__ import annotations
 
 import json

@@ -1,4 +1,5 @@
 """The on-net vs routed decision: same-network + a rail → direct; otherwise pawaPay."""
+
 from __future__ import annotations
 
 from drc_pay_api.application.routing import use_on_net

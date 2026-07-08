@@ -4,6 +4,7 @@ Note: this row is a *workflow tracker*, not the source of truth for money. The
 ledger (``domains.ledger``) is the source of truth; this just tracks where a transfer
 is in its lifecycle.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,8 +13,12 @@ from ..ledger.money import Money
 from .state_machine import TxState
 
 # How a payment's outcome was established (its assurance level), recorded on the transaction.
-RAIL_VERIFIED = "rail_verified"  # pawaPay-settled, verified by the operator's RFC-9421 signed callback
-MERCHANT_ATTESTED = "merchant_attested"  # on-net: paid merchant-direct, the merchant confirmed receipt
+RAIL_VERIFIED = (
+    "rail_verified"  # pawaPay-settled, verified by the operator's RFC-9421 signed callback
+)
+MERCHANT_ATTESTED = (
+    "merchant_attested"  # on-net: paid merchant-direct, the merchant confirmed receipt
+)
 
 
 @dataclass

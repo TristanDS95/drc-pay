@@ -5,6 +5,7 @@ These exist for testing against the sandbox/simulator: production uses the real 
 the payment-creating endpoint here is gated to off-the-real-money path (simulator or sandbox), 404
 in production (see ``Container.demo_controls_enabled``).
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
@@ -71,7 +72,9 @@ class PayResponse(BaseModel):
     # On-net (same-network): the customer pays the merchant DIRECTLY on the operator's rail, so the
     # page shows a hand-off, not an in-app result. False/null on the routed (pawaPay) path.
     on_net: bool = False
-    pay_to_till: str | None = None  # the merchant's operator "buy goods" till — PREFERRED when present
+    pay_to_till: str | None = (
+        None  # the merchant's operator "buy goods" till — PREFERRED when present
+    )
     pay_to_msisdn: str | None = None  # the merchant's number the customer sends to (fallback)
     pay_to_operator: str | None = None  # the shared operator (e.g. AIRTEL_COD)
 
@@ -85,7 +88,9 @@ class PublicTransaction(BaseModel):
     amount: str
     currency: str
     merchant_name: str | None = None
-    history: list[str] = Field(default_factory=list)  # ordered states, so the page can show progress
+    history: list[str] = Field(
+        default_factory=list
+    )  # ordered states, so the page can show progress
 
 
 class PublicCharge(BaseModel):

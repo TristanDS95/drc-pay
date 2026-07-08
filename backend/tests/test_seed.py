@@ -4,6 +4,7 @@ This guards the Railway/Postgres deploy: the in-memory demo seeds itself, but a 
 database starts empty, so the entrypoint runs ``seed_demo_merchants`` after migrations.
 Verified here against in-memory SQLite (the same SqlMerchantStore that runs on Postgres).
 """
+
 from __future__ import annotations
 
 from sqlalchemy import create_engine

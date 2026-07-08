@@ -12,6 +12,7 @@ separate concern). So for a sandbox/local demo we seed them here, run from the c
 entrypoint after migrations (``python -m drc_pay_api.seed``). A **production** deploy is left
 empty on purpose.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache

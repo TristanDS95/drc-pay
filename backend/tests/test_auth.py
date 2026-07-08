@@ -6,6 +6,7 @@ Two halves, tested together because they only work together:
 - **Authorization**: every merchant endpoint is fenced to the session's merchant —
   merchant A can never read, confirm, or charge as merchant B.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -156,9 +157,7 @@ def test_passwords_and_tokens_are_never_stored_in_plaintext() -> None:
 
 # ---- per-merchant authorization ------------------------------------------------
 def _pay_as(client: TestClient, msisdn: str = "243800000001") -> str:
-    tx = client.post(
-        "/transactions", json={"customer_msisdn": msisdn, "amount": "10.00"}
-    ).json()
+    tx = client.post("/transactions", json={"customer_msisdn": msisdn, "amount": "10.00"}).json()
     tx_id: str = tx["id"]
     return tx_id
 
@@ -199,9 +198,9 @@ def test_merchants_cannot_see_each_others_charges() -> None:
 
     beta = as_merchant(TestClient(app_client.app), "beta")
     assert beta.get(f"/charges/{charge['id']}").status_code == 404
-    assert beta.post(
-        "/charges", json={"merchant_id": "m_alpha", "amount": "1.00"}
-    ).status_code == 403  # cannot charge as someone else
+    assert (
+        beta.post("/charges", json={"merchant_id": "m_alpha", "amount": "1.00"}).status_code == 403
+    )  # cannot charge as someone else
 
 
 def test_charge_qr_is_public_by_design() -> None:

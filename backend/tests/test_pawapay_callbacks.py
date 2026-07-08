@@ -1,4 +1,5 @@
 """Parsing pawaPay callback bodies into neutral CallbackEvents (the confirmed v2 flat shape)."""
+
 from __future__ import annotations
 
 from drc_pay_api.integrations.pawapay.callbacks import parse_callback

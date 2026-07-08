@@ -2,6 +2,7 @@
 issuing the right call, returning the op-id, and failing loudly on a non-ACCEPTED ack.
 All against a mocked HTTP transport (no real pawaPay, no network).
 """
+
 from __future__ import annotations
 
 import json
@@ -66,7 +67,10 @@ def test_rejected_ack_raises() -> None:
         cap,
         {
             "status": "REJECTED",
-            "failureReason": {"failureCode": "INVALID_PHONE_NUMBER", "failureMessage": "bad number"},
+            "failureReason": {
+                "failureCode": "INVALID_PHONE_NUMBER",
+                "failureMessage": "bad number",
+            },
         },
     )
     try:

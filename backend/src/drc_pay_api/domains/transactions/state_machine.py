@@ -7,6 +7,7 @@ legal transitions are possible, and (b) money can never be "half moved" without 
 recorded reason. Illegal transitions raise: they are bugs, not edge cases to paper
 over.
 """
+
 from __future__ import annotations
 
 from enum import Enum

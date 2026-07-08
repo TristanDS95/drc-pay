@@ -3,6 +3,7 @@
 Nothing secret is hard-coded. Sandbox vs production is selected purely by which
 environment variables are present — there is no code path that mixes them.
 """
+
 from __future__ import annotations
 
 from pydantic_settings import BaseSettings, SettingsConfigDict

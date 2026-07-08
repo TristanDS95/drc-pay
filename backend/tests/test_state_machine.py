@@ -1,4 +1,5 @@
 """Transaction state machine: legal paths, illegal transitions, terminals."""
+
 from __future__ import annotations
 
 import itertools
@@ -50,9 +51,10 @@ def test_illegal_transition_raises() -> None:
 
 
 def test_terminal_states_have_no_exits() -> None:
-    assert frozenset(
-        {TxState.COLLECTION_FAILED, TxState.PAYOUT_SUCCEEDED, TxState.REFUNDED}
-    ) == TERMINAL_STATES
+    assert (
+        frozenset({TxState.COLLECTION_FAILED, TxState.PAYOUT_SUCCEEDED, TxState.REFUNDED})
+        == TERMINAL_STATES
+    )
     for state in TERMINAL_STATES:
         assert not can_transition(state, TxState.MANUAL_REVIEW)
 

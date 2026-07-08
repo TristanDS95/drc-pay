@@ -1,6 +1,7 @@
 """Merchant endpoints: the customer-facing payment codes (USSD string / tel URI). Uses the seeded
 demo merchants (m_alpha till 1001, m_beta till 1002).
 """
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient

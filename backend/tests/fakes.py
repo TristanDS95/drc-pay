@@ -6,6 +6,7 @@ records requests (with the provider) so a test can assert on them and returns sy
 op-ids the orchestrator should persist, plus ``FakePredictor`` for the route's
 provider-resolution path. Outcomes are delivered via the orchestrator's ``on_*_result``.
 """
+
 from __future__ import annotations
 
 import base64
@@ -67,9 +68,11 @@ class FakePredictor:
 def pawapay_keypair() -> tuple[ec.EllipticCurvePrivateKey, str]:
     """A fresh P-256 keypair; returns (private_key, public_key_pem) for signing tests."""
     sk = ec.generate_private_key(ec.SECP256R1())
-    pem = sk.public_key().public_bytes(
-        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode()
+    pem = (
+        sk.public_key()
+        .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+        .decode()
+    )
     return sk, pem
 
 
@@ -82,13 +85,15 @@ def sign_pawapay_callback(
         '("@method" "@authority" "@path" "content-digest")'
         f';created={created};keyid="pawapay";alg="ecdsa-p256-sha256"'
     )
-    base = "\n".join([
-        '"@method": POST',
-        f'"@authority": {host.lower()}',
-        f'"@path": {path}',
-        f'"content-digest": {content_digest}',
-        f'"@signature-params": {params}',
-    ])
+    base = "\n".join(
+        [
+            '"@method": POST',
+            f'"@authority": {host.lower()}',
+            f'"@path": {path}',
+            f'"content-digest": {content_digest}',
+            f'"@signature-params": {params}',
+        ]
+    )
     r, s = decode_dss_signature(private_key.sign(base.encode(), ec.ECDSA(hashes.SHA256())))
     raw = r.to_bytes(32, "big") + s.to_bytes(32, "big")
     return {

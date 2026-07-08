@@ -6,6 +6,7 @@ paid (merchant-attested). Cross-network keeps the rail-verified pawaPay flow.
 
 Demo merchant operators: m_alpha → AIRTEL_COD, m_beta → ORANGE_COD, m_gamma → VODACOM_MPESA_COD.
 """
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
@@ -22,9 +23,11 @@ def _client() -> TestClient:
 
 def test_same_network_pay_is_awaiting_confirmation_not_routed() -> None:
     # m_alpha settles to AIRTEL_COD; an Airtel payer is same-network → on-net facilitate.
-    body = _client().post(
-        "/pay", json={"merchant_id": "m_alpha", "amount": "10.00", "payer_network": "airtel"}
-    ).json()
+    body = (
+        _client()
+        .post("/pay", json={"merchant_id": "m_alpha", "amount": "10.00", "payer_network": "airtel"})
+        .json()
+    )
     assert body["on_net"] is True
     assert body["state"] == "collection_pending"  # awaiting the merchant's confirmation, not "paid"
     assert body["fee"] == "0.00"  # we move no money and take no cut
@@ -38,9 +41,11 @@ def test_same_network_pay_is_awaiting_confirmation_not_routed() -> None:
 
 def test_on_net_without_a_till_falls_back_to_send_to_number() -> None:
     # m_beta (Orange) has no operator till, so the on-net hand-off offers the number only.
-    body = _client().post(
-        "/pay", json={"merchant_id": "m_beta", "amount": "10.00", "payer_network": "orange"}
-    ).json()
+    body = (
+        _client()
+        .post("/pay", json={"merchant_id": "m_beta", "amount": "10.00", "payer_network": "orange"})
+        .json()
+    )
     assert body["on_net"] is True
     assert body["pay_to_till"] is None  # no till → P2P fallback
     assert body["pay_to_msisdn"]  # the merchant's number is what the customer sends to
@@ -49,7 +54,9 @@ def test_on_net_without_a_till_falls_back_to_send_to_number() -> None:
 
 def test_merchant_confirm_marks_a_charge_paid_merchant_attested() -> None:
     client = _client()
-    charge_id = client.post("/charges", json={"merchant_id": "m_alpha", "amount": "7.50"}).json()["id"]
+    charge_id = client.post("/charges", json={"merchant_id": "m_alpha", "amount": "7.50"}).json()[
+        "id"
+    ]
     paid = client.post("/pay", json={"charge_id": charge_id, "payer_network": "airtel"}).json()
     tx_id = paid["transaction_id"]
     assert paid["on_net"] is True and paid["state"] == "collection_pending"

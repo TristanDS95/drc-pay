@@ -4,6 +4,7 @@ confirmation — a single balanced ledger entry (customer → merchant), no fee.
 
 Contrast with test_orchestrator.py (the routed/cross-network two-leg flow).
 """
+
 from __future__ import annotations
 
 from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
@@ -38,7 +39,9 @@ def _net_debit(postings: list[Posting], account: str) -> int:
         for e in p.entries:
             if e.account != account:
                 continue
-            total += e.amount.amount_minor if e.direction is Direction.DEBIT else -e.amount.amount_minor
+            total += (
+                e.amount.amount_minor if e.direction is Direction.DEBIT else -e.amount.amount_minor
+            )
     return total
 
 
@@ -51,8 +54,12 @@ def test_on_net_success_is_one_posting_straight_to_merchant() -> None:
     orch, store, ledger = _make()
     amount = Money.from_major("10.00", USD)
     orch.start(
-        transaction_id="o1", payer_msisdn="243aaa", merchant_msisdn="243bbb",
-        amount=amount, provider=PROVIDER, merchant_id="m_demo",
+        transaction_id="o1",
+        payer_msisdn="243aaa",
+        merchant_msisdn="243bbb",
+        amount=amount,
+        provider=PROVIDER,
+        merchant_id="m_demo",
     )
     # We initiate nothing on the operator — the payment is recorded as awaiting confirmation.
     assert store.get("o1").state is TxState.COLLECTION_PENDING
@@ -63,7 +70,9 @@ def test_on_net_success_is_one_posting_straight_to_merchant() -> None:
     assert tx.state is TxState.PAYOUT_SUCCEEDED  # paid — the shared terminal
     assert tx.fee.amount_minor == 0  # we take no cut and pay no pawaPay leg
     assert len(ledger.postings) == 1  # ONE leg, not two
-    assert _credit_total(ledger.postings, MERCHANT) == amount.amount_minor  # merchant got the full amount
+    assert (
+        _credit_total(ledger.postings, MERCHANT) == amount.amount_minor
+    )  # merchant got the full amount
     assert _net_debit(ledger.postings, CUSTOMER) == amount.amount_minor  # customer paid it
     # None of the routed-flow accounts are touched on-net (no custody, no pawaPay cost).
     assert _credit_total(ledger.postings, CLEARING) == 0
@@ -75,8 +84,11 @@ def test_on_net_success_is_one_posting_straight_to_merchant() -> None:
 def test_on_net_not_received_moves_no_money() -> None:
     orch, store, ledger = _make()
     orch.start(
-        transaction_id="o2", payer_msisdn="243aaa", merchant_msisdn="243bbb",
-        amount=Money.from_major("5.00", USD), provider=PROVIDER,
+        transaction_id="o2",
+        payer_msisdn="243aaa",
+        merchant_msisdn="243bbb",
+        amount=Money.from_major("5.00", USD),
+        provider=PROVIDER,
     )
     orch.on_confirm("o2", success=False)
     assert store.get("o2").state is TxState.COLLECTION_FAILED

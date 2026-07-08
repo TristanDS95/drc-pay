@@ -7,6 +7,7 @@ Verified from pawaPay's v2 docs (accessed 2026-06-11):
 Operator detection (phone number -> provider) is handled by pawaPay's predict-provider
 endpoint (see ``client.PawaPayClient.predict_provider``), not by us.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal

@@ -4,6 +4,7 @@ The :class:`~drc_pay_api.container.Container` itself is framework-agnostic and l
 package level (``drc_pay_api/container.py``) because every channel wires through it; this
 module is the HTTP-only shim that hands it to routes via dependency injection.
 """
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -46,15 +47,13 @@ def get_current_merchant(
     """
     challenge = {"WWW-Authenticate": "Bearer"}
     token = (
-        authorization[len("Bearer "):] if authorization.startswith("Bearer ") else drcpay_session
+        authorization[len("Bearer ") :] if authorization.startswith("Bearer ") else drcpay_session
     )
     if not token:
         raise HTTPException(status_code=401, detail="merchant login required", headers=challenge)
     merchant_id = container.auth.resolve(token)
     if merchant_id is None:
-        raise HTTPException(
-            status_code=401, detail="session invalid or expired", headers=challenge
-        )
+        raise HTTPException(status_code=401, detail="session invalid or expired", headers=challenge)
     try:
         return container.merchants.get(merchant_id)
     except KeyError as exc:  # session for a deleted merchant — treat as unauthenticated

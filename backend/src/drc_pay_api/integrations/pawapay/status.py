@@ -8,6 +8,7 @@ non-terminal → ``PENDING`` (fail-safe). The status endpoint wraps the operatio
 (``client._status``); the callback body is flat (``callbacks.parse_callback``).
 Source: https://docs.pawapay.io/v2/docs/deposits
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

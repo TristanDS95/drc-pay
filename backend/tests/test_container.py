@@ -1,6 +1,7 @@
 """build_container selects the rail from config: the live pawaPay rail when both
 credentials are present, otherwise the in-process simulator.
 """
+
 from __future__ import annotations
 
 import httpx
@@ -62,7 +63,8 @@ def test_ensure_callback_public_key_fetches_when_live_and_unset() -> None:
         return httpx.Response(200, json=[{"id": "HTTP_EC_P256_KEY:1", "key": pem}])
 
     client = PawaPayClient(
-        base_url="https://x", api_token="t",
+        base_url="https://x",
+        api_token="t",
         http=httpx.Client(transport=httpx.MockTransport(handler)),
     )
     container = build_container()  # simulated, no key

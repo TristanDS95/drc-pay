@@ -15,6 +15,7 @@ design — a QR exists to be scanned by a customer.
 Sections below: transactions (the demo/core payment), merchants (read-only tills), charges
 (the scan-to-pay checkout).
 """
+
 from __future__ import annotations
 
 import io
@@ -121,12 +122,18 @@ def create_transaction(
         existing = container.store.find_by_idempotency_key(idempotency_key)
         if existing is not None:
             return _to_response(
-                container, existing, ["idempotent replay · key already processed; original returned"]
+                container,
+                existing,
+                ["idempotent replay · key already processed; original returned"],
             )
 
     recorder = ListRecorder()
-    recorder.record(f"POST /transactions · {body.amount} {body.currency} · scenario={body.scenario}")
-    recorder.record(f"merchant · {merchant.name} ({merchant.id}) · settle → {merchant.settlement_msisdn}")
+    recorder.record(
+        f"POST /transactions · {body.amount} {body.currency} · scenario={body.scenario}"
+    )
+    recorder.record(
+        f"merchant · {merchant.name} ({merchant.id}) · settle → {merchant.settlement_msisdn}"
+    )
     if body.defer:
         recorder.record("demo · deferring outcome — payment stays pending until reconciled")
 
@@ -148,7 +155,9 @@ def create_transaction(
     return _to_response(container, container.store.get(transaction_id), recorder.messages)
 
 
-@merchant_api_router.post("/transactions/{transaction_id}/confirm", response_model=TransactionResponse)
+@merchant_api_router.post(
+    "/transactions/{transaction_id}/confirm", response_model=TransactionResponse
+)
 def confirm_on_net_payment(
     transaction_id: str, merchant: CurrentMerchant, container: ContainerDep, received: bool = True
 ) -> TransactionResponse:
@@ -166,9 +175,13 @@ def confirm_on_net_payment(
         raise HTTPException(status_code=422, detail="not an on-net payment — nothing to confirm")
     if tx.state is not TxState.COLLECTION_PENDING:
         return _to_response(container, tx, [f"already resolved · state={tx.state.value}"])
-    OnNetOrchestrator(container.store, container.ledger).on_confirm(transaction_id, success=received)
+    OnNetOrchestrator(container.store, container.ledger).on_confirm(
+        transaction_id, success=received
+    )
     verb = "received → paid" if received else "not received"
-    return _to_response(container, container.store.get(transaction_id), [f"merchant confirmation: {verb}"])
+    return _to_response(
+        container, container.store.get(transaction_id), [f"merchant confirmation: {verb}"]
+    )
 
 
 @merchant_api_router.get("/transactions/{transaction_id}", response_model=TransactionResponse)

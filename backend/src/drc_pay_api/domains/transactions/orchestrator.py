@@ -18,6 +18,7 @@ An optional ``Recorder`` narrates each step (validations, transitions, rail call
 postings) so callers can surface a human-readable operations trace. It defaults to off
 and is purely observational — it never affects behaviour.
 """
+
 from __future__ import annotations
 
 from ..ledger.ledger import Direction, Entry, Posting
@@ -124,7 +125,9 @@ class Orchestrator:
             self._rec("✕ ended — collection rejected, no money moved")
             return transaction
         self._store_op_id(transaction, kind="deposit", op_id=deposit_id)
-        self._rec(f"rail → collect {amount.to_major_str()} {amount.currency} from {customer_msisdn}")
+        self._rec(
+            f"rail → collect {amount.to_major_str()} {amount.currency} from {customer_msisdn}"
+        )
         return transaction
 
     # ---- collection leg ----------------------------------------------
