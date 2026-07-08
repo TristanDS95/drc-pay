@@ -366,15 +366,61 @@ def test_ussd_non_ascii_secret_header_is_rejected_not_crashed(monkeypatch) -> No
     assert r.status_code == 401
 
 
-def test_ussd_rate_limit_per_msisdn(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_ussd_rate_limit_per_msisdn() -> None:
     client = TestClient(create_app())
     body = {"session_id": "rl-1", "msisdn": "243800000002", "text": ""}
-    statuses = [client.post("/ussd", json=body).status_code for _ in range(10)]
-    assert statuses[:8] == [200] * 8
-    assert statuses[8] == statuses[9] == 429  # the spray is cut off
+    responses = [client.post("/ussd", json=body) for _ in range(16)]
+    # USSD always answers 200 with a wire body: 15 admitted (ask-till CON), the 16th throttled with
+    # a wire END the customer can read — not a JSON 429 the aggregator would render as a raw error.
+    assert all(r.status_code == 200 for r in responses)
+    assert all(r.text.startswith("CON") for r in responses[:15])
+    assert responses[15].text.startswith("END") and "minute" in responses[15].text.lower()
     # A different number is unaffected — the limit is per msisdn.
     other = client.post("/ussd", json={**body, "msisdn": "243800000003"})
-    assert other.status_code == 200
+    assert other.status_code == 200 and other.text.startswith("CON")
+
+
+def test_ussd_msisdn_plus_prefix_is_one_rate_limit_identity() -> None:
+    # '+243…' and '243…' are the same subscriber; an abuser must not double the per-number budget
+    # by toggling the '+'. 15 requests as the plain form, then the 16th as the '+' form is throttled.
+    client = TestClient(create_app())
+    for _ in range(15):
+        assert (
+            client.post(
+                "/ussd", json={"session_id": "n", "msisdn": "243800000002", "text": ""}
+            ).status_code
+            == 200
+        )
+    throttled = client.post(
+        "/ussd", json={"session_id": "n", "msisdn": "+243800000002", "text": ""}
+    )
+    assert throttled.text.startswith("END") and "minute" in throttled.text.lower()
+
+
+def test_ussd_normalizes_the_plus_prefix_in_storage() -> None:
+    # The stored msisdn (and thus the idempotency key) is canonical digits-only, so '+243…' and
+    # '243…' retries of one session key identically instead of forking into two transactions.
+    client = as_merchant(TestClient(create_app()))
+    for text in ["", "1001", "1001*10", "1001*10*1"]:
+        client.post("/ussd", json={"session_id": "z", "msisdn": "+243800000009", "text": text})
+    listed = client.get("/transactions").json()
+    assert listed[0]["customer_msisdn"] == "243800000009"  # '+' stripped
+
+
+def test_ussd_rejects_newline_and_unicode_digit_msisdns() -> None:
+    # The msisdn is stored and rendered in the console; a trailing newline (old '$' allowed it) or
+    # Unicode/fullwidth digits (old '\\d' matched them) must be refused at the edge.
+    client = TestClient(create_app())
+    for bad in ["243800000001\n", "٢٤٣٨٠٠٠٠", "１２３４５６"]:
+        r = client.post("/ussd", json={"session_id": "x", "msisdn": bad, "text": ""})
+        assert r.status_code == 422, bad
+
+
+def test_ussd_rejects_an_oversized_text_body() -> None:
+    # An unbounded text field split on '*' is a cheap memory/CPU DoS; the field is length-capped.
+    client = TestClient(create_app())
+    r = client.post("/ussd", json={"session_id": "x", "msisdn": "243800000001", "text": "1" * 5000})
+    assert r.status_code == 422
 
 
 def test_ussd_rate_limiter_does_not_grow_unbounded() -> None:

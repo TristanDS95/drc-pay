@@ -52,6 +52,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "confirm": "Payer {amount} {cur} a {name} ?\n1. Confirmer\n2. Annuler",
         "cancelled": "Annule. Aucun paiement effectue.",
         "too_many": "Trop de tentatives. Veuillez recomposer.",
+        "rate_limited": "Trop de demandes pour ce numero. Reessayez dans une minute.",
         "routed_done": (
             "Paiement de {amount} {cur} a {name} initie. Confirmez avec votre PIN "
             "mobile money sur votre telephone."
@@ -74,6 +75,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "confirm": "Pay {amount} {cur} to {name}?\n1. Confirm\n2. Cancel",
         "cancelled": "Cancelled. No payment made.",
         "too_many": "Too many attempts. Please dial again.",
+        "rate_limited": "Too many requests for this number. Please try again in a minute.",
         "routed_done": (
             "Payment of {amount} {cur} to {name} initiated. Approve with your mobile "
             "money PIN on your phone."
@@ -134,6 +136,12 @@ class UssdHandler:
 
     def _msg(self, key: str, **kwargs: str) -> str:
         return self._s[key].format(cur=_CURRENCY, max=_MAX_AMOUNT.to_major_str(), **kwargs)
+
+    def rate_limited_wire(self) -> str:
+        """The transport's rate-limit rejection, rendered as a localized END wire string so the
+        customer sees a real USSD message (and the aggregator/dial-simulator can parse it) instead
+        of a raw JSON 429 body."""
+        return UssdResponse.end(self._s["rate_limited"]).to_wire()
 
     def handle(self, request: UssdRequest) -> UssdResponse:
         parts = [p for p in request.text.split("*") if p]

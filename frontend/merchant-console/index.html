@@ -817,10 +817,12 @@
       for(const text of steps){
         const r = await fetch(`${API}/ussd`, { method:"POST", headers:{ "content-type":"application/json" },
           body: JSON.stringify({ session_id: session, msisdn: cust, text }) });
-        const wire = await r.text();
+        // The USSD wire body is plain text (CON/END). On any non-2xx (e.g. the aggregator-secret
+        // 401) show a clean END line instead of dumping the raw JSON error, and stop the loop.
+        const wire = r.ok ? await r.text() : `END Service unavailable (HTTP ${r.status}).`;
         transcript.push({ dialed: text, wire });
         renderUssdScreen(transcript);
-        if(wire.startsWith("END")) break;
+        if(!r.ok || wire.startsWith("END")) break;
         await sleep(550);
       }
     } catch(e){ showErr(t().ussd_fail + e); $("ussd-dial").disabled = false; return; }
