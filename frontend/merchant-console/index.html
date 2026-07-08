@@ -593,7 +593,13 @@
       return;
     }
     try { me = await jget("/auth/me"); }
-    catch(e){ if(!String(e).includes("session expired")) showErr(e); return; }
+    catch(e){
+      // jget() already calls showLogin() on a 401 (the normal "not logged in yet" case). Any OTHER
+      // load-time failure (500, network drop, server restart mid-session) must still leave a usable
+      // login form, not a blank shell behind an error banner - so reveal the overlay here too.
+      if(!String(e).includes("session expired")){ showLogin(); showErr(e); }
+      return;
+    }
     hideLogin(); clearErr();
     $("whoami-name").textContent = me.name;
     $("whoami-net").textContent = opName(me.settlement_provider);  // which wallet this vendor settles to
