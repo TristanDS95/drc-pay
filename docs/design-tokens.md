@@ -1,4 +1,4 @@
-# Design tokens — the look of the app
+# Design tokens - the look of the app
 
 The single source of truth for the product's visual language, so the spec and any future client
 code can't drift. Mirrors `../../drc-mvp-research/05-product-spec/ui-spec.md`: **Wave-style minimal**,
@@ -16,9 +16,9 @@ a distinctive **coral** accent, warm **cream + charcoal** neutrals, flat **12px-
 | `coralDark` | `#E2553F` | pressed/hover accent |
 | `cream` | `#FFFCF8` | light background |
 | `charcoal` | `#1A1A1A` | dark background / primary text on light |
-| `success` | `#1E8E5A` | semantic — success |
-| `error` | `#D64541` | semantic — error |
-| `warning` | `#C77700` | semantic — warning |
+| `success` | `#1E8E5A` | semantic - success |
+| `error` | `#D64541` | semantic - error |
+| `warning` | `#C77700` | semantic - warning |
 
 ## Theme (semantic, light + dark)
 

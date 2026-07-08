@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DRC-Pay — design tokens preview</title>
+<title>DRC-Pay - design tokens preview</title>
 <!--
   This page is a RENDERER, not a copy. It reads ./design-tokens.md at load time and
   draws the swatches, themes, and scales from it. The markdown is the single source of
-  truth — edit a token there, reload this page, and the preview updates. This file holds
+  truth - edit a token there, reload this page, and the preview updates. This file holds
   no token values of its own.
 
   Viewing: browsers block a file:// page from reading a sibling file, so serve the folder:
@@ -162,7 +162,7 @@ function render(md) {
   });
   const get = (role, mode, fb) => (theme[role] && theme[role][mode]) || fb;
 
-  out.appendChild($("div", { class: "h" }, "Theme — sample UI, light & dark"));
+  out.appendChild($("div", { class: "h" }, "Theme - sample UI, light & dark"));
   const themes = $("div", { class: "themes" });
   for (const mode of ["light", "dark"]) {
     const bg = get("background", mode, mode === "light" ? "#FFFCF8" : "#1A1A1A");
@@ -220,9 +220,9 @@ function render(md) {
 
   const type = parseScaleLine(scaleLines, "Font");
   if (type.length) {
-    out.appendChild($("div", { class: "h" }, "Type — Inter"));
+    out.appendChild($("div", { class: "h" }, "Type - Inter"));
     const box = $("div", { class: "scale" });
-    const samples = { caption: "Caption — the small print", body: "Body — the default reading size", title: "Title — section heading", display: "Display" };
+    const samples = { caption: "Caption - the small print", body: "Body - the default reading size", title: "Title - section heading", display: "Display" };
     type.forEach(t => {
       const weight = t.value >= 32 ? 700 : t.value >= 22 ? 600 : 400;
       box.appendChild($("div", { class: "type", style: `font-size:${t.value}px;font-weight:${weight}` },

@@ -1,6 +1,6 @@
 # drc-pay
 
-The DRC cross-network mobile-money payment app — **application code**.
+The DRC cross-network mobile-money payment app - **application code**.
 
 A **merchant-facing** app for the DRC: merchants accept mobile-money payments from customers on
 **any** network (Vodacom M-Pesa, Airtel, Orange), bridged behind the scenes, on rented rails
@@ -8,7 +8,7 @@ A **merchant-facing** app for the DRC: merchants accept mobile-money payments fr
 the **merchant absorbs our fee (MDR)**; settlement to the merchant follows automatically, with an
 automatic refund if it can't complete. 
 
-**Customers need no app or internet** — they scan the merchant's QR or dial a USSD till. A consumer-facing
+**Customers need no app or internet** - they scan the merchant's QR or dial a USSD till. A consumer-facing
 app may follow later.
 
 > Research, product spec, and decision reports live in the sibling
@@ -25,7 +25,7 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
 - **Backend** (`backend/`, **Python / FastAPI**): payment spine (collect → settle → auto-refund),
   double-entry ledger, explicit state machine, idempotency, Merchant + Charge domains, MDR pricing,
   Postgres + Alembic, the pawaPay client/rail, signed-callback receiver, reconciliation sweep, the USSD
-  channel, and **on-net same-network handling** — *facilitate & record*
+  channel, and **on-net same-network handling** - *facilitate & record*
   ([ADR 0009](docs/adr/0009-on-net-facilitate-and-record.md)): same-network payments are paid
   merchant-direct on the operator's own rail (non-custodial), and we record/confirm them.
 - **Web UIs** (`frontend/`): the **Merchant Console** (per-merchant login) and the public **Customer**
@@ -34,7 +34,7 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
 - **Merchant auth + per-merchant authorization:** every merchant signs in with their own account
   (Argon2id-hashed passwords, opaque expiring sessions), and every merchant endpoint is scoped to the
   session's merchant - you can only see, confirm, and charge your own payments (security roadmap, Gate A).
-- **Not started:** the native mobile app (React Native/Expo — deliberately web-first for now; plan in
+- **Not started:** the native mobile app (React Native/Expo - deliberately web-first for now; plan in
   [`docs/future-dev.md`](docs/future-dev.md)) and merchant onboarding/KYC.
 
 
@@ -45,16 +45,16 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
   → sign in as a demo merchant (`alpha` / `beta` / `gamma`, password `<username>-demo`; the login
   screen lists them). Each account sees only its own payments.
 - **Customer pay page:** the Console's "Charge by QR" makes a charge whose QR opens
-  `…/customer/?charge=<id>` (no login) — scan, pick a network, pay.
+  `…/customer/?charge=<id>` (no login) - scan, pick a network, pay.
 - It runs on pawaPay's **sandbox** (test money only).
 
 ## Layout
 
 ```
 drc-pay/
-├── backend/           # Python / FastAPI — the money core + every channel (HTTP, USSD, webhooks)
+├── backend/           # Python / FastAPI - the money core + every channel (HTTP, USSD, webhooks)
 ├── frontend/
-│   ├── merchant-console/  # gated web cockpit (merchant side) — Charge-by-QR, live feed, ledger
+│   ├── merchant-console/  # gated web cockpit (merchant side) - Charge-by-QR, live feed, ledger
 │   └── customer-app/      # public scan-to-pay (charge-driven) + USSD dial simulator (customer side)
 ├── docs/              # DEVLOG, future-dev, design tokens, ADRs
 ├── Dockerfile         # single-container image: API + both web apps, served same-origin
@@ -62,31 +62,31 @@ drc-pay/
 └── .github/workflows/ # CI (lint, type, test)
 ```
 
-Inside the backend (`backend/src/drc_pay_api/`) the design is hexagonal — the domain is pure,
+Inside the backend (`backend/src/drc_pay_api/`) the design is hexagonal - the domain is pure,
 infrastructure plugs in via ports, every channel is a thin caller into the same core. The **dual-rail
 routing** added with on-net lives here:
 
 ```
-domains/              # PURE money logic — no HTTP / SQL / vendor knowledge
+domains/              # PURE money logic - no HTTP / SQL / vendor knowledge
   ledger/             #   Money (integer minor units) + the double-entry ledger
   merchants/ charges/ #   the payee + the scan-to-pay checkout
   transactions/       #   state machine · models · pricing · ports, and the TWO orchestrators:
-                      #     orchestrator.py — cross-network: pawaPay collect → settle → auto-refund
-                      #     on_net.py       — same-network: facilitate & record (no money movement)
-application/          # payments.py — the single entry every channel calls; routing.py decides on-net
+                      #     orchestrator.py - cross-network: pawaPay collect → settle → auto-refund
+                      #     on_net.py       - same-network: facilitate & record (no money movement)
+application/          # payments.py - the single entry every channel calls; routing.py decides on-net
                       #   vs routed; outcomes.py / webhooks.py resolve async outcomes (callback + sweep)
 adapters/             # in-memory + SQLAlchemy/Postgres stores (same ports)
 integrations/
   pawapay/            #   rented-rails client · rail · simulator · RFC-9421 signed-callback verify
-container.py          # the composition root — every channel wires through it
+container.py          # the composition root - every channel wires through it
 http/                 # FastAPI routes; the signed pawaPay callback receiver at /webhooks/pawapay
-ussd/                 # feature-phone channel — a thin caller into the same core
+ussd/                 # feature-phone channel - a thin caller into the same core
 jobs/                 # the reconciliation sweep (missed-callback safety net)
 ```
 
 ## Quickstart
 
-Day-to-day we run against the **hosted sandbox**, not a local server — see
+Day-to-day we run against the **hosted sandbox**, not a local server - see
 [Live demo](#live-demo-sandbox) above for the URL and logins. It's a single container (API + Merchant
 Console + Customer page, same-origin) deployed on **Railway**, backed by managed Postgres, talking to
 pawaPay's **sandbox** rails (test money only). Real **signed callbacks** (RFC-9421) confirm payments in
@@ -102,8 +102,8 @@ real time; the reconciliation sweep is the backstop.
 
 ### Run locally (contributors)
 
-Still fully supported for development. With **no credentials** set it runs entirely offline — the
-in-process pawaPay simulator, with seeded demo merchants — so you never touch real (or sandbox)
+Still fully supported for development. With **no credentials** set it runs entirely offline - the
+in-process pawaPay simulator, with seeded demo merchants - so you never touch real (or sandbox)
 money (same-network payments route on-net and are recorded, no rail involved):
 
 ```bash
@@ -123,21 +123,21 @@ Point it at the live sandbox rail instead by putting `DRCPAY_PAWAPAY_BASE_URL` +
 `DRCPAY_PAWAPAY_API_TOKEN` in `backend/.env`. Postgres is optional locally
 (`docker compose up -d`, then set `DRCPAY_DATABASE_URL`); without it the app uses an in-memory store.
 
-> **Always run uvicorn with `--app-dir src`** — the repo path contains a space, which breaks pip's
+> **Always run uvicorn with `--app-dir src`** - the repo path contains a space, which breaks pip's
 > *editable* install, so we run from `src` (tests do the same via `pythonpath=src`).
 
 ## Engineering standards
 
 These are non-negotiable because bugs here move real money:
 
-- **Money is integer minor units, never floats** — exact arithmetic; parsed via `Decimal`.
+- **Money is integer minor units, never floats** - exact arithmetic; parsed via `Decimal`.
 - **The double-entry ledger is the source of truth** (not the transaction row); every posting must
   balance or it's rejected.
-- **Idempotency on every money-moving request** — a retry never double-charges.
-- **An explicit transaction state machine** — illegal transitions raise; they're bugs, not edge cases.
-- **Reconciliation is the safety net** — assume callbacks get missed; a sweep heals stuck payments.
-- **pawaPay webhooks are verified** with RFC-9421 public-key signatures (ECDSA-P256) — reject unsigned.
-- **No secrets in the repo** — config via environment variables; `.env` is git-ignored.
+- **Idempotency on every money-moving request** - a retry never double-charges.
+- **An explicit transaction state machine** - illegal transitions raise; they're bugs, not edge cases.
+- **Reconciliation is the safety net** - assume callbacks get missed; a sweep heals stuck payments.
+- **pawaPay webhooks are verified** with RFC-9421 public-key signatures (ECDSA-P256) - reject unsigned.
+- **No secrets in the repo** - config via environment variables; `.env` is git-ignored.
 - **ruff + `mypy --strict` + pytest** must all pass; the ledger and state machine carry the most tests.
 
 Significant decisions are recorded as ADRs (architectural decision record) in [`docs/adr/`](./docs/adr/). 

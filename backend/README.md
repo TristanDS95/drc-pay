@@ -1,6 +1,6 @@
 # backend
 
-The backend — **Python / FastAPI**. This is where the money logic lives.
+The backend - **Python / FastAPI**. This is where the money logic lives.
 
 ## Setup
 
@@ -14,24 +14,24 @@ pip install ".[dev]"
 ```bash
 # --app-dir src puts the package on the import path and runs straight from source. (This repo
 # sits under a path containing a space, which breaks pip *editable* installs; --app-dir sidesteps
-# that — and lets edits take effect without reinstalling.)
+# that - and lets edits take effect without reinstalling.)
 uvicorn --app-dir src drc_pay_api.main:app --reload
 ```
 
-Then open **http://127.0.0.1:8000/docs** — FastAPI's auto-generated interactive page —
+Then open **http://127.0.0.1:8000/docs** - FastAPI's auto-generated interactive page -
 and try `POST /transactions`, e.g.:
 
 ```json
 {"customer_msisdn": "243813456789", "merchant_id": "m_alpha", "amount": "10.00", "scenario": "success"}
 ```
 
-`scenario` can be `success`, `payout_fail`, `collection_fail`, or `refund_fail` — it plays out a
+`scenario` can be `success`, `payout_fail`, `collection_fail`, or `refund_fail` - it plays out a
 simulated outcome on the in-process rail (and is ignored on the live pawaPay rail). The response
 shows the final state, the full state history, and the ledger entries.
 
 ## Database
 
-By default the API uses an in-memory store (zero setup — perfect for the demo). To run
+By default the API uses an in-memory store (zero setup - perfect for the demo). To run
 against **Postgres**, start one with Docker (from the repo root) and point the API at it:
 
 ```bash
@@ -49,7 +49,7 @@ The schema is managed by **Alembic**, not auto-created. After changing a model i
 `src/drc_pay_api/adapters/sql.py`:
 
 ```bash
-alembic revision --autogenerate -m "describe the change"   # generate a migration — review it!
+alembic revision --autogenerate -m "describe the change"   # generate a migration - review it!
 alembic upgrade head                                       # apply it
 ```
 
@@ -70,7 +70,7 @@ src/drc_pay_api/
 ├── main.py               # FastAPI app factory + middleware (thin HTTP layer)
 ├── config.py             # 12-factor settings from env
 ├── seed.py               # demo-merchant seeding (sandbox/local)
-├── domains/              # framework-agnostic core — SOURCE OF TRUTH
+├── domains/              # framework-agnostic core - SOURCE OF TRUTH
 │   ├── ledger/           # money.py (integer minor units) + ledger.py (double-entry)
 │   ├── transactions/     # state_machine.py + orchestrator.py (the payment spine)
 │   └── merchants/        # the Merchant entity

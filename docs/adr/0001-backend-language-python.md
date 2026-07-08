@@ -1,4 +1,4 @@
-# ADR 0001 — Backend language: Python (FastAPI)
+# ADR 0001 - Backend language: Python (FastAPI)
 
 - **Status:** Accepted (2026-06-09)
 - **Context:** The mobile app is TypeScript (React Native / Expo). The backend could be
@@ -13,5 +13,5 @@
   - Tooling: ruff + mypy (strict) + pytest; `src` layout.
   - The hired backend engineer owns refinements within Python; revisit the language
     only with strong cause.
-- **Alternatives considered:** Node/TypeScript — rejected for now: weaker ML story,
+- **Alternatives considered:** Node/TypeScript - rejected for now: weaker ML story,
   and the code-sharing benefit is modest once contracts are generated.

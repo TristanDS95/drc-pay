@@ -2,19 +2,19 @@
 
 Engineering-side documentation for drc-pay.
 
-- **`adr/`** — Architecture Decision Records: one short file per significant,
+- **`adr/`** - Architecture Decision Records: one short file per significant,
   hard-to-reverse decision. Start from [`adr/_template.md`](./adr/_template.md).
-- **[`DEVLOG.md`](./DEVLOG.md)** — the development log + handoff (read first to resume work); active roadmap.
-- **[`future-dev.md`](./future-dev.md)** — longer-horizon / someday work (mobile app, admin dashboard,
+- **[`DEVLOG.md`](./DEVLOG.md)** - the development log + handoff (read first to resume work); active roadmap.
+- **[`future-dev.md`](./future-dev.md)** - longer-horizon / someday work (mobile app, admin dashboard,
   AWS infra, split webhook service), consolidated when the placeholder folders were removed (ADR 0008).
-- **[`security-roadmap.md`](./security-roadmap.md)** — the staged security checklist: what's in place,
+- **[`security-roadmap.md`](./security-roadmap.md)** - the staged security checklist: what's in place,
   what gates the first real-money pilot (Gate A), what gates production at scale (Gate B).
-- **[`design-tokens.md`](./design-tokens.md)** — the design system (palette, type, spacing), mirroring
+- **[`design-tokens.md`](./design-tokens.md)** - the design system (palette, type, spacing), mirroring
   the product spec's `ui-spec.md`.
-- **[`architecture-guide.md`](./architecture-guide.md)** — the plain-language "new user's guide" to the
+- **[`architecture-guide.md`](./architecture-guide.md)** - the plain-language "new user's guide" to the
   whole system. This Markdown is the source; `DRC-Pay-Architecture-Guide.docx` is generated from it
-  (`pandoc architecture-guide.md -o DRC-Pay-Architecture-Guide.docx`) — regenerate after editing.
-- **Product spec** — the authoritative spec lives in the research workspace:
+  (`pandoc architecture-guide.md -o DRC-Pay-Architecture-Guide.docx`) - regenerate after editing.
+- **Product spec** - the authoritative spec lives in the research workspace:
   [`../../drc-mvp-research/05-product-spec/`](../../drc-mvp-research/05-product-spec/)
   (human-readable summary: `../../drc-mvp-research/product-spec.html`). Port stable
   pieces here as they harden; **link rather than duplicate** while they're still
