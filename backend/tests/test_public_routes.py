@@ -18,6 +18,15 @@ def _client() -> TestClient:
     return TestClient(create_app())
 
 
+def test_public_providers_returns_the_shared_display_names() -> None:
+    # The single source both frontends read (so their labels can't drift); reachable without auth.
+    from drc_pay_api.integrations.pawapay.providers import PROVIDER_DISPLAY_NAMES
+
+    body = _client().get("/public/providers").json()
+    assert body == PROVIDER_DISPLAY_NAMES
+    assert body["VODACOM_MPESA_COD"] == "Vodacom M-Pesa"
+
+
 def test_public_merchant_info_has_no_settlement_details() -> None:
     body = _client().get("/public/merchant/m_alpha").json()
     assert body["name"] == "Alpha Gas Station"

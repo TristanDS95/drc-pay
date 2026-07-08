@@ -522,8 +522,14 @@
     : (s === "refunded" || s === "initiated" || s === "collection_succeeded") ? "mut" : "bad";
 
   // pawaPay operator code -> friendly mobile-money name, for the picker + merchant card.
-  const NETWORK = { VODACOM_MPESA_COD:"Vodacom M-Pesa", AIRTEL_COD:"Airtel", ORANGE_COD:"Orange" };
+  // Built-in fallback; refreshed from /public/providers so the console and the customer page render
+  // one consistent label instead of each keeping a private map that drifts.
+  let NETWORK = { VODACOM_MPESA_COD:"Vodacom M-Pesa", AIRTEL_COD:"Airtel", ORANGE_COD:"Orange" };
   const opName = (code) => NETWORK[code] || code || "-";
+  async function loadProviders(){
+    try { const r = await fetch(`${API}/public/providers`, { cache:"no-store" }); if(r.ok) NETWORK = await r.json(); }
+    catch(e){ /* keep the built-in fallback */ }
+  }
 
   let me = null, txns = [];
   const current = () => me;
@@ -960,6 +966,7 @@
   }));
 
   applyLang();
+  loadProviders();
   boot();
   setInterval(refresh, 6000);
 </script>

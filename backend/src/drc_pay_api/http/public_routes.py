@@ -16,9 +16,18 @@ from ..application.payments import start_merchant_payment
 from ..domains.charges.models import charge_status, is_payable
 from ..domains.ledger.money import Money
 from ..domains.transactions.models import MERCHANT_ATTESTED
+from ..integrations.pawapay.providers import PROVIDER_DISPLAY_NAMES
 from .dependencies import ContainerDep
 
 public_router = APIRouter()
+
+
+@public_router.get("/public/providers")
+def public_providers() -> dict[str, str]:
+    """Provider code -> display name. The single source both UIs read so their labels can't drift
+    (the merchant console and the customer page had kept separate, diverging maps)."""
+    return PROVIDER_DISPLAY_NAMES
+
 
 # pawaPay DRC sandbox test numbers: the operator prefix picks the PAYER's network, and the last
 # three digits pick the OUTCOME (789 = success, 049 = insufficient funds). On the simulator the
