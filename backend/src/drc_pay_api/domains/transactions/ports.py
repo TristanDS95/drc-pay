@@ -10,6 +10,7 @@ The real adapters live elsewhere:
 This keeps the domain free of HTTP, SQL, and vendor wire formats, and makes every path
 testable with in-memory adapters.
 """
+
 from __future__ import annotations
 
 from typing import Protocol
@@ -23,6 +24,13 @@ class RailRejected(Exception):
     """Raised by a ``PaymentRail`` when the provider *synchronously* rejects a request
     (rather than accepting it for asynchronous processing). The orchestrator maps this to
     an immediate failure of that leg — it will not wait for a callback that never comes."""
+
+
+class DuplicateIdempotencyKey(Exception):
+    """Raised by a ``TransactionStore`` when a ``save`` would create a *second*, distinct
+    transaction under an idempotency key already held by another. It is the storage layer's
+    atomic guarantee against a double charge when two money-moving requests with the same key
+    race past a pre-check. The application layer catches it and returns the original."""
 
 
 class PaymentRail(Protocol):
@@ -53,6 +61,14 @@ class TransactionStore(Protocol):
     def get(self, transaction_id: str) -> Transaction: ...
 
     def save(self, transaction: Transaction) -> None: ...
+
+
+class IdempotentTransactionStore(TransactionStore, Protocol):
+    """A ``TransactionStore`` that can also be queried by idempotency key. Kept separate so the
+    write-only paths (the orchestrator, the reconciliation applier) require only ``get``/``save``,
+    while the entry point that must dedup money-moving requests asks for this wider contract."""
+
+    def find_by_idempotency_key(self, key: str) -> Transaction | None: ...
 
 
 class LedgerPort(Protocol):

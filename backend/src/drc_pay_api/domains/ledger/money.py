@@ -6,10 +6,20 @@ books no longer balance. We store every amount as an integer number of *minor un
 (US cents, Congolese centimes) tagged with an ISO-4217 currency code, and we only
 ever parse human input through ``Decimal`` (exact) — never ``float``.
 """
+
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+
+# A *plain* human-typed amount: ASCII digits with an optional single decimal separator
+# ('.' or ',') and at most two fractional digits. Deliberately strict — it rejects
+# scientific notation ('1e3'), digit-group separators ('1_000'), signs, whitespace-embedded
+# junk, Unicode/fullwidth digits, and thousands-grouped input ('1,000', '10.000', which have
+# three digits after the separator). Those must be re-prompted, never silently reinterpreted
+# into a different amount. ``[0-9]`` (not ``\d``) so Unicode digits do not sneak through.
+_USER_AMOUNT_RE = re.compile(r"^[0-9]+([.,][0-9]{1,2})?$")
 
 # ISO 4217 minor-unit exponents for the currencies we support.
 # USD: 100 cents = 1 dollar. CDF: officially 100 centimes = 1 franc (in everyday
@@ -51,6 +61,19 @@ class Money:
         value = Decimal(str(major)).quantize(quantum, rounding=ROUND_HALF_UP)
         minor = int(value.scaleb(exponent).to_integral_value())
         return cls(minor, currency)
+
+    @classmethod
+    def from_user_input(cls, text: str, currency: str) -> Money:
+        """Parse an amount a human *typed*, strictly. Unlike ``from_major`` (which trusts its
+        caller and will happily accept anything ``Decimal`` does — ``'1e3'``, ``'1_000'``,
+        fullwidth digits), this accepts only a plain decimal string with an optional ',' or '.'
+        separator and 1-2 fractional digits, so ambiguous or exotic input is rejected instead of
+        silently becoming a different amount. Accepts the francophone comma decimal ('10,50').
+        Raises ``ValueError`` on anything else."""
+        cleaned = text.strip()
+        if not _USER_AMOUNT_RE.match(cleaned):
+            raise ValueError(f"not a plain decimal amount: {text!r}")
+        return cls.from_major(cleaned.replace(",", "."), currency)
 
     # ---- presentation -------------------------------------------------
     def to_major_str(self) -> str:

@@ -7,6 +7,7 @@ by the USSD gateway without reimplementation.
 ``create_app()`` builds a fresh application (with its own in-memory wiring), so tests
 spin up isolated instances. The module-level ``app`` is what uvicorn serves.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -100,7 +101,19 @@ def _basic_auth_ok(authorization: str, password: str) -> bool:
     return secrets.compare_digest(user, "drcpay") and secrets.compare_digest(supplied, password)
 
 
+_KNOWN_ENVIRONMENTS = frozenset({"local", "sandbox", "production"})
+
+
 def create_app() -> FastAPI:
+    # Fail CLOSED on an unrecognized environment. Every safety gate below keys off an exact
+    # environment string, so a typo ("prod", "Production", "production ") would silently match
+    # neither the sandbox nor the production guard and boot a live deploy wide open. Reject it.
+    if settings.environment not in _KNOWN_ENVIRONMENTS:
+        raise RuntimeError(
+            f"Unknown DRCPAY_ENVIRONMENT {settings.environment!r}. Must be one of "
+            f"{sorted(_KNOWN_ENVIRONMENTS)}. Refusing to start: an unrecognized environment "
+            "silently skips the sandbox and production safety gates."
+        )
     # The merchant API is session-gated in EVERY environment (per-merchant login — see
     # http/dependencies.py), so it no longer depends on the shared password. The sandbox still
     # refuses to boot without one: its demo shell (console page, docs, demo endpoints) is
@@ -166,11 +179,13 @@ def create_app() -> FastAPI:
             and not path.startswith(_PUBLIC_PREFIXES)
             and not path.startswith(_SESSION_GATED_PREFIXES)
         )
-        if password and request.method != "OPTIONS" and gated:
-            if not _basic_auth_ok(request.headers.get("authorization", ""), password):
-                return Response(
-                    status_code=401, headers={"WWW-Authenticate": 'Basic realm="DRC Pay"'}
-                )
+        if (
+            password
+            and request.method != "OPTIONS"
+            and gated
+            and not _basic_auth_ok(request.headers.get("authorization", ""), password)
+        ):
+            return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="DRC Pay"'})
         return await call_next(request)
 
     app.state.container = build_container(

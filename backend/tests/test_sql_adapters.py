@@ -3,8 +3,10 @@
 Verifies the persistence logic (mapping, upsert, ledger grouping) with no running
 Postgres. Production uses Postgres; the same adapter code targets both via SQLAlchemy.
 """
+
 from __future__ import annotations
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -20,6 +22,7 @@ from drc_pay_api.domains.ledger.ledger import Direction, Entry, Posting
 from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.domains.merchants.models import Merchant
 from drc_pay_api.domains.transactions.models import Transaction
+from drc_pay_api.domains.transactions.ports import DuplicateIdempotencyKey
 from drc_pay_api.domains.transactions.state_machine import TxState
 
 
@@ -132,6 +135,22 @@ def test_find_by_idempotency_key() -> None:
     assert found is not None
     assert found.id == "t1"
     assert store.find_by_idempotency_key("missing") is None
+
+
+def test_sql_store_rejects_a_second_transaction_under_the_same_key() -> None:
+    # The DB unique constraint is the atomic backstop against a double charge when two requests
+    # race past the pre-check; the store translates it to a domain error, not a raw IntegrityError.
+    store = SqlTransactionStore(_factory())
+    first = _tx("t1")
+    first.idempotency_key = "dup"
+    store.save(first)
+    second = _tx("t2")  # different transaction id, same key
+    second.idempotency_key = "dup"
+    with pytest.raises(DuplicateIdempotencyKey):
+        store.save(second)
+    # Re-saving the SAME transaction (the normal state-transition path) is still fine.
+    first.state = TxState.COLLECTION_PENDING
+    store.save(first)
 
 
 def test_merchant_store_roundtrip_and_lookup() -> None:

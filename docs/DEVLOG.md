@@ -100,8 +100,8 @@ under the ~180-char USSD ceiling (tested). Transport hardening (security roadmap
 shared secret** (`X-USSD-Secret`, constant-time; `DRCPAY_USSD_SHARED_SECRET` — production refuses to
 boot without it, local/sandbox stay open for the console's dial simulator) and an in-process
 **per-msisdn rate limit** (8/min sliding window → 429) so nobody sprays payment prompts at arbitrary
-numbers. 12 new tests (retries, caps, on-net vs routed, replay idempotency, secret, rate limit, boot
-guard).
+numbers. Tests cover retries, caps, on-net vs routed, replay idempotency, secret, rate limit, and boot
+guard.
 
 1. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to
@@ -208,6 +208,11 @@ payer page.
 - ⚠️ **`DRCPAY_DATABASE_URL` must be a working reference** (`${{drc-pay-db.DATABASE_URL}}`, **no quotes**)
   or the app silently runs in-memory and the DB stays empty. Verify: deploy logs show migrations +
   `[seed] demo merchants ready`; the Data tab has tables.
+- ⚠️ **Boot-required secrets (fail closed):** `sandbox` will not start without `DRCPAY_BASIC_AUTH_PASSWORD`
+  (its demo shell would be public); **`production` will not start without `DRCPAY_USSD_SHARED_SECRET`**
+  (the public `/ussd` payment endpoint would accept prompts from anyone). Set each in the dashboard
+  before deploying that environment. An unrecognized `DRCPAY_ENVIRONMENT` also refuses to boot, so a
+  typo like `prod` fails closed instead of silently skipping these gates.
 - **On-net (same-network):** routed automatically (all same-network pairs, per `routing.py`) — recorded
   as *awaiting confirmation*, no rail, no money movement; the merchant taps **Confirm received** to mark
   it paid (merchant-attested). No toggle: on-net is always facilitate & record (ADR 0009).

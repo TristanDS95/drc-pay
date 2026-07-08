@@ -33,7 +33,4 @@ class MerchantSession:
 
     token_hash: str  # SHA-256 hex of the bearer token
     merchant_id: str
-    expires_at: datetime  # timezone-aware UTC
-
-    def is_expired(self, now: datetime) -> bool:
-        return now >= self.expires_at
+    expires_at: datetime  # timezone-aware UTC; expiry is checked in service.resolve()

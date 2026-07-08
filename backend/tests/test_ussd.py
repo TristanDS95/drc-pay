@@ -11,17 +11,60 @@ rate limit.
 Uses the seeded demo merchants: m_alpha (till 1001, Airtel — cross-network from the demo
 Vodacom payer → routed) and m_gamma (till 1003, Vodacom — same-network → on-net).
 """
+
 from __future__ import annotations
+
+from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
 from drc_pay_api import config
+from drc_pay_api.application.payments import start_merchant_payment
 from drc_pay_api.container import build_container
 from drc_pay_api.domains.ledger.money import Money
+from drc_pay_api.domains.transactions.models import Transaction
+from drc_pay_api.domains.transactions.ports import IdempotentTransactionStore
 from drc_pay_api.main import create_app
 
 from conftest import as_merchant
-from drc_pay_api.ussd.session import UssdHandler, UssdRequest, run_session
+from drc_pay_api.http.ussd_routes import _SWEEP_EVERY, SlidingWindowLimiter
+from drc_pay_api.ussd.session import UssdHandler, UssdRequest, UssdResponse
+
+
+class _BlindOnceStore:
+    """Wraps a transaction store so the FIRST idempotency lookup returns None — simulating a
+    pre-check that races ahead of the race-winner's commit — while every other call delegates.
+    Used to drive the concurrent-duplicate branch of ``start_merchant_payment``."""
+
+    def __init__(self, inner: IdempotentTransactionStore) -> None:
+        self._inner = inner
+        self._blinded = False
+
+    def find_by_idempotency_key(self, key: str) -> Transaction | None:
+        if not self._blinded:
+            self._blinded = True
+            return None
+        return self._inner.find_by_idempotency_key(key)
+
+    def get(self, transaction_id: str) -> Transaction:
+        return self._inner.get(transaction_id)
+
+    def save(self, transaction: Transaction) -> None:
+        self._inner.save(transaction)
+
+
+def run_session(
+    handler: UssdHandler, session_id: str, msisdn: str, inputs: list[str]
+) -> list[UssdResponse]:
+    """Simulate an aggregator driving a whole conversation: the initial dial, then each
+    input - sending the **accumulated** text each step, as real aggregators do. Returns
+    every response (the last is the terminal END)."""
+    responses = [handler.handle(UssdRequest(session_id, msisdn, ""))]
+    accumulated: list[str] = []
+    for value in inputs:
+        accumulated.append(value)
+        responses.append(handler.handle(UssdRequest(session_id, msisdn, "*".join(accumulated))))
+    return responses
 
 
 # ---- the happy path (French default) -----------------------------------------
@@ -132,6 +175,30 @@ def test_ussd_comma_decimal_amount_is_accepted() -> None:
     assert container.store.all()[0].amount == Money.from_major("10.50", "USD")
 
 
+def test_ussd_ambiguous_or_exotic_amounts_are_rejected() -> None:
+    # Thousands-grouped and non-plain-decimal inputs must re-prompt, never be silently
+    # reinterpreted: "1,000" (meant as a thousand) must NOT become 1.00, and scientific
+    # notation / digit separators / Unicode digits must not slip through Decimal.
+    handler = UssdHandler(build_container())
+    for bad in ["1,000", "10.000", "1e3", "1_000", "１０"]:
+        r = handler.handle(UssdRequest(f"amt-{bad}", "243a", f"1001*{bad}"))
+        assert r.continue_session and "invalide" in r.message.lower(), bad
+
+
+def test_ussd_inactive_till_ends_without_retargeting_to_another_merchant() -> None:
+    # A dial-through for a since-deactivated till must END on it, not skip ahead and let the
+    # next token (here 1002, Beta's active till) resolve as a different merchant — which would
+    # silently pay the wrong business.
+    container = build_container()
+    handler = UssdHandler(container)
+    container.merchants.save(replace(container.merchants.get("m_alpha"), status="suspended"))
+    r = handler.handle(UssdRequest("inact-1", "243a", "1001*1002"))
+    assert not r.continue_session
+    assert "n'accepte pas" in r.message.lower()  # inactive-till END, not a confirm prompt
+    assert "Beta" not in r.message  # never retargeted to merchant 1002
+    assert container.store.all() == []  # nothing initiated
+
+
 def test_ussd_invalid_choice_reasks_then_recovers() -> None:
     container = build_container()
     handler = UssdHandler(container)
@@ -166,16 +233,13 @@ def test_ussd_on_net_tells_the_customer_to_pay_the_till_directly() -> None:
 
 
 def test_ussd_on_net_without_a_till_falls_back_to_the_number() -> None:
-    # beta (till 1002, Orange) has no operator till; an Orange payer goes on-net → number.
+    # On-net with no operator till → the closing message sends the customer to the number.
     container = build_container()
     handler = UssdHandler(container)
-    # Force the payer onto Orange by overriding the demo provider through a beta payment:
-    # beta settles ORANGE_COD and the demo payer resolves to VODACOM — cross-network. To hit
-    # the no-till fallback we make the payer Orange via the same route the app uses: none
-    # exists on USSD (no override), so instead check the message template directly through
-    # gamma with its till removed.
-    merchant = container.merchants.get("m_gamma")
-    merchant.operator_till = None
+    # Remove gamma's operator till for THIS container only. dataclasses.replace makes a copy;
+    # mutating the object returned by get() in place would corrupt the shared seed fixture and
+    # break whichever on-net till test happens to run afterward.
+    merchant = replace(container.merchants.get("m_gamma"), operator_till=None)
     container.merchants.save(merchant)
     r = handler.handle(UssdRequest("s8", "243a", "1003*8*1"))
     assert not r.continue_session
@@ -202,6 +266,46 @@ def test_ussd_confirm_replay_is_idempotent() -> None:
         replay = handler.handle(UssdRequest(sid, msisdn, "1001*10*1"))
         assert replay.message == first.message  # same closing message, no confusion
     assert len(container.store.all()) == 1  # exactly one payment, not three
+
+
+def test_ussd_idempotency_key_is_scoped_to_the_customer_msisdn() -> None:
+    # Aggregators recycle session ids. If the key were (session, till, amount) only, a *second*
+    # customer's identical confirm under a reused session id would resolve to the FIRST customer's
+    # transaction — telling them "paid" while nothing was initiated for their number. The msisdn is
+    # part of the key, so two customers get two distinct payments.
+    container = build_container()
+    handler = UssdHandler(container)
+    handler.handle(UssdRequest("recycled", "243800000001", "1001*10*1"))
+    handler.handle(UssdRequest("recycled", "243800000002", "1001*10*1"))
+    txs = container.store.all()
+    assert len(txs) == 2
+    assert {t.customer_msisdn for t in txs} == {"243800000001", "243800000002"}
+
+
+def test_start_merchant_payment_survives_a_concurrent_idempotency_race() -> None:
+    # Losing an idempotency race: our pre-check finds nothing (the winner has not committed yet),
+    # then the store's unique guard rejects our save. We must return the winner's transaction, not
+    # 500 and not open a second collection. _BlindOnce reproduces the pre-check-then-collide window.
+    container = build_container()
+    merchant = container.merchants.get("m_alpha")  # cross-network → routed (has a rail leg)
+
+    def _start(store: IdempotentTransactionStore) -> str:
+        return start_merchant_payment(
+            store=store,
+            ledger=container.ledger,
+            rail=container.rail,
+            predictor=container.predictor,
+            simulated=container.simulated,
+            customer_msisdn="243800000001",
+            merchant=merchant,
+            amount=Money.from_major("10", "USD"),
+            idempotency_key="race",
+        )
+
+    winner = _start(container.store)
+    loser = _start(_BlindOnceStore(container.store))
+    assert loser == winner  # returned the winner, never raised
+    assert len(container.store.all()) == 1  # exactly one payment, the race-loser opened nothing
 
 
 # ---- the HTTP boundary: wire format, validation, secret, rate limit ---------------
@@ -242,22 +346,90 @@ def test_ussd_shared_secret_gates_the_aggregator(monkeypatch) -> None:  # type: 
     client = TestClient(create_app())
     body = {"session_id": "sec-1", "msisdn": "243800000001", "text": ""}
     assert client.post("/ussd", json=body).status_code == 401  # missing
-    assert client.post(
-        "/ussd", json=body, headers={"X-USSD-Secret": "wrong"}
-    ).status_code == 401
+    assert client.post("/ussd", json=body, headers={"X-USSD-Secret": "wrong"}).status_code == 401
     ok = client.post("/ussd", json=body, headers={"X-USSD-Secret": "agg-secret"})
     assert ok.status_code == 200 and ok.text.startswith("CON")
 
 
-def test_ussd_rate_limit_per_msisdn(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_ussd_non_ascii_secret_header_is_rejected_not_crashed(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    # A non-ASCII X-USSD-Secret (headers arrive latin-1-decoded) must be a clean 401, not a
+    # TypeError → 500 from secrets.compare_digest on a non-ASCII str.
+    monkeypatch.setattr(config.settings, "ussd_shared_secret", "agg-secret")
+    client = TestClient(create_app())
+    # Raw bytes on the wire (0xE9): the client would reject a non-ASCII str, but a real aggregator
+    # or attacker can send arbitrary bytes, which Starlette hands us latin-1-decoded as "café".
+    r = client.post(
+        "/ussd",
+        json={"session_id": "sec-2", "msisdn": "243800000001", "text": ""},
+        headers={"X-USSD-Secret": b"caf\xe9"},
+    )
+    assert r.status_code == 401
+
+
+def test_ussd_rate_limit_per_msisdn() -> None:
     client = TestClient(create_app())
     body = {"session_id": "rl-1", "msisdn": "243800000002", "text": ""}
-    statuses = [client.post("/ussd", json=body).status_code for _ in range(10)]
-    assert statuses[:8] == [200] * 8
-    assert statuses[8] == statuses[9] == 429  # the spray is cut off
+    responses = [client.post("/ussd", json=body) for _ in range(16)]
+    # USSD always answers 200 with a wire body: 15 admitted (ask-till CON), the 16th throttled with
+    # a wire END the customer can read — not a JSON 429 the aggregator would render as a raw error.
+    assert all(r.status_code == 200 for r in responses)
+    assert all(r.text.startswith("CON") for r in responses[:15])
+    assert responses[15].text.startswith("END") and "minute" in responses[15].text.lower()
     # A different number is unaffected — the limit is per msisdn.
     other = client.post("/ussd", json={**body, "msisdn": "243800000003"})
-    assert other.status_code == 200
+    assert other.status_code == 200 and other.text.startswith("CON")
+
+
+def test_ussd_msisdn_plus_prefix_is_one_rate_limit_identity() -> None:
+    # '+243…' and '243…' are the same subscriber; an abuser must not double the per-number budget
+    # by toggling the '+'. 15 requests as the plain form, then the 16th as the '+' form is throttled.
+    client = TestClient(create_app())
+    for _ in range(15):
+        assert (
+            client.post(
+                "/ussd", json={"session_id": "n", "msisdn": "243800000002", "text": ""}
+            ).status_code
+            == 200
+        )
+    throttled = client.post(
+        "/ussd", json={"session_id": "n", "msisdn": "+243800000002", "text": ""}
+    )
+    assert throttled.text.startswith("END") and "minute" in throttled.text.lower()
+
+
+def test_ussd_normalizes_the_plus_prefix_in_storage() -> None:
+    # The stored msisdn (and thus the idempotency key) is canonical digits-only, so '+243…' and
+    # '243…' retries of one session key identically instead of forking into two transactions.
+    client = as_merchant(TestClient(create_app()))
+    for text in ["", "1001", "1001*10", "1001*10*1"]:
+        client.post("/ussd", json={"session_id": "z", "msisdn": "+243800000009", "text": text})
+    listed = client.get("/transactions").json()
+    assert listed[0]["customer_msisdn"] == "243800000009"  # '+' stripped
+
+
+def test_ussd_rejects_newline_and_unicode_digit_msisdns() -> None:
+    # The msisdn is stored and rendered in the console; a trailing newline (old '$' allowed it) or
+    # Unicode/fullwidth digits (old '\\d' matched them) must be refused at the edge.
+    client = TestClient(create_app())
+    for bad in ["243800000001\n", "٢٤٣٨٠٠٠٠", "１２３４５６"]:
+        r = client.post("/ussd", json={"session_id": "x", "msisdn": bad, "text": ""})
+        assert r.status_code == 422, bad
+
+
+def test_ussd_rejects_an_oversized_text_body() -> None:
+    # An unbounded text field split on '*' is a cheap memory/CPU DoS; the field is length-capped.
+    client = TestClient(create_app())
+    r = client.post("/ussd", json={"session_id": "x", "msisdn": "243800000001", "text": "1" * 5000})
+    assert r.status_code == 422
+
+
+def test_ussd_rate_limiter_does_not_grow_unbounded() -> None:
+    # An attacker spraying unique msisdns must not leak one map entry per number forever. With a
+    # zero-length window every key ages out immediately, so the amortized sweep reclaims them.
+    limiter = SlidingWindowLimiter(limit=100, window_seconds=0.0)
+    for i in range(_SWEEP_EVERY + 50):
+        limiter.allow(f"243{i:012d}")
+    assert len(limiter._hits) < _SWEEP_EVERY  # bounded, not one-entry-per-distinct-key
 
 
 def test_production_refuses_to_boot_without_the_ussd_secret(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -269,9 +441,23 @@ def test_production_refuses_to_boot_without_the_ussd_secret(monkeypatch) -> None
         create_app()
 
 
+def test_boot_refuses_an_unrecognized_environment(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import pytest
+
+    # A typo of "production" must NOT fail open: an unknown environment silently skips every
+    # exact-match safety gate, so it must refuse to boot instead.
+    monkeypatch.setattr(config.settings, "environment", "prod")
+    with pytest.raises(RuntimeError, match="Unknown DRCPAY_ENVIRONMENT"):
+        create_app()
+
+
 def _run_all() -> None:
     for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn) and "monkeypatch" not in fn.__code__.co_varnames:
+        if (
+            name.startswith("test_")
+            and callable(fn)
+            and "monkeypatch" not in fn.__code__.co_varnames
+        ):
             fn()
             print(f"  ok  {name}")
 
