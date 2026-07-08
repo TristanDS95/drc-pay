@@ -1,4 +1,4 @@
-# ADR 0003 — Pass-through model, no fund custody (v1)
+# ADR 0003 - Pass-through model, no fund custody (v1)
 
 - **Status:** Accepted (2026-06-09)
 - **Context:** Holding customer balances triggers e-money / payment-institution
@@ -9,9 +9,9 @@
   with an automatic refund if the payout fails after collection succeeded.
 - **Consequences:**
   - Keeps us out of custody / e-money licensing for v1 (legal posture remains a flag
-    to investigate with the BCC — Banque Centrale du Congo).
+    to investigate with the BCC - Banque Centrale du Congo).
   - Forgoes float / cash-out / agent revenue; monetisation = transfer fee + CDF↔USD FX
     spread now, lending and merchant layers later (per the comparables synthesis).
   - The ledger records **movement, not stored value**.
-- **Alternatives considered:** wallet / stored-value — rejected for v1: licensing,
+- **Alternatives considered:** wallet / stored-value - rejected for v1: licensing,
   capital requirements, and a much larger fraud surface.

@@ -20,6 +20,7 @@ The cookie is the primary carrier: HttpOnly (no script can read it), SameSite=St
 HTTPS, and attached by the browser to every request from ANY page version — which is what
 makes it immune to the header-protocol mismatches that stale cached pages caused.
 """
+
 from __future__ import annotations
 
 import urllib.parse
@@ -109,7 +110,7 @@ def logout(
     unknown/expired token is still a 200 — the caller's goal (this session no longer
     works) is met either way."""
     token = (
-        authorization[len("Bearer "):] if authorization.startswith("Bearer ") else drcpay_session
+        authorization[len("Bearer ") :] if authorization.startswith("Bearer ") else drcpay_session
     )
     if token:
         container.auth.logout(token)

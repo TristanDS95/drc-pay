@@ -4,6 +4,7 @@ transaction by op-id, and drive the orchestrator's ``on_*_result`` idempotently.
 A thin caller (the ``/webhooks/pawapay`` HTTP route) hands the raw request in; this owns
 the verify → parse → correlate → drive flow, channel-agnostic and offline-testable.
 """
+
 from __future__ import annotations
 
 import json

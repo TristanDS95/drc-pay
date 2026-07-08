@@ -7,6 +7,7 @@ dial that same USSD string (Android; iOS blocks ``*``/``#`` dialing). Either way
 lands in the ``ussd/`` channel pre-filled with the till. A static merchant sticker shows
 both the QR and the printed ``ussd_string`` so non-scanning phones can dial it manually.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

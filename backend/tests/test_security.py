@@ -6,6 +6,7 @@
   docs, demo endpoints). It never gates the merchant API, the webhook, health, or the
   customer paths. Off when unset (local dev / tests / production).
 """
+
 from __future__ import annotations
 
 import base64

@@ -1,6 +1,7 @@
 """pawaPay client: request shapes, provider prediction, provider-aware amount decimals,
 and ack parsing — all against a mocked HTTP transport (no real pawaPay, no network).
 """
+
 from __future__ import annotations
 
 import json
@@ -49,7 +50,10 @@ def test_payout_request_shape() -> None:
     cap: dict[str, Any] = {}
     client = _client_capturing(cap, {"payoutId": "pay-1", "status": "ACCEPTED"})
     ack = client.request_payout(
-        payout_id="pay-1", phone_number="243810000002", provider="AIRTEL_COD", amount=Money(1000, "USD")
+        payout_id="pay-1",
+        phone_number="243810000002",
+        provider="AIRTEL_COD",
+        amount=Money(1000, "USD"),
     )
     assert cap["url"].endswith("/v2/payouts")
     assert cap["body"]["recipient"]["accountDetails"]["provider"] == "AIRTEL_COD"
@@ -117,7 +121,10 @@ def test_rejected_ack_is_parsed() -> None:
         {
             "depositId": "dep-2",
             "status": "REJECTED",
-            "failureReason": {"failureCode": "INVALID_PHONE_NUMBER", "failureMessage": "bad number"},
+            "failureReason": {
+                "failureCode": "INVALID_PHONE_NUMBER",
+                "failureMessage": "bad number",
+            },
         },
     )
     ack = client.request_deposit(
@@ -128,7 +135,9 @@ def test_rejected_ack_is_parsed() -> None:
     assert ack.failure_code == "INVALID_PHONE_NUMBER"
 
 
-def _status_client(cap: dict[str, Any], response_json: dict[str, Any], code: int = 200) -> PawaPayClient:
+def _status_client(
+    cap: dict[str, Any], response_json: dict[str, Any], code: int = 200
+) -> PawaPayClient:
     def handler(request: httpx.Request) -> httpx.Response:
         cap["method"] = request.method
         cap["url"] = str(request.url)
@@ -151,7 +160,10 @@ def test_get_payout_and_refund_status_paths() -> None:
     cap: dict[str, Any] = {}
     assert _status_client(cap, {"status": "FAILED"}).get_payout_status("pay-1").status == "FAILED"
     assert cap["url"].endswith("/v2/payouts/pay-1")
-    assert _status_client(cap, {"status": "COMPLETED"}).get_refund_status("ref-1").status == "COMPLETED"
+    assert (
+        _status_client(cap, {"status": "COMPLETED"}).get_refund_status("ref-1").status
+        == "COMPLETED"
+    )
     assert cap["url"].endswith("/v2/refunds/ref-1")
 
 
@@ -165,7 +177,9 @@ def test_status_unreadable_is_none() -> None:
     # Fail-safe: a non-2xx response, or a 200 with no status field, yields None (→ treated as
     # still-pending by the sweep — we never invent a terminal outcome).
     cap: dict[str, Any] = {}
-    assert _status_client(cap, {"error": "not found"}, code=404).get_deposit_status("x").status is None
+    assert (
+        _status_client(cap, {"error": "not found"}, code=404).get_deposit_status("x").status is None
+    )
     assert _status_client(cap, {"depositId": "dep-1"}).get_deposit_status("dep-1").status is None
 
 
@@ -176,10 +190,13 @@ def test_get_callback_public_key_prefers_ec_p256() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         cap["method"] = request.method
         cap["url"] = str(request.url)
-        return httpx.Response(200, json=[
-            {"id": "HTTP_RSA_KEY:1", "key": "rsa-pem"},
-            {"id": "HTTP_EC_P256_KEY:1", "key": pem},
-        ])
+        return httpx.Response(
+            200,
+            json=[
+                {"id": "HTTP_RSA_KEY:1", "key": "rsa-pem"},
+                {"id": "HTTP_EC_P256_KEY:1", "key": pem},
+            ],
+        )
 
     http = httpx.Client(transport=httpx.MockTransport(handler))
     client = PawaPayClient(base_url="https://api.sandbox.pawapay.io", api_token="tkn", http=http)

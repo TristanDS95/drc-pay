@@ -2,6 +2,7 @@
 pending (a stand-in for a missed callback), and the simulator-only ``POST /demo/reconcile``
 heals it leg by leg — the same reconciliation sweep, exercised through real ASGI calls.
 """
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
@@ -23,8 +24,12 @@ def _client() -> TestClient:
 def _pay(client: TestClient, *, defer: bool) -> dict:
     return client.post(
         "/transactions",
-        json={"customer_msisdn": "243800000001", "merchant_id": "m_alpha", "amount": "10.00",
-              "defer": defer},
+        json={
+            "customer_msisdn": "243800000001",
+            "merchant_id": "m_alpha",
+            "amount": "10.00",
+            "defer": defer,
+        },
     ).json()
 
 

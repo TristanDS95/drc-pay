@@ -8,6 +8,7 @@ see ``client._status``; don't confuse the two.) Terminal statuses are classified
 ``status.classify`` and confirmed against real sandbox callbacks.
 Source: https://docs.pawapay.io/v2/docs/deposits
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

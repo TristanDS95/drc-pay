@@ -10,12 +10,16 @@ The confirmation is asynchronous: ``start`` records the payment as pending (awai
 and ``on_confirm`` resolves it — triggered by the merchant ("Confirm received") or, later, an operator
 merchant-payment notification. Every state change is enforced by the state machine.
 """
+
 from __future__ import annotations
 
 from ..ledger.ledger import Direction, Entry, Posting
 from ..ledger.money import Money
 from .models import MERCHANT_ATTESTED, Transaction
-from .orchestrator import CUSTOMER, MERCHANT  # the external-wallet account names, shared with the routed flow
+from .orchestrator import (
+    CUSTOMER,
+    MERCHANT,
+)  # the external-wallet account names, shared with the routed flow
 from .ports import LedgerPort, Recorder, TransactionStore
 from .state_machine import TxState, assert_transition
 
@@ -114,4 +118,6 @@ class OnNetOrchestrator:
             f"CREDIT {MERCHANT} {transaction.amount.to_major_str()} — balanced ✓"
         )
         self._transition(transaction, TxState.PAYOUT_SUCCEEDED)
-        self._rec("✓ complete — merchant paid directly on-net (no pawaPay, no fee, merchant-attested)")
+        self._rec(
+            "✓ complete — merchant paid directly on-net (no pawaPay, no fee, merchant-attested)"
+        )

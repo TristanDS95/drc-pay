@@ -1,4 +1,4 @@
-# ADR NNNN — <title>
+# ADR NNNN - <title>
 
 - **Status:** Proposed | Accepted | Superseded by ADR-XXXX (date)
 - **Context:** What is the situation and the forces at play?

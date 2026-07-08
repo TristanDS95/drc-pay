@@ -14,6 +14,7 @@ OUR transaction has heard about it yet is a *separate* matter — and that gap i
 what lets the reconciliation sweep be demonstrated offline: start a payment, hold its
 callback (``defer``), then watch a status poll heal it. All with zero network.
 """
+
 from __future__ import annotations
 
 from ...domains.ledger.money import Money

@@ -4,6 +4,7 @@ This is the scan-to-pay-a-posted-amount path: the merchant posts an amount, the 
 charge id, and the customer is charged exactly that — the amount is server-authoritative, never
 taken from the client.
 """
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
@@ -62,9 +63,9 @@ def test_create_charge_and_public_view() -> None:
 
 def test_pay_a_charge_uses_its_amount_and_marks_it_paid() -> None:
     client = _client()
-    charge_id = client.post(
-        "/charges", json={"merchant_id": "m_alpha", "amount": "12.50"}
-    ).json()["id"]
+    charge_id = client.post("/charges", json={"merchant_id": "m_alpha", "amount": "12.50"}).json()[
+        "id"
+    ]
     # Server-authoritative: a client-supplied amount is ignored when charge_id is given.
     paid = client.post(
         "/pay", json={"charge_id": charge_id, "amount": "999", "payer_network": "vodacom"}
@@ -78,20 +79,22 @@ def test_pay_a_charge_uses_its_amount_and_marks_it_paid() -> None:
 
 def test_paying_a_charge_twice_is_rejected() -> None:
     client = _client()
-    charge_id = client.post(
-        "/charges", json={"merchant_id": "m_alpha", "amount": "5.00"}
-    ).json()["id"]
-    assert client.post(
-        "/pay", json={"charge_id": charge_id, "payer_network": "vodacom"}
-    ).status_code == 200
+    charge_id = client.post("/charges", json={"merchant_id": "m_alpha", "amount": "5.00"}).json()[
+        "id"
+    ]
+    assert (
+        client.post("/pay", json={"charge_id": charge_id, "payer_network": "vodacom"}).status_code
+        == 200
+    )
     second = client.post("/pay", json={"charge_id": charge_id, "payer_network": "vodacom"})
     assert second.status_code == 409  # already paid
 
 
 def test_pay_unknown_charge_is_404() -> None:
-    assert _client().post(
-        "/pay", json={"charge_id": "nope", "payer_network": "vodacom"}
-    ).status_code == 404
+    assert (
+        _client().post("/pay", json={"charge_id": "nope", "payer_network": "vodacom"}).status_code
+        == 404
+    )
 
 
 def _run_all() -> None:

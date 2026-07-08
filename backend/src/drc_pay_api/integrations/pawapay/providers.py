@@ -7,6 +7,7 @@ Verified from pawaPay's v2 docs (accessed 2026-06-11):
 Operator detection (phone number -> provider) is handled by pawaPay's predict-provider
 endpoint (see ``client.PawaPayClient.predict_provider``), not by us.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -15,6 +16,15 @@ from ...domains.ledger.money import CURRENCY_EXPONENTS, Money
 
 # DRC pawaPay provider codes are used as plain strings (matching pawaPay's wire format and
 # predict-provider output): VODACOM_MPESA_COD, AIRTEL_COD, ORANGE_COD.
+
+# Human display names - the ONE source of truth so every UI renders the same label. Served at
+# GET /public/providers; the merchant console and customer page read it instead of each keeping
+# a private map (which had drifted: "Vodacom M-Pesa" vs "Vodacom").
+PROVIDER_DISPLAY_NAMES: dict[str, str] = {
+    "VODACOM_MPESA_COD": "Vodacom M-Pesa",
+    "AIRTEL_COD": "Airtel",
+    "ORANGE_COD": "Orange",
+}
 
 # Decimal places pawaPay accepts per (provider, currency). Verified from the v2 providers
 # page. The authoritative LIVE source is GET /v2/active-conf (``decimalsInAmount``); this

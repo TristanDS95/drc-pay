@@ -10,6 +10,7 @@ This is a starter skeleton: it enforces the balancing invariant in memory. The
 persistent, append-only implementation (Postgres, immutable rows) is built on top of
 these types.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

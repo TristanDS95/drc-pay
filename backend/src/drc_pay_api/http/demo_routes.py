@@ -8,6 +8,7 @@ Today that means one control: trigger a reconciliation sweep, so a *pending* pay
 visibly healed by polling status. The real production trigger (an authenticated admin action
 or a scheduled worker) is a separate, flagged ops task.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException

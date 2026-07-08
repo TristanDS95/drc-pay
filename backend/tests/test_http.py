@@ -2,6 +2,7 @@
 
 Uses the seeded demo merchant ``m_alpha`` (Alpha Gas Station, settles to AIRTEL).
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -48,7 +49,9 @@ def test_successful_payment_settles_merchant_net_of_fee() -> None:
     # On the simulator the payer falls back to Vodacom (no predictor); m_alpha settles to Airtel.
     # Fee = Vodacom collect 2.5% + Airtel payout 2.0% = 4.5% of 10.00 (real pawaPay cost, no margin).
     assert body["fee"] == "0.45"  # the MDR shown to the merchant — unchanged
-    assert body["merchant_nets"] == "9.55"  # server-derived amount − fee (never computed client-side)
+    assert (
+        body["merchant_nets"] == "9.55"
+    )  # server-derived amount − fee (never computed client-side)
     # The customer paid 10.00; the merchant nets 9.55. The 0.45 fee is pure pawaPay cost
     # (Vodacom collect 0.25 + Airtel payout 0.20), so it is booked to expense, not revenue —
     # with no margin yet, we keep nothing.
@@ -97,7 +100,12 @@ def test_unknown_transaction_returns_404() -> None:
 
 def test_idempotent_retry_returns_the_same_transaction() -> None:
     client = _client()
-    payload = {"customer_msisdn": "243a", "merchant_id": "m_alpha", "amount": "10.00", "scenario": "success"}
+    payload = {
+        "customer_msisdn": "243a",
+        "merchant_id": "m_alpha",
+        "amount": "10.00",
+        "scenario": "success",
+    }
     headers = {"Idempotency-Key": "tap-abc-123"}
     first = client.post("/transactions", json=payload, headers=headers).json()
     second = client.post("/transactions", json=payload, headers=headers).json()
@@ -107,7 +115,12 @@ def test_idempotent_retry_returns_the_same_transaction() -> None:
 
 def test_different_idempotency_keys_create_different_transactions() -> None:
     client = _client()
-    payload = {"customer_msisdn": "243a", "merchant_id": "m_alpha", "amount": "10.00", "scenario": "success"}
+    payload = {
+        "customer_msisdn": "243a",
+        "merchant_id": "m_alpha",
+        "amount": "10.00",
+        "scenario": "success",
+    }
     a = client.post("/transactions", json=payload, headers={"Idempotency-Key": "k1"}).json()
     b = client.post("/transactions", json=payload, headers={"Idempotency-Key": "k2"}).json()
     assert a["id"] != b["id"]
@@ -116,23 +129,32 @@ def test_different_idempotency_keys_create_different_transactions() -> None:
 
 def test_no_idempotency_key_creates_a_new_transaction_each_time() -> None:
     client = _client()
-    payload = {"customer_msisdn": "243a", "merchant_id": "m_alpha", "amount": "10.00", "scenario": "success"}
+    payload = {
+        "customer_msisdn": "243a",
+        "merchant_id": "m_alpha",
+        "amount": "10.00",
+        "scenario": "success",
+    }
     client.post("/transactions", json=payload)
     client.post("/transactions", json=payload)
     assert len(client.get("/transactions").json()) == 2
 
 
 def test_customer_provider_override_is_used() -> None:
-    body = _client().post(
-        "/transactions",
-        json={
-            "customer_msisdn": "243a",
-            "merchant_id": "m_alpha",
-            "amount": "10.00",
-            "scenario": "success",
-            "customer_provider": "ORANGE_COD",
-        },
-    ).json()
+    body = (
+        _client()
+        .post(
+            "/transactions",
+            json={
+                "customer_msisdn": "243a",
+                "merchant_id": "m_alpha",
+                "amount": "10.00",
+                "scenario": "success",
+                "customer_provider": "ORANGE_COD",
+            },
+        )
+        .json()
+    )
     assert body["customer_provider"] == "ORANGE_COD"
     # The merchant operator comes from the merchant record (Alpha settles to AIRTEL).
     assert body["merchant_provider"] == "AIRTEL_COD"
@@ -147,10 +169,14 @@ def test_live_rail_leaves_transaction_pending_and_resolves_provider() -> None:
         predictor=FakePredictor("ORANGE_COD"),
         simulated=False,
     )
-    body = as_merchant(TestClient(app)).post(
-        "/transactions",
-        json={"customer_msisdn": "243a", "merchant_id": "m_alpha", "amount": "10.00"},
-    ).json()
+    body = (
+        as_merchant(TestClient(app))
+        .post(
+            "/transactions",
+            json={"customer_msisdn": "243a", "merchant_id": "m_alpha", "amount": "10.00"},
+        )
+        .json()
+    )
     # Cross-network (Orange payer → Airtel merchant m_alpha) → routed pawaPay. No demo play-out on the
     # live rail: it stops after the collection request, awaiting the async signed callback. The customer
     # operator was resolved via predict-provider.

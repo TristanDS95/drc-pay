@@ -17,6 +17,7 @@ RFC-9421 raw-64 (r‖s) and pawaPay's DER signature encodings. The ``@authority`
 request Host (set by Railway's proxy headers); confirm it matches on the first real callback.
 Source: https://docs.pawapay.io/v2/docs/signatures
 """
+
 from __future__ import annotations
 
 import base64

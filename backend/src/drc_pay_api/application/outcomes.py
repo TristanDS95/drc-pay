@@ -6,6 +6,7 @@ push or poll — there is exactly one place that turns "this leg succeeded/faile
 transition + ledger posting. The apply is state-guarded: an outcome for a leg the transaction
 has already moved past is ignored, which makes both callers idempotent against resends/races.
 """
+
 from __future__ import annotations
 
 from ..domains.transactions.orchestrator import Orchestrator

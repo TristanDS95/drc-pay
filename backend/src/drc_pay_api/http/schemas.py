@@ -1,4 +1,5 @@
 """Request/response shapes for the HTTP API (Pydantic)."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -58,7 +59,9 @@ class MerchantResponse(BaseModel):
     name: str
     short_code: str
     settlement_msisdn: str
-    settlement_provider: str | None = None  # pawaPay operator code, e.g. "AIRTEL_COD"; None until resolved
+    settlement_provider: str | None = (
+        None  # pawaPay operator code, e.g. "AIRTEL_COD"; None until resolved
+    )
     status: str
     ussd_string: str  # "*123*1001#" — what the customer dials
     tel_uri: str  # "tel:*123*1001%23" — the USSD dial-through (the eventual static-till QR payload)

@@ -9,6 +9,7 @@ Source: pawaPay's published DRC rates, recorded in the research repo at
 ``02-findings/cross-cutting/fees-and-costs.md`` (Medium-High confidence). Isolating the policy
 here means the orchestrator never hard-codes a fee.
 """
+
 from __future__ import annotations
 
 from ..ledger.money import Money

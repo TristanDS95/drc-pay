@@ -1,4 +1,5 @@
 """Money: integer minor units, exact parsing, currency safety."""
+
 from __future__ import annotations
 
 from drc_pay_api.domains.ledger.money import (

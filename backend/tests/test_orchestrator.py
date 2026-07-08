@@ -5,6 +5,7 @@ amount − fee (it absorbs the MDR), and a failed settlement refunds the custome
 Every ledger posting self-validates (debits == credits), so a balanced book is proven by
 construction.
 """
+
 from __future__ import annotations
 
 from drc_pay_api.adapters.memory import InMemoryLedger, InMemoryTransactionStore
@@ -52,7 +53,9 @@ def _net_debit(postings: list[Posting], account: str) -> int:
         for e in p.entries:
             if e.account != account:
                 continue
-            total += e.amount.amount_minor if e.direction is Direction.DEBIT else -e.amount.amount_minor
+            total += (
+                e.amount.amount_minor if e.direction is Direction.DEBIT else -e.amount.amount_minor
+            )
     return total
 
 
@@ -108,7 +111,9 @@ def test_pawapay_cost_is_expense_not_revenue() -> None:
     orch.on_collection_result("e1", success=True)
     orch.on_payout_result("e1", success=True)
     assert _credit_total(ledger.postings, EXPENSE) == cost.amount_minor
-    assert _credit_total(ledger.postings, REVENUE) == 0  # we keep nothing until the MDR is marked up
+    assert (
+        _credit_total(ledger.postings, REVENUE) == 0
+    )  # we keep nothing until the MDR is marked up
 
 
 def test_settlement_failure_refunds_the_customer() -> None:

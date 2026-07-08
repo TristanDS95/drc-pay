@@ -2,6 +2,7 @@
 outcome here. The route reads the raw body + headers and delegates to the application service; a bad
 signature is a 401, everything else returns 200 with a status.
 """
+
 from __future__ import annotations
 
 import time

@@ -423,6 +423,21 @@ def test_ussd_rejects_an_oversized_text_body() -> None:
     assert r.status_code == 422
 
 
+def test_ussd_lang_is_normalized_and_unsupported_values_fail_fast(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import pytest
+    from pydantic import ValidationError
+
+    from drc_pay_api.config import Settings
+
+    # Case/whitespace is normalized, so a natural "EN" serves English rather than silently French.
+    monkeypatch.setenv("DRCPAY_USSD_LANG", "  EN ")
+    assert Settings().ussd_lang == "en"
+    # A genuinely unsupported language fails fast at boot instead of silently falling back.
+    monkeypatch.setenv("DRCPAY_USSD_LANG", "es")
+    with pytest.raises(ValidationError, match="DRCPAY_USSD_LANG"):
+        Settings()
+
+
 def test_ussd_rate_limiter_does_not_grow_unbounded() -> None:
     # An attacker spraying unique msisdns must not leak one map entry per number forever. With a
     # zero-length window every key ages out immediately, so the amortized sweep reclaims them.

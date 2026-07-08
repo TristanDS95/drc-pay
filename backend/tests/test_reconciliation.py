@@ -6,6 +6,7 @@ the equivalent callback would: a polled COMPLETED advances the leg, a polled FAI
 refund, non-terminal / unreadable statuses leave the transaction untouched, and one bad poll
 never takes the sweep down.
 """
+
 from __future__ import annotations
 
 import httpx

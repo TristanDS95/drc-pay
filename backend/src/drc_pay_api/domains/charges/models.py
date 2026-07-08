@@ -5,6 +5,7 @@ exactly that amount (server-authoritative — never the client). The charge's **
 from the payment it links to** — the transaction is the single source of truth, so we never keep
 a separate status field that could drift out of sync.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

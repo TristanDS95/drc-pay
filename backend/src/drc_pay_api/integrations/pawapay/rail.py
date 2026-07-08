@@ -11,6 +11,7 @@ A synchronous, non-``ACCEPTED`` ack raises ``PawaPayRailError`` (a domain ``Rail
 the orchestrator maps that to an immediate failure of the leg. The async *callbacks* are
 handled by the signed-callback receiver (``http/webhook_routes.py``).
 """
+
 from __future__ import annotations
 
 import uuid

@@ -18,6 +18,7 @@ onboarding (flagged); the Postgres path starts empty.
 The orchestrator itself is built per-request (in ``routes``) with a fresh trace recorder,
 so each call can return its own operations log.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -155,7 +156,9 @@ class Container:
             self.pawapay_public_key = fetched
             print("[container] fetched pawaPay callback public key for signature verification")
         else:
-            print("[container] WARNING: could not fetch pawaPay public key — signed callbacks will 401")
+            print(
+                "[container] WARNING: could not fetch pawaPay public key — signed callbacks will 401"
+            )
 
 
 def build_container(
@@ -179,7 +182,9 @@ def build_container(
         pawapay_client = None
         rail = simulator
         predictor = None
-        poller = simulator  # the simulator doubles as a StatusPoller — reconciliation can heal demo txns
+        poller = (
+            simulator  # the simulator doubles as a StatusPoller — reconciliation can heal demo txns
+        )
         simulated = True
 
     # Persistence: Postgres when a URL is given (schema managed by Alembic), else memory.

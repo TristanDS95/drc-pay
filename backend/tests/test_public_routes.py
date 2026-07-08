@@ -1,6 +1,7 @@
 """The public, no-password customer endpoints — a customer who scans a merchant's QR can read the
 merchant's name and pay, choosing the outcome to exercise each merchant-side flow.
 """
+
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
@@ -15,6 +16,15 @@ from fakes import FakePaymentRail
 
 def _client() -> TestClient:
     return TestClient(create_app())
+
+
+def test_public_providers_returns_the_shared_display_names() -> None:
+    # The single source both frontends read (so their labels can't drift); reachable without auth.
+    from drc_pay_api.integrations.pawapay.providers import PROVIDER_DISPLAY_NAMES
+
+    body = _client().get("/public/providers").json()
+    assert body == PROVIDER_DISPLAY_NAMES
+    assert body["VODACOM_MPESA_COD"] == "Vodacom M-Pesa"
 
 
 def test_public_merchant_info_has_no_settlement_details() -> None:
@@ -32,16 +42,20 @@ def test_pay_success_settles_the_merchant() -> None:
 
 
 def test_pay_decline_moves_no_money() -> None:
-    body = _client().post(
-        "/pay", json={"merchant_id": "m_alpha", "amount": "10.00", "outcome": "decline"}
-    ).json()
+    body = (
+        _client()
+        .post("/pay", json={"merchant_id": "m_alpha", "amount": "10.00", "outcome": "decline"})
+        .json()
+    )
     assert body["state"] == "collection_failed"
 
 
 def test_pay_refund_makes_the_customer_whole() -> None:
-    body = _client().post(
-        "/pay", json={"merchant_id": "m_alpha", "amount": "10.00", "outcome": "refund"}
-    ).json()
+    body = (
+        _client()
+        .post("/pay", json={"merchant_id": "m_alpha", "amount": "10.00", "outcome": "refund"})
+        .json()
+    )
     assert body["state"] == "refunded"
 
 
@@ -91,7 +105,9 @@ def test_public_endpoints_bypass_the_password(monkeypatch) -> None:  # type: ign
     monkeypatch.setattr(config.settings, "basic_auth_password", "sesame")
     client = _client()
     assert client.get("/transactions").status_code == 401  # the admin API stays gated
-    assert client.get("/public/merchant/m_alpha").status_code == 200  # but the customer paths are open
+    assert (
+        client.get("/public/merchant/m_alpha").status_code == 200
+    )  # but the customer paths are open
     paid = client.post("/pay", json={"merchant_id": "m_alpha", "amount": "5"})
     assert paid.status_code == 200
 
@@ -112,9 +128,11 @@ def test_pay_blocked_in_production() -> None:
 
 def test_pay_payer_network_drives_the_per_pair_fee() -> None:
     # Vodacom payer → Orange merchant (m_beta): collect 2.5% + payout 1.0% = 3.5% of 10.00.
-    body = _client().post(
-        "/pay", json={"merchant_id": "m_beta", "amount": "10.00", "payer_network": "vodacom"}
-    ).json()
+    body = (
+        _client()
+        .post("/pay", json={"merchant_id": "m_beta", "amount": "10.00", "payer_network": "vodacom"})
+        .json()
+    )
     assert body["customer_provider"] == "VODACOM_MPESA_COD"
     assert body["merchant_provider"] == "ORANGE_COD"
     assert body["fee"] == "0.35"

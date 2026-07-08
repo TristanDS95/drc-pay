@@ -4,6 +4,7 @@ The signing side here is built **independently** (the signature base is construc
 hand, per the RFC, then signed with a freshly-generated P-256 key) so it genuinely
 exercises the verifier rather than mirroring its internals.
 """
+
 from __future__ import annotations
 
 import base64
@@ -25,9 +26,11 @@ BODY = b'{"depositId":"dep-1","status":"COMPLETED"}'
 
 def _keypair() -> tuple[ec.EllipticCurvePrivateKey, str]:
     sk = ec.generate_private_key(ec.SECP256R1())
-    pem = sk.public_key().public_bytes(
-        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode()
+    pem = (
+        sk.public_key()
+        .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+        .decode()
+    )
     return sk, pem
 
 
@@ -39,13 +42,15 @@ def _sign(
         '("@method" "@authority" "@path" "content-digest")'
         f';created={created};keyid="pawapay";alg="ecdsa-p256-sha256"'
     )
-    base = "\n".join([
-        '"@method": POST',
-        f'"@authority": {HOST}',
-        f'"@path": {PATH}',
-        f'"content-digest": {content_digest}',
-        f'"@signature-params": {params}',
-    ])
+    base = "\n".join(
+        [
+            '"@method": POST',
+            f'"@authority": {HOST}',
+            f'"@path": {PATH}',
+            f'"content-digest": {content_digest}',
+            f'"@signature-params": {params}',
+        ]
+    )
     signature = sk.sign(base.encode(), ec.ECDSA(hashes.SHA256()))  # cryptography returns DER
     if der:
         sig_bytes = signature  # pawaPay's documented encoding
@@ -59,7 +64,9 @@ def _sign(
     }
 
 
-def _sign_pawapay(sk: ec.EllipticCurvePrivateKey, *, body: bytes = BODY, created: int = CREATED) -> dict[str, str]:
+def _sign_pawapay(
+    sk: ec.EllipticCurvePrivateKey, *, body: bytes = BODY, created: int = CREATED
+) -> dict[str, str]:
     """Sign exactly as pawaPay's v2 docs show: six covered components (incl. signature-date and
     content-type), the ``sig-pp`` label, an ``expires`` param, and a DER-encoded signature."""
     content_digest = f"sha-256=:{base64.b64encode(hashlib.sha256(body).digest()).decode()}:"
@@ -68,15 +75,17 @@ def _sign_pawapay(sk: ec.EllipticCurvePrivateKey, *, body: bytes = BODY, created
         '("@method" "@authority" "@path" "signature-date" "content-digest" "content-type")'
         f';created={created};keyid="CUSTOMER_TEST_KEY";alg="ecdsa-p256-sha256";expires={created + 60}'
     )
-    base = "\n".join([
-        '"@method": POST',
-        f'"@authority": {HOST}',
-        f'"@path": {PATH}',
-        f'"signature-date": {sig_date}',
-        f'"content-digest": {content_digest}',
-        f'"content-type": {content_type}',
-        f'"@signature-params": {params}',
-    ])
+    base = "\n".join(
+        [
+            '"@method": POST',
+            f'"@authority": {HOST}',
+            f'"@path": {PATH}',
+            f'"signature-date": {sig_date}',
+            f'"content-digest": {content_digest}',
+            f'"content-type": {content_type}',
+            f'"@signature-params": {params}',
+        ]
+    )
     der = sk.sign(base.encode(), ec.ECDSA(hashes.SHA256()))  # cryptography returns DER
     return {
         "Content-Digest": content_digest,
@@ -87,10 +96,17 @@ def _sign_pawapay(sk: ec.EllipticCurvePrivateKey, *, body: bytes = BODY, created
     }
 
 
-def _verify(pem: str, headers: dict[str, str], *, body: bytes = BODY, path: str = PATH, now: int = NOW) -> None:
+def _verify(
+    pem: str, headers: dict[str, str], *, body: bytes = BODY, path: str = PATH, now: int = NOW
+) -> None:
     verify_pawapay_signature(
-        public_key_pem=pem, method="POST", path=path, host=HOST,
-        headers=headers, raw_body=body, now=now,
+        public_key_pem=pem,
+        method="POST",
+        path=path,
+        host=HOST,
+        headers=headers,
+        raw_body=body,
+        now=now,
     )
 
 

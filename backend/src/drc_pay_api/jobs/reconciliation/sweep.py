@@ -15,6 +15,7 @@ Scheduled on a live rail by ``main.py`` (a periodic in-process task calling
 ``POST /demo/reconcile`` control off the real-money path. Open follow-up: an age filter + batch
 limit on ``find_pending`` so a large backlog can't turn one pass into an unbounded poll storm.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

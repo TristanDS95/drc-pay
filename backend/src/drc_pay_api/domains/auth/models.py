@@ -11,6 +11,7 @@ construction rather than discipline:
 - **Sessions expire.** A session carries its own ``expires_at``; resolution treats an
   expired row as absent (and deletes it lazily).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

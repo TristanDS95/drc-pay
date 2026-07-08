@@ -8,6 +8,7 @@ here pins every ``create_app()`` test to the in-process simulator, regardless of
 
 Tests that need a live/sandbox/production container construct one explicitly instead.
 """
+
 import os
 
 # Force the credential-bearing vars empty (→ simulator) and the environment to a known value,

@@ -1,4 +1,5 @@
 """Ledger: balanced postings succeed, unbalanced postings are rejected."""
+
 from __future__ import annotations
 
 from drc_pay_api.domains.ledger.ledger import (

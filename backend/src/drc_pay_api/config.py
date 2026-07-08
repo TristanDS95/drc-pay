@@ -3,9 +3,13 @@
 Nothing secret is hard-coded. Sandbox vs production is selected purely by which
 environment variables are present — there is no code path that mixes them.
 """
+
 from __future__ import annotations
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_USSD_LANGS = {"fr", "en"}
 
 
 class Settings(BaseSettings):
@@ -33,6 +37,8 @@ class Settings(BaseSettings):
     ussd_shortcode: str = "*123#"
     # Menu language for the USSD channel: "fr" (default — the DRC's primary language) or "en".
     # A deployment-level default, not an in-menu step: every extra step costs completion.
+    # Normalized + validated below so a misconfig (e.g. "EN") is corrected, and a genuinely
+    # unsupported language fails fast at boot instead of silently serving French to every customer.
     ussd_lang: str = "fr"
     # Shared secret the USSD aggregator must send in X-USSD-Secret. Blank disables the check
     # (local/sandbox, where the console's dial simulator drives /ussd from the browser);
@@ -49,6 +55,16 @@ class Settings(BaseSettings):
     # The public customer-facing pages (scan-to-pay + USSD dial simulator) — served when set,
     # and NOT behind the password (a customer who scans a QR has no login).
     customer_dir: str = ""
+
+    @field_validator("ussd_lang")
+    @classmethod
+    def _normalize_ussd_lang(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in _USSD_LANGS:
+            raise ValueError(
+                f"DRCPAY_USSD_LANG must be one of {sorted(_USSD_LANGS)}, got {value!r}"
+            )
+        return normalized
 
 
 settings = Settings()
