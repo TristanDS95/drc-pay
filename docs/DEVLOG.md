@@ -55,14 +55,16 @@ sandbox-only `GET /demo/credentials` (the console login screen shows them). Rema
 rate limiting beyond the login throttle, audit logging, session-store cleanup job (expired rows are
 lazily deleted on resolve) — see the security roadmap.
 
-**French localisation (i18n) — web UIs DONE ✅ (2026-07-05); backend USSD copy remains.**
+**French localisation (i18n) — web UIs DONE ✅ (2026-07-05); backend USSD copy DONE ✅ (2026-07-06).**
 Both web UIs (merchant console + customer page, incl. its testing panels) carry an **FR|EN switch**:
 French default, persisted in `localStorage["drcpay.lang"]`, every user-facing string externalised into
 an in-page dictionary (static HTML via `data-i18n`, JS-built messages read it at render time).
 The console's dark ops-trace panel intentionally stays English - it is a developer-style log and its
 line prefixes drive the color coding.
-Remaining: the **USSD menu copy served by the backend `ussd/` handler** - translate it (with a language
-selection step or per-merchant default) as part of the USSD build-out, item 1 below.
+**USSD menu copy: also done ✅ (2026-07-06)** - the backend `ussd/` handler serves French menus by
+default (`DRCPAY_USSD_LANG=en` flips a deployment; no in-menu language step - every extra step costs
+completion). Menu strings are ASCII-only on purpose: GSM-7 USSD transports mangle accented characters
+on some feature phones.
 
 **On-net same-network — "facilitate & record" ([ADR 0009](adr/0009-on-net-facilitate-and-record.md)); backend + UI DONE.**
 We do NOT route or hold money on-net: the customer pays the merchant **directly on the operator's own
@@ -88,14 +90,22 @@ non-custodial, no operator money-API, `fee=0`. Cross-network stays on pawaPay. "
 - **To confirm with operators (not blocking the MVP):** the DRC "pay a merchant till" UX + tariff per
   operator, and whether tills emit a merchant-payment notification (the path to auto-confirm).
 
-1. **USSD channel — the next priority.** The feature-phone path (no-internet, a first-class access
-   channel alongside scan-to-pay) has had **limited development & testing on both sides** — the backend
-   handler (`ussd/session.py`, `/ussd` routes) and the customer-app **dial simulator**. Build it out and
-   harden it end-to-end: the full menu flow, on-net vs routed payments, every outcome (success / decline /
-   refund / timeout), input validation, and session/error handling — with tests to match the rest of the
-   core. *Then* (separately, when going live) rent a **real USSD aggregator** (Africa's Talking / Infobip)
-   and wire the shortcode + MNO PIN — our `/ussd` handler is provider-neutral and ready for it. *(Also where
-   the static-till QR returns.)*
+**USSD channel build-out — DONE ✅ (2026-07-06).** The feature-phone path is now hardened end-to-end:
+**French menus by default** (ASCII-safe for GSM-7; `DRCPAY_USSD_LANG`); **retry-friendly parsing** (a
+mistyped till/amount/choice re-prompts instead of hanging up — the parser skips misses when re-reading
+the accumulated text; 3 misses on one field ends the session); **amount hardening** (positive, ≤10,000
+USD fat-finger cap, comma decimals accepted — "10,50"); **on-net-aware closing messages** (same-network:
+"pay the merchant's till/number directly", replay-stable; routed: "approve with your PIN"); replies kept
+under the ~180-char USSD ceiling (tested). Transport hardening (security roadmap Gate A): **aggregator
+shared secret** (`X-USSD-Secret`, constant-time; `DRCPAY_USSD_SHARED_SECRET` — production refuses to
+boot without it, local/sandbox stay open for the console's dial simulator) and an in-process
+**per-msisdn rate limit** (8/min sliding window → 429) so nobody sprays payment prompts at arbitrary
+numbers. 12 new tests (retries, caps, on-net vs routed, replay idempotency, secret, rate limit, boot
+guard).
+
+1. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
+   wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to
+   `http/ussd_routes.py`). *(Also where the static-till QR returns.)*
 2. **Merchant onboarding + KYC** — merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
    onboarding UI/API; no DB FK on `merchant_id`).
 3. **Production hardening** — AWS (Terraform, `af-south-1`, Secrets Manager — notes in `future-dev.md`); lock CORS to
