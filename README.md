@@ -93,10 +93,11 @@ pawaPay's **sandbox** rails (test money only). Real **signed callbacks** (RFC-94
 real time; the reconciliation sweep is the backstop.
 
 - **Deploy / redeploy:** push-to-deploy from GitHub; env vars (the Postgres reference, the pawaPay
-  token, the shared `DRCPAY_BASIC_AUTH_PASSWORD`) are set in Railway's dashboard. Deploy
-  specifics live in [`docs/DEVLOG.md`](./docs/DEVLOG.md).
-- **Secrets stay out of the repo:** the pawaPay token and the demo password live only in Railway's
-  dashboard, never in git or chat.
+  token, and the boot-required secrets - `DRCPAY_BASIC_AUTH_PASSWORD` in sandbox and
+  `DRCPAY_USSD_SHARED_SECRET` in production, each of which the app refuses to boot without) are set in
+  Railway's dashboard. Deploy specifics live in [`docs/DEVLOG.md`](./docs/DEVLOG.md).
+- **Secrets stay out of the repo:** the pawaPay token, the demo password, and the USSD aggregator
+  secret live only in Railway's dashboard, never in git or chat.
 - **Production** will move to AWS (`af-south-1`); the same Docker image is portable. (Infra notes: [`docs/future-dev.md`](docs/future-dev.md).)
 
 ### Run locally (contributors)
