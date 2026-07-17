@@ -118,11 +118,19 @@ operator names. **Real-Postgres integration/E2E verified locally** (full payment
 double-entry, the concurrency race above, and durability + reconciliation across an API restart) - see
 "How to run".
 
-1. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
+**Direction (2026-07-16):** the product is **merchant-centric** - customers pay by QR/USSD and need no
+app awareness, so the **customer page stays intentionally minimal**; UI investment goes to the
+**merchant console**. Beta path, in order: **(1) merchant self-onboarding** (the real unblock - you
+can't add a merchant without editing `seed.py` today), **(2) a mobile-responsive pass on the merchant
+console** (responsive web, *not* a native app yet), then **(3) Gate A security** - required only once
+the beta moves *real* money (a sandbox beta with real merchants doesn't need it first). Confirm the
+sandbox-vs-real-money fork before sequencing security ahead of UI.
+
+1. **Merchant onboarding + KYC** - merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
+   onboarding UI/API; no DB FK on `merchant_id`). **Now the top beta priority** (see Direction above).
+2. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to
    `http/ussd_routes.py`). *(Also where the static-till QR returns.)*
-2. **Merchant onboarding + KYC** - merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
-   onboarding UI/API; no DB FK on `merchant_id`).
 3. **Production hardening** - AWS (Terraform, `af-south-1`, Secrets Manager - notes in `future-dev.md`); lock CORS to
    known origins. Reconciliation now runs on an in-process schedule on a live rail (`main.py`,
    `DRCPAY_RECONCILE_INTERVAL_SECONDS`); still open: an age filter + batch limit on the sweep. Minor:
