@@ -1,6 +1,6 @@
 # DRC Pay - Development Log & Handoff
 
-**Last updated:** 2026-07-06 · **Read this first to resume work.**
+**Last updated:** 2026-07-16 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC: merchants accept mobile-money payments across
 networks (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure pass-through**
@@ -99,9 +99,24 @@ USD fat-finger cap, comma decimals accepted - "10,50"); **on-net-aware closing m
 under the ~180-char USSD ceiling (tested). Transport hardening (security roadmap Gate A): **aggregator
 shared secret** (`X-USSD-Secret`, constant-time; `DRCPAY_USSD_SHARED_SECRET` - production refuses to
 boot without it, local/sandbox stay open for the console's dial simulator) and an in-process
-**per-msisdn rate limit** (8/min sliding window → 429) so nobody sprays payment prompts at arbitrary
-numbers. Tests cover retries, caps, on-net vs routed, replay idempotency, secret, rate limit, and boot
-guard.
+**per-msisdn rate limit** (15/min sliding window → wire-format END) so nobody sprays payment prompts at
+arbitrary numbers. Tests cover retries, caps, on-net vs routed, replay idempotency, secret, rate limit,
+and boot guard. Design recorded in [ADR 0010](adr/0010-ussd-aggregator-auth-and-rate-limit.md).
+
+**Post-USSD hardening & review pass - DONE ✅ (2026-07-16).** A max-effort review of the USSD channel
+surfaced 17 findings; the money- and security-critical ones were fixed and adversarially re-verified.
+Highlights: **idempotency is now atomic in the application layer** - `start_merchant_payment` owns a
+find-or-create backed by the store's unique `idempotency_key` constraint (a concurrent double-submit
+yields exactly one transaction, never a double charge or a 500; verified with a 12-thread race against
+real Postgres). **Strict typed-amount parsing** (`Money.from_user_input` rejects thousands-grouped /
+scientific-notation / Unicode-digit input instead of silently misreading it). **msisdn hardening**
+(`fullmatch` + ASCII digits; `+`/no-`+` normalised to one identity for the rate-limit bucket and the
+idempotency key). **Fail-closed boot** on an unrecognised `DRCPAY_ENVIRONMENT` (a typo like `prod` no
+longer skips the safety gates). Plus dead-code prune, `ruff format` across the backend + a CI
+`ruff format --check` gate, and a `/public/providers` endpoint so both web UIs render one shared set of
+operator names. **Real-Postgres integration/E2E verified locally** (full payment flow with balanced
+double-entry, the concurrency race above, and durability + reconciliation across an API restart) - see
+"How to run".
 
 1. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to
@@ -248,6 +263,10 @@ uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ 
 # console login (per-merchant auth): alpha / alpha-demo (also beta, gamma - password <username>-demo)
 # live sandbox rail: token in backend/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
 # Postgres: docker compose up -d ; export DRCPAY_DATABASE_URL=… ; alembic upgrade head
+# Integration / E2E against REAL Postgres (durability, concurrency, reconciliation): bring up
+# Postgres as above, keep the in-process simulator rail (leave DRCPAY_PAWAPAY_* unset) for
+# deterministic synchronous payouts, then drive /auth/login → /charges → /pay and read rows with
+# `docker compose exec -T postgres psql -U drcpay -c "select … from transactions/ledger_entries"`.
 ```
 **Gotcha:** the repo path has a space → pip *editable* installs break. Run uvicorn with `--app-dir src`;
 tests use `pythonpath=src`.

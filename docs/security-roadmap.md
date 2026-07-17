@@ -14,11 +14,11 @@ Each gate below must be fully ticked before crossing into the stage it guards.
 - [x] **TLS in transit** - Railway terminates HTTPS; platform-handled, not a standing task.
 - [x] **Signed webhooks** - pawaPay callbacks verified with RFC-9421 public-key signatures (ECDSA-P256, DER + raw-64); unsigned or stale rejected; receiver idempotent (`integrations/pawapay/signatures.py`, `http/webhook_routes.py`).
 - [x] **Server-authoritative money** - amount, fee, and recipient re-derived server-side at execution; the client is never trusted (`application/payments.py`, charges).
-- [x] **Idempotency keys on every money-moving request**, inbound and outbound; a retry never double-charges.
+- [x] **Idempotency keys on every money-moving request**, inbound and outbound; a retry never double-charges. Now **atomic in the application layer** - `start_merchant_payment` does a find-or-create guarded by the store's unique `idempotency_key` constraint, so even a concurrent double-submit yields one transaction (verified against real Postgres under a thread race), not a 500 or a second charge.
 - [x] **Explicit state machine** - illegal transitions raise (`domains/transactions/state_machine.py`).
 - [x] **Double-entry ledger as source of truth** - every posting must balance or is rejected.
 - [x] **Reconciliation sweep** as the missed-callback safety net (push + poll resolve through one `apply_outcome`).
-- [x] **Fail-safe boot** - a non-local environment refuses to start without `DRCPAY_BASIC_AUTH_PASSWORD` (mirrors the DB fail-fast); demo controls (`/pay`, `/demo/reconcile`) are 404 in production.
+- [x] **Fail-safe boot** - `sandbox` refuses to start without `DRCPAY_BASIC_AUTH_PASSWORD`, `production` refuses to start without `DRCPAY_USSD_SHARED_SECRET`, and an **unrecognised `DRCPAY_ENVIRONMENT` fails closed** (a typo like `prod` can't silently skip the gates); demo controls (`/pay`, `/demo/reconcile`) are 404 in production.
 - [x] **Secrets hygiene** - env vars only, `.env` git-ignored, secret-scan in CI, sandbox vs production credentials separated.
 - [x] **Provenance on "paid"** - `merchant_attested` vs `rail_verified` recorded per transaction (ADR 0009).
 - [x] **XSS discipline in the console** - server-derived strings escaped before `innerHTML`.
@@ -29,14 +29,12 @@ Each gate below must be fully ticked before crossing into the stage it guards.
 
 The bar: no real merchant or customer money until every box is ticked.
 
-- [ ] **Merchant authentication** - replace the single shared Basic-auth password with per-merchant credentials (plan sketch in `future-dev.md`; `domains/auth/` when started).
-- [ ] **Per-merchant authorization** - today any holder of the shared password can read and confirm ANY merchant's transactions.
-      Directly fraud-relevant: on-net payments are merchant-attested, so the confirm endpoint must be scoped to the owning merchant.
+- [x] **Merchant authentication** - per-merchant credentials shipped (`domains/auth/`: Argon2id hashing, opaque 24h SHA-256 sessions, in-process login throttle; migration `e9b3c5d7f1a2`; `POST /auth/login|logout`, `GET /auth/me`). The shared Basic password now gates only the sandbox demo shell; production boots without it.
+- [x] **Per-merchant authorization** - a `CurrentMerchant` dependency fences every merchant endpoint to the logged-in merchant: cross-merchant reads 404 (no id oracle), the on-net confirm is owner-only, and `POST /transactions`/`/charges` take the merchant from the session, never the body.
 - [x] **USSD channel hardening** (ADR 0010) - `/ussd` is public and initiates real deposit pushes on a live rail.
       The aggregator now authenticates with a shared secret (`X-USSD-Secret`, constant-time; production refuses to boot without it), and the endpoint is rate-limited per customer number; the handler is provider-neutral so this lives in one place. IP allowlisting stays available as later defense-in-depth (see ADR 0010).
       Without it, anyone could spam payment prompts to arbitrary DRC numbers (harassment / social-engineering vector, even though no money moves without the payer's operator PIN).
-- [ ] **Rate limiting + velocity/amount caps** - none exist anywhere today.
-      Per-customer and per-merchant velocity caps are the first real fraud-detection layer; pawaPay's own per-operator amount limits (e.g. Vodacom 500 < x < 1,000,000 CDF) are not a substitute.
+- [ ] **Rate limiting + velocity/amount caps** - *partial:* per-surface anti-abuse limits now exist (USSD per-msisdn 15/min, the login throttle, and the USSD ≤10,000 USD fat-finger cap), but the **fraud-detection layer is still missing**: per-customer and per-merchant *velocity* caps, and money-amount caps enforced in the application layer (they live only in the USSD channel today, not on `/transactions`/`/charges`/`/pay`). pawaPay's own per-operator amount limits (e.g. Vodacom 500 < x < 1,000,000 CDF) are not a substitute. A shared, cross-channel limiter (Redis at scale) is the target.
 - [ ] **Lock CORS** - `allow_origins=["*"]` in `main.py`; restrict to known origins (the code comment already promises this).
 - [ ] **Charge expiry** - charges are payable forever; a stale printed or forwarded QR should die after a TTL.
 - [ ] **Audit logging on money-affecting actions** - especially `POST /transactions/{id}/confirm` (who attested, when, from where) and reconcile triggers; disputes are unanswerable without it.
