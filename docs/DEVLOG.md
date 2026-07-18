@@ -36,7 +36,8 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
   **Both web UIs are bilingual: French (default) / English**, via an FR|EN switch persisted per device.
 - **Merchant console: mobile-first + simple/dev views - DONE ✅ (2026-07-18).** The console is now
   mobile-first (one-column phone layout, 48px touch targets, the charge → QR → confirm-receipt flow up
-  top; desktop widens to actions | feed) and ships **two views**: the plain **simple view** every
+  top; desktop: merchant tile on top, Charge-by-QR | feature-phone side by side, payment history
+  below) and ships **two views**: the plain **simple view** every
   merchant sees (hero, Charge by QR, USSD sticker, on-net confirm, pending count, feed) and a
   **dev view** (ops trace, take-payment + USSD dial simulators, force-reconcile, technical txn detail:
   pawaPay op ids / state history / ledger) behind a **DEV toggle**. Gating is CSS-only (`[data-dev]` /
