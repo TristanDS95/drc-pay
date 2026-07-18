@@ -80,7 +80,7 @@
   /* safety-net card */
   .net{border:1.5px solid #f1d9a8;background:#fffaf0;}
   .net .count{font-size:30px;font-weight:800;color:var(--wait);line-height:1;}
-  .net .count small{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:6px;}
+  .net .count+small{font-size:12.5px;font-weight:600;color:var(--muted);margin-left:10px;}
   .net .pendlist{margin:12px 0 0;list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;}
   .net .pendlist li{font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;}
   /* on-net confirm card */
@@ -214,7 +214,7 @@
       <button class="cta" type="submit" data-i18n="login_btn">Log in</button>
       <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
       <!-- bump per console change: makes "which version is my browser running?" answerable -->
-      <div class="ver">build 2026-07-18b</div>
+      <div class="ver">build 2026-07-18c</div>
       <div id="login-demo" class="demo hidden">
         <div class="cap" data-i18n="login_demo">Demo accounts - one click signs you in:</div>
         <div class="chips" id="login-demo-chips"></div>
@@ -308,7 +308,7 @@
 
       <div class="card net">
         <h2 data-i18n="net_h2">Pending payments</h2>
-        <p class="sub" data-simple data-i18n="net_sub_simple">Payments confirm automatically - pending ones resolve on their own.</p>
+        <p class="sub" data-simple data-i18n="net_sub_simple">Payments confirm automatically.</p>
         <p class="sub" data-dev data-i18n-html="net_sub">Payments confirm <b>automatically</b> via pawaPay's signed callback, so you
           rarely need this. It's a manual fallback: if a payment is stuck below, it asks pawaPay
           directly for that payment's status and finishes it - so nothing stays stuck.</p>
@@ -403,7 +403,7 @@
       net_sub: `Payments confirm <b>automatically</b> via pawaPay's signed callback, so you
           rarely need this. It's a manual fallback: if a payment is stuck below, it asks pawaPay
           directly for that payment's status and finishes it - so nothing stays stuck.`,
-      net_sub_simple: `Payments confirm automatically - pending ones resolve on their own.`,
+      net_sub_simple: `Payments confirm automatically.`,
       pend_cap: (n) => n === 1 ? "payment awaiting confirmation" : "payments awaiting confirmation",
       reconcile_btn: "Force-check pending with pawaPay",
       swept: (s, r) => `Swept ${s} pending · healed ${r}.`,
@@ -483,7 +483,7 @@
       net_sub: `Les paiements se confirment <b>automatiquement</b> via le callback signé de pawaPay ;
           vous en aurez rarement besoin. C'est un secours manuel : si un paiement reste bloqué ci-dessous,
           il demande directement son statut à pawaPay et le termine - rien ne reste bloqué.`,
-      net_sub_simple: `Les paiements se confirment automatiquement - ceux en attente se résolvent tout seuls.`,
+      net_sub_simple: `Les paiements se confirment automatiquement.`,
       pend_cap: (n) => n === 1 ? "paiement en attente de confirmation" : "paiements en attente de confirmation",
       reconcile_btn: "Vérifier les paiements en attente avec pawaPay",
       swept: (s, r) => `Balayé ${s} en attente · résolu ${r}.`,
