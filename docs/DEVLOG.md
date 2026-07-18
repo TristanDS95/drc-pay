@@ -1,6 +1,6 @@
 # DRC Pay - Development Log & Handoff
 
-**Last updated:** 2026-07-16 · **Read this first to resume work.**
+**Last updated:** 2026-07-18 · **Read this first to resume work.**
 
 **Product:** a **merchant-facing** app for the DRC: merchants accept mobile-money payments across
 networks (Vodacom M-Pesa, Airtel, Orange) on **rented rails (pawaPay)** as a **pure pass-through**
@@ -34,6 +34,14 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
   scan → locked amount → pick network → pay, confirms live with the fee shown, or an **on-net hand-off**
   (pay the merchant directly on the operator - their till when set, else their number) when same-network.
   **Both web UIs are bilingual: French (default) / English**, via an FR|EN switch persisted per device.
+- **Merchant console: mobile-first + simple/dev views - DONE ✅ (2026-07-18).** The console is now
+  mobile-first (one-column phone layout, 48px touch targets, the charge → QR → confirm-receipt flow up
+  top; desktop widens to actions | feed) and ships **two views**: the plain **simple view** every
+  merchant sees (hero, Charge by QR, USSD sticker, on-net confirm, pending count, feed) and a
+  **dev view** (ops trace, take-payment + USSD dial simulators, force-reconcile, technical txn detail:
+  pawaPay op ids / state history / ledger) behind a **DEV toggle**. Gating is CSS-only (`[data-dev]` /
+  `[data-simple]` on one shared page - no duplicated markup to drift) and the toggle renders only where
+  `/demo/*` exists (local/sandbox), so production merchants can never reach the diagnostic view.
 - **Merchant auth + per-merchant authorization (Gate A) - DONE.** Every merchant signs in with their
   own account; the merchant API is session-gated in every environment and scoped to the session's
   merchant. The console has a login screen (demo accounts `alpha`/`beta`/`gamma`, password
@@ -122,7 +130,8 @@ double-entry, the concurrency race above, and durability + reconciliation across
 app awareness, so the **customer page stays intentionally minimal**; UI investment goes to the
 **merchant console**. Beta path, in order: **(1) merchant self-onboarding** (the real unblock - you
 can't add a merchant without editing `seed.py` today), **(2) a mobile-responsive pass on the merchant
-console** (responsive web, *not* a native app yet), then **(3) Gate A security** - required only once
+console** (responsive web, *not* a native app yet) - **DONE ✅ (2026-07-18)**, see the mobile-first +
+simple/dev-views TL;DR bullet - then **(3) Gate A security** - required only once
 the beta moves *real* money (a sandbox beta with real merchants doesn't need it first). Confirm the
 sandbox-vs-real-money fork before sequencing security ahead of UI.
 
