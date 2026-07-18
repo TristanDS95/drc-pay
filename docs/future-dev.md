@@ -55,10 +55,11 @@ Redis** (sessions / rate limits), **Secrets Manager**, an **ALB**, and **CloudWa
 ## Security hardening (pre-production / when auth exists)
 
 The full staged checklist now lives in **[`security-roadmap.md`](./security-roadmap.md)** - the single
-source of truth for what is done, what gates the first real-money pilot (Gate A: merchant auth +
-per-merchant authorization, USSD/aggregator hardening, rate limits, CORS, charge expiry, audit
-logging), and what gates production at scale (Gate B: PII field encryption, Argon2id PINs if own auth
-is built, monitoring, KYC, backups). Tick items there, not here.
+source of truth for what is done, what gates the first real-money pilot (Gate A - **merchant auth,
+per-merchant authorization, and USSD/aggregator hardening are now done ✅; still open: per-customer /
+per-merchant velocity + application-layer amount caps, CORS lock, charge expiry, and audit logging**),
+and what gates production at scale (Gate B: PII field encryption, Argon2id PINs if own auth is built,
+monitoring, KYC, backups). Tick items there, not here.
 
 ## Webhook receiver as its own deployable
 

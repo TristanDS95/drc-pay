@@ -31,6 +31,10 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
 - **Web UIs** (`frontend/`): the **Merchant Console** (per-merchant login) and the public **Customer**
   scan-to-pay page. Both are **bilingual - French (default) / English** - via an FR|EN switch persisted
   per device.
+  The console is **mobile-first** (one-column phone layout; charge → QR → confirm receipt front and
+  center) and ships two views: the plain **simple view** every merchant sees, and a **dev view**
+  (ops trace, sandbox simulators, force-reconcile, ledger drill-down) behind a DEV toggle that only
+  renders on local/sandbox - production merchants can never reach it.
 - **Merchant auth + per-merchant authorization:** every merchant signs in with their own account
   (Argon2id-hashed passwords, opaque expiring sessions), and every merchant endpoint is scoped to the
   session's merchant - you can only see, confirm, and charge your own payments (security roadmap, Gate A).
