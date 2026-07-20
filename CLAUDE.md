@@ -71,7 +71,9 @@ Single-source topics (update the one owner):
 - **A significant / hard-to-reverse decision** → a new **ADR** in `docs/adr/` (don't bury it in a commit).
 - **Deploy / env vars / secrets** → `backend/.env.example` + README "Quickstart" (specifics in DEVLOG "Deploy").
 - **Visual language** → `docs/design-tokens.md` (single source; `design-tokens.html` renders it; mirrors
-  research `ui-spec.md`).
+  research `ui-spec.md`). After editing the tokens, refresh the preview's embedded snapshot:
+  `python3 docs/refresh-design-tokens-html.py` (the snapshot is what lets the page open by double-click;
+  served over http it reads the `.md` live).
 - **Roadmap** → DEVLOG "NEXT" (active) vs `docs/future-dev.md` (someday) - put it in the right one.
 - **Product spec** → lives in `drc-mvp-research/05-product-spec/`; link, don't duplicate.
 - **Plain-language architecture guide** → `docs/architecture-guide.md` (single source; the `.docx` is
