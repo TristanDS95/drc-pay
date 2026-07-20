@@ -75,6 +75,8 @@ Single-source topics (update the one owner):
   `python3 docs/refresh-design-tokens-html.py` (the snapshot is what lets the page open by double-click;
   served over http it reads the `.md` live).
 - **Roadmap** → DEVLOG "NEXT" (active) vs `docs/future-dev.md` (someday) - put it in the right one.
+  When a "NEXT" item ships, move its write-up to `docs/history.md` (completed-work archive, newest
+  first) and leave DEVLOG's TL;DR/NEXT lean - don't let finished narratives pile up in DEVLOG.
 - **Product spec** → lives in `drc-mvp-research/05-product-spec/`; link, don't duplicate.
 - **Plain-language architecture guide** → `docs/architecture-guide.md` (single source; the `.docx` is
   generated from it - `pandoc docs/architecture-guide.md -o docs/DRC-Pay-Architecture-Guide.docx` after editing).
