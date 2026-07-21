@@ -1,6 +1,6 @@
 # DRC Pay — single-container sandbox/demo image: the FastAPI API + the static Merchant
 # Console, served same-origin. Build context is the repo root (it needs both backend
-# and frontend/merchant-console).
+# and the frontend/ apps).
 FROM python:3.13-slim
 
 WORKDIR /app
@@ -17,11 +17,14 @@ COPY backend/alembic.ini ./alembic.ini
 COPY backend/migrations ./migrations
 COPY frontend/merchant-console ./console
 COPY frontend/customer-app ./customer-app
+COPY frontend/staff-console ./staff-console
 COPY backend/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
-# The app serves the (gated) console and the (public) customer pages from these dirs.
+# The app serves the (gated) console, the (public) customer pages, and the internal Staff
+# Console (/staff — merchant approvals, behind the same demo gate as the console) from these dirs.
 ENV DRCPAY_CONSOLE_DIR=/app/console
 ENV DRCPAY_CUSTOMER_DIR=/app/customer-app
+ENV DRCPAY_STAFF_DIR=/app/staff-console
 EXPOSE 8000
 CMD ["./docker-entrypoint.sh"]

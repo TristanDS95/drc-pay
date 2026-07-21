@@ -239,6 +239,13 @@ def create_app() -> FastAPI:
             "/customer", StaticFiles(directory=settings.customer_dir, html=True), name="customer"
         )
 
+    # Internal Staff Console (approve/reject merchant sign-ups). Mounted at /staff, not /admin:
+    # /admin/* is the session-managed API (it must be reachable to log in), while this page is
+    # treated like /console and stays behind the sandbox demo password. Everything it displays
+    # requires an admin session regardless.
+    if settings.staff_dir:
+        app.mount("/staff", StaticFiles(directory=settings.staff_dir, html=True), name="staff")
+
     @app.get("/health")
     def health() -> dict[str, str]:
         """Liveness probe."""

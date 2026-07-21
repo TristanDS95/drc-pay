@@ -41,6 +41,11 @@ or dial USSD. Research is the sibling `../drc-mvp-research/`; this repo (`drc-pa
   own account; the merchant API is session-gated in every environment and scoped to the session's
   merchant. The console has a login screen (demo accounts `alpha`/`beta`/`gamma`, password
   `<username>-demo`); the shared Basic password now gates only the sandbox demo shell.
+- **Merchant self-onboarding - DONE ✅ (2026-07-21).** A business registers itself (`POST /signup` /
+  the console's "Create an account" form) as a **pending** merchant that cannot log in or transact,
+  and a **staff member** approves it in the new **Staff Console** (`/staff`) - so adding a merchant
+  no longer means editing `seed.py`. Staff are a separate identity from merchants (`domains/staff/`).
+  **KYC and a production admin-bootstrap remain open** - see NEXT.
 
 ## ▶ NEXT - biggest open rocks (rough priority; confirm the pick before building)
 
@@ -58,15 +63,23 @@ simple/dev-views TL;DR bullet - then **(3) Gate A security** - required only onc
 the beta moves *real* money (a sandbox beta with real merchants doesn't need it first). Confirm the
 sandbox-vs-real-money fork before sequencing security ahead of UI.
 
-1. **Merchant onboarding + KYC - backend IN PROGRESS (2026-07-21).** Self-onboarding with manual
-   approval, gated by staff/admin accounts. **Done:** public `POST /signup` creates a **pending**
-   merchant + Argon2id login (`application/onboarding.py`), which is inert until approved (login is
-   gated on merchant status; `is_active` already fenced take-payment/charge); a separate
-   **staff/admin identity** (`domains/staff/`, migration `f1a2b3c4d5e6`) with `POST /admin/login`;
-   and the admin approval surface - `GET /admin/merchants?status=pending`, `POST
-   /admin/merchants/{id}/approve` / `/reject`. **Next:** the UIs (a public sign-up form + an admin
-   approval page). **Then:** KYC (still deferred) and a production admin-bootstrap (the demo admin
-   is sandbox/local-only). Branch `feat/merchant-onboarding`.
+1. **Merchant onboarding - DONE ✅ (2026-07-21); KYC still open.** A business can now register
+   itself and be activated without anyone editing `seed.py` - the beta unblock. Self-onboarding with
+   **manual approval**, gated by **staff/admin accounts**:
+   - **Sign-up:** public `POST /signup` creates a **pending** merchant + its Argon2id login
+     (`application/onboarding.py`), server-assigned id/short-code. A pending merchant is inert -
+     login is gated on merchant status, and `is_active` already fenced take-payment/create-charge.
+   - **Staff identity:** a separate `domains/staff/` (credentials with a role, opaque expiring
+     sessions, own `drcpay_admin_session` cookie; migration `f1a2b3c4d5e6`), `POST /admin/login`.
+     Cross-tier isolation is enforced and tested both ways.
+   - **Approval:** `GET /admin/merchants?status=pending`, `POST /admin/merchants/{id}/approve` /
+     `/reject` (admin role required).
+   - **UIs:** a "Create an account" form on the merchant console login (bilingual FR/EN) and a
+     **Staff Console** at `/staff` (`frontend/staff-console/`, `DRCPAY_STAFF_DIR`) - sign in, review
+     sign-ups, approve/reject. English-only on purpose (internal operator tool).
+   - **Still open:** **KYC** (deferred by design) and a **production admin bootstrap** - the demo
+     admin (`admin`/`admin-demo`) is seeded for sandbox/local only, so a production deploy has no
+     way to create the first staff account yet.
 2. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to
    `http/ussd_routes.py`). *(Also where the static-till QR returns.)*
@@ -112,8 +125,9 @@ backend/src/drc_pay_api/
 │           demo_routes.py     # /demo/reconcile - off-real-money path only (404 in prod)
 │           public_routes.py   # /public/{merchant,charge,transaction}, /pay - public (sandbox-gated)
 ├── main.py · config.py · seed.py   # seed.py = demo-merchant seeding (entrypoint, sandbox/local)
-frontend/ merchant-console/   # gated cockpit: Charge-by-QR, take-payment, live feed
+frontend/ merchant-console/   # gated cockpit: Charge-by-QR, take-payment, live feed, sign-up form
           customer-app/       # public scan-to-pay (charge-driven) + USSD dial sim
+          staff-console/      # internal /staff: staff login → approve/reject merchant sign-ups
 Dockerfile                              # deploy (single container, on Railway)
 ```
 **Layering:** dependencies point inward; `domains/` + `application/` never import a channel.
@@ -209,6 +223,7 @@ ruff check . && mypy src && pytest                          # all green (offline
 # opt-in live sandbox e2e (real network, sandbox only): RUN_PAWAPAY_SANDBOX_E2E=1 pytest tests/test_pawapay_sandbox_e2e.py
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
+export DRCPAY_STAFF_DIR="$PWD/../frontend/staff-console"     # Staff Console at /staff (approvals)
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
 # console login (per-merchant auth): alpha / alpha-demo (also beta, gamma - password <username>-demo)
 # admin login (staff, sandbox/local only): admin / admin-demo — approves self-onboarded merchants

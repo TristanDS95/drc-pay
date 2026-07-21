@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # The public customer-facing pages (scan-to-pay + USSD dial simulator) — served when set,
     # and NOT behind the password (a customer who scans a QR has no login).
     customer_dir: str = ""
+    # The internal Staff Console (approve/reject merchant sign-ups) — served at /staff when set.
+    # Deliberately NOT under /admin: the /admin/* API is session-managed (skips the demo Basic
+    # gate so a login can happen), whereas this page is treated like /console and stays behind
+    # the sandbox demo password. Its data still requires an admin session either way.
+    staff_dir: str = ""
 
     @field_validator("ussd_lang")
     @classmethod
