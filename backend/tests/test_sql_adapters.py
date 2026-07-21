@@ -235,3 +235,27 @@ def _run_all() -> None:
 if __name__ == "__main__":
     _run_all()
     print("test_sql_adapters: all passed")
+
+
+def test_staff_removal_deletes_sessions_then_credential() -> None:
+    """The FK staff_sessions.staff_id -> staff_credentials.staff_id means sessions must go first;
+    this exercises that order against a real SQL backend."""
+    from datetime import UTC, datetime, timedelta
+
+    factory = _factory()
+    creds = SqlStaffCredentialStore(factory)
+    sessions = SqlStaffSessionStore(factory)
+    creds.save(StaffCredential(staff_id="s1", username="admin", password_hash="h", role="admin"))
+    creds.save(StaffCredential(staff_id="s2", username="alice", password_hash="h", role="admin"))
+    expires = datetime.now(UTC) + timedelta(hours=1)
+    sessions.save(StaffSession(token_hash="t1", staff_id="s1", expires_at=expires))
+    sessions.save(StaffSession(token_hash="t2", staff_id="s1", expires_at=expires))
+    sessions.save(StaffSession(token_hash="keep", staff_id="s2", expires_at=expires))
+
+    assert sessions.delete_for_staff("s1") == 2
+    creds.delete("s1")
+
+    assert creds.get_by_username("admin") is None
+    assert sessions.get("t1") is None and sessions.get("t2") is None
+    assert sessions.get("keep") is not None  # the other account's session survives
+    assert [c.username for c in creds.all()] == ["alice"]

@@ -28,10 +28,33 @@ MIN_PASSWORD = 8
 ROLES = {ROLE_ADMIN}
 
 
+# Two protocols, not one: creating an account needs only lookup+save, so callers that can only do
+# that (the deploy-time bootstrap) aren't forced to implement deletion they never perform.
 class StaffCredentialStore(Protocol):
     def get_by_username(self, username: str) -> StaffCredential | None: ...
 
     def save(self, credential: StaffCredential) -> None: ...
+
+
+class StaffCredentialAdminStore(StaffCredentialStore, Protocol):
+    """Additionally supports removal — needed to delete an account safely (and to count the
+    remaining ones, so the last account can't be removed)."""
+
+    def all(self) -> list[StaffCredential]: ...
+
+    def delete(self, staff_id: str) -> None: ...
+
+
+class StaffSessionStore(Protocol):
+    def delete_for_staff(self, staff_id: str) -> int: ...
+
+
+class StaffNotFound(Exception):
+    """No staff account with that username."""
+
+
+class LastStaffAccount(Exception):
+    """Refusing to remove the only remaining staff account — that would lock everyone out."""
 
 
 class InvalidStaffAccount(ValueError):
@@ -68,6 +91,28 @@ def create_staff(
     )
     store.save(credential)
     return credential
+
+
+def remove_staff(
+    store: StaffCredentialAdminStore, sessions: StaffSessionStore, *, username: str
+) -> int:
+    """Delete a staff account and revoke its live sessions, returning how many were revoked.
+
+    Sessions go first: ``staff_sessions.staff_id`` is a foreign key to the credential, so the
+    delete would be rejected otherwise (and a still-valid session for a deleted account would be
+    a security hole in its own right).
+
+    Refuses to remove the LAST staff account — deleting it would leave nobody able to sign in and
+    no way back in short of database surgery.
+    """
+    credential = store.get_by_username(username)
+    if credential is None:
+        raise StaffNotFound(username)
+    if len(store.all()) <= 1:
+        raise LastStaffAccount(username)
+    revoked = sessions.delete_for_staff(credential.staff_id)
+    store.delete(credential.staff_id)
+    return revoked
 
 
 def upsert_staff(
