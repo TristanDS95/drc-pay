@@ -117,6 +117,26 @@
       <ul class="list" id="list"></ul>
       <div id="action-out" class="out hidden"></div>
     </div>
+
+    <div class="card">
+      <h2>Staff accounts</h2>
+      <p class="sub">Who can approve sign-ups. Adding someone here lets them sign in to this
+        console immediately.</p>
+      <ul class="list" id="staff-list"></ul>
+
+      <details id="add-staff" style="margin-top:14px;">
+        <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--coral-dark);">
+          Add a staff member</summary>
+        <form id="staff-form">
+          <label class="fld" for="ns-user">Username</label>
+          <input id="ns-user" autocomplete="off" autocapitalize="none" />
+          <label class="fld" for="ns-pass">Password (at least 8 characters)</label>
+          <input id="ns-pass" type="password" autocomplete="new-password" />
+          <button class="cta" type="submit" id="ns-submit">Create staff account</button>
+          <div id="staff-out" class="out hidden" style="margin-top:12px;"></div>
+        </form>
+      </details>
+    </div>
   </div>
 
 <script>
@@ -166,6 +186,24 @@
     hideLogin(); clearErr();
     $("whoami-name").textContent = `${me.username} · ${me.role}`;
     await refresh();
+    await refreshStaff();
+  }
+
+  // ----- staff accounts -----
+  async function refreshStaff(){
+    if(!session) return;
+    let rows;
+    try { rows = await jget("/admin/staff"); } catch(e){ return; }
+    $("staff-list").innerHTML = rows.length
+      ? rows.map((s) => `
+        <li>
+          <span>
+            <span class="name">${esc(s.username)}</span>
+            <span class="pill mut">${esc(s.role)}</span>
+            <div class="meta"><code>${esc(s.staff_id)}</code></div>
+          </span>
+        </li>`).join("")
+      : `<li class="empty">No staff accounts.</li>`;
   }
 
   async function refresh(){
@@ -254,6 +292,38 @@
     catch(e){ /* revoked or unreachable - either way we drop it */ }
     showLogin();
   });
+  $("staff-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const out = $("staff-out");
+    out.classList.add("hidden");
+    $("ns-submit").disabled = true;
+    let body, status;
+    try {
+      const r = await fetch(`${API}/admin/staff`, { method:"POST",
+        headers:{ "content-type":"application/json", ...authHeaders() },
+        body: JSON.stringify({ username: $("ns-user").value.trim(), password: $("ns-pass").value }) });
+      status = r.status;
+      body = await r.json();
+    } catch(err){
+      out.className = "out bad"; out.textContent = String(err);
+      out.classList.remove("hidden"); $("ns-submit").disabled = false; return;
+    }
+    $("ns-submit").disabled = false;
+    if(status === 201){
+      out.className = "out ok";
+      out.textContent = `✓ ${body.username} can now sign in to this console.`;
+      $("ns-user").value = ""; $("ns-pass").value = "";
+      await refreshStaff();
+    } else {
+      out.className = "out bad";
+      // 409 is worth its own wording: it means the name is taken, NOT that we reset that account.
+      out.textContent = status === 409
+        ? "That username is already taken."
+        : (body && body.detail ? body.detail : `HTTP ${status}`);
+    }
+    out.classList.remove("hidden");
+  });
+
   $("filters").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     filter = b.dataset.status;
     $("filters").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));

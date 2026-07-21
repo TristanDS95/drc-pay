@@ -78,6 +78,9 @@ class InMemoryStaffCredentialStore:
     def save(self, credential: StaffCredential) -> None:
         self._by_username[credential.username] = credential
 
+    def all(self) -> list[StaffCredential]:
+        return list(self._by_username.values())
+
 
 class InMemoryStaffSessionStore:
     def __init__(self) -> None:

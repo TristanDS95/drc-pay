@@ -132,10 +132,42 @@ def seed_demo_staff(staff_credentials: _StaffCredentialStore) -> list[str]:
     return [credential.username for credential in _demo_staff()]
 
 
+class _StaffLookupStore(Protocol):
+    """The store surface the bootstrap needs — it must find an existing account by username so
+    a redeploy updates that account instead of creating a duplicate under a new id."""
+
+    def get_by_username(self, username: str) -> StaffCredential | None: ...
+
+    def save(self, credential: StaffCredential) -> None: ...
+
+
+def ensure_bootstrap_admin(
+    staff_credentials: _StaffLookupStore, username: str, password: str
+) -> str | None:
+    """Create-or-update the configured bootstrap admin. Runs in **every** environment (unlike the
+    demo seed): production seeds nothing, so this is the only way its first staff account exists.
+
+    Idempotent by username (see ``application.staff_accounts.upsert_staff``) — a redeploy updates
+    the SAME account rather than making a second one, which is what makes rotating
+    ``DRCPAY_ADMIN_PASSWORD`` in the dashboard work. Returns the username, or ``None`` when
+    unconfigured (both vars blank). Raises ``InvalidStaffAccount`` if the configured values are
+    unusable — failing the deploy loudly beats booting with an admin nobody can log into. The
+    password is never logged and never stored in the clear.
+    """
+    if not username or not password:
+        return None
+    from .application.staff_accounts import upsert_staff
+
+    return upsert_staff(staff_credentials, username=username, password=password).username
+
+
 def main() -> None:
     """Entrypoint seed: upsert the demo merchants into the configured Postgres database. A no-op
     when no database is configured (the in-memory demo seeds itself) or in production (which starts
-    empty by design). Gating lives here, so the shell entrypoint can call it unconditionally."""
+    empty by design). Gating lives here, so the shell entrypoint can call it unconditionally.
+
+    The **bootstrap admin runs first and in every environment** — production seeds nothing else,
+    and without a staff account nobody could approve a merchant there."""
     from sqlalchemy.orm import sessionmaker
 
     from .adapters.sql import (
@@ -149,13 +181,28 @@ def main() -> None:
     if not settings.database_url:
         print("[seed] no DRCPAY_DATABASE_URL — nothing to seed (the in-memory demo seeds itself).")
         return
+
+    session_factory = sessionmaker(make_engine(settings.database_url))
+
+    # Before the environment gate on purpose: this is the ONLY staff account a production
+    # deploy gets. Never print the password.
+    bootstrapped = ensure_bootstrap_admin(
+        SqlStaffCredentialStore(session_factory), settings.admin_username, settings.admin_password
+    )
+    if bootstrapped:
+        print(f"[seed] bootstrap admin ready: {bootstrapped} (password from DRCPAY_ADMIN_PASSWORD)")
+    elif settings.environment not in {"local", "sandbox"}:
+        print(
+            "[seed] WARNING: no DRCPAY_ADMIN_USERNAME/PASSWORD set and this environment seeds no "
+            "demo admin — no staff account exists, so nobody can approve merchant sign-ups."
+        )
+
     if settings.environment not in {"local", "sandbox"}:
         print(
             f"[seed] environment={settings.environment!r} — skipping demo seed "
             "(production starts empty; merchants come via onboarding)."
         )
         return
-    session_factory = sessionmaker(make_engine(settings.database_url))
     seeded = seed_demo_merchants(SqlMerchantStore(session_factory))
     logins = seed_demo_credentials(SqlCredentialStore(session_factory))
     admins = seed_demo_staff(SqlStaffCredentialStore(session_factory))
