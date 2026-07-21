@@ -10,6 +10,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# Merchant lifecycle. A self-onboarded merchant starts PENDING and is inert (cannot log in,
+# take payments, or create charges) until an admin flips it to ACTIVE; REJECTED and SUSPENDED
+# are the two other non-active terminal/holding states. Only ACTIVE transacts.
+STATUS_PENDING = "pending"
+STATUS_ACTIVE = "active"
+STATUS_REJECTED = "rejected"
+STATUS_SUSPENDED = "suspended"
+
 
 @dataclass
 class Merchant:
@@ -20,7 +28,7 @@ class Merchant:
     )
     settlement_msisdn: str  # mobile-money number that receives settlement payouts
     settlement_provider: str | None = None  # pawaPay operator code; resolved if omitted
-    status: str = "active"  # active | suspended
+    status: str = STATUS_ACTIVE  # pending | active | rejected | suspended
     # The merchant's OWN operator "buy goods" till on their settlement network — what an on-net
     # (same-network) customer pays directly. Preferred over ``settlement_msisdn`` for the on-net
     # hand-off: it shows the business name and is the path operators can later auto-notify us on.
@@ -29,4 +37,4 @@ class Merchant:
 
     @property
     def is_active(self) -> bool:
-        return self.status == "active"
+        return self.status == STATUS_ACTIVE

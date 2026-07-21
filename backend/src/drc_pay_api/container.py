@@ -134,7 +134,17 @@ class Container:
     auth: AuthService = field(init=False)
 
     def __post_init__(self) -> None:
-        self.auth = AuthService(self.credentials, self.sessions)
+        self.auth = AuthService(
+            self.credentials, self.sessions, is_merchant_active=self._merchant_active
+        )
+
+    def _merchant_active(self, merchant_id: str) -> bool:
+        """Login gate: only an ACTIVE merchant may get a session. A pending (self-onboarded,
+        awaiting approval), rejected, suspended, or missing merchant is denied."""
+        try:
+            return self.merchants.get(merchant_id).is_active
+        except KeyError:
+            return False
 
     @property
     def demo_controls_enabled(self) -> bool:

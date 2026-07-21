@@ -26,6 +26,7 @@ from .container import build_container
 from .http.auth_routes import auth_router
 from .http.demo_routes import demo_router
 from .http.merchant_api import merchant_api_router
+from .http.onboarding_routes import onboarding_router
 from .http.public_routes import public_router
 from .http.ussd_routes import SlidingWindowLimiter, ussd_router
 from .http.webhook_routes import webhook_router
@@ -37,6 +38,8 @@ from .ussd.session import UssdHandler
 #   - the pawaPay callback under /webhooks/ (verified by RFC-9421 signature instead),
 #   - the platform's health probe,
 #   - customer-facing paths (a customer who scans a QR has no login),
+#   - /signup: merchant self-onboarding is public by design — a business registering itself
+#     has no demo password (it creates a PENDING merchant that can't act until approved),
 #   - the merchant API + /auth (each merchant authenticates with their OWN session — a shared
 #     password would have to be handed to every merchant, defeating per-merchant auth).
 #   - /demo/credentials: the login page's demo chips fetch it in the background, and some
@@ -45,7 +48,7 @@ from .ussd.session import UssdHandler
 #     is public anyway. (Still 404s in production; the rest of the demo shell stays gated.)
 _AUTH_EXEMPT = {"/health", "/demo/credentials"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
-_PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
+_PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer", "/signup")
 _SESSION_GATED_PREFIXES = ("/auth", "/transactions", "/merchants", "/charges")
 
 
@@ -205,6 +208,7 @@ def create_app() -> FastAPI:
     app.state.ussd_handler = UssdHandler(app.state.container, lang=settings.ussd_lang)
     app.state.ussd_limiter = SlidingWindowLimiter()
     app.include_router(auth_router)
+    app.include_router(onboarding_router)
     app.include_router(merchant_api_router)
     app.include_router(ussd_router)
     app.include_router(webhook_router)
