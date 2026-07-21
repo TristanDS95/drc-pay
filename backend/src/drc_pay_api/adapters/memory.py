@@ -11,6 +11,7 @@ from ..domains.auth.models import MerchantCredential, MerchantSession
 from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Posting
 from ..domains.merchants.models import Merchant
+from ..domains.staff.models import StaffCredential, StaffSession
 from ..domains.transactions.models import Transaction
 from ..domains.transactions.ports import DuplicateIdempotencyKey
 from ..domains.transactions.state_machine import PENDING_STATES
@@ -55,6 +56,37 @@ class InMemorySessionStore:
         return self._rows.get(token_hash)
 
     def save(self, session: MerchantSession) -> None:
+        self._rows[session.token_hash] = session
+
+    def delete(self, token_hash: str) -> None:
+        self._rows.pop(token_hash, None)
+
+
+class InMemoryStaffCredentialStore:
+    def __init__(self) -> None:
+        self._by_username: dict[str, StaffCredential] = {}
+
+    def get_by_username(self, username: str) -> StaffCredential | None:
+        return self._by_username.get(username)
+
+    def get_by_id(self, staff_id: str) -> StaffCredential | None:
+        for credential in self._by_username.values():
+            if credential.staff_id == staff_id:
+                return credential
+        return None
+
+    def save(self, credential: StaffCredential) -> None:
+        self._by_username[credential.username] = credential
+
+
+class InMemoryStaffSessionStore:
+    def __init__(self) -> None:
+        self._rows: dict[str, StaffSession] = {}  # keyed by token hash
+
+    def get(self, token_hash: str) -> StaffSession | None:
+        return self._rows.get(token_hash)
+
+    def save(self, session: StaffSession) -> None:
         self._rows[session.token_hash] = session
 
     def delete(self, token_hash: str) -> None:

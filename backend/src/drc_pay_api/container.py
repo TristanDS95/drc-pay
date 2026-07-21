@@ -34,6 +34,8 @@ from .adapters.memory import (
     InMemoryLedger,
     InMemoryMerchantStore,
     InMemorySessionStore,
+    InMemoryStaffCredentialStore,
+    InMemoryStaffSessionStore,
     InMemoryTransactionStore,
 )
 from .adapters.sql import (
@@ -42,6 +44,8 @@ from .adapters.sql import (
     SqlLedger,
     SqlMerchantStore,
     SqlSessionStore,
+    SqlStaffCredentialStore,
+    SqlStaffSessionStore,
     SqlTransactionStore,
     make_engine,
 )
@@ -50,13 +54,14 @@ from .domains.auth.service import AuthService, CredentialStore, SessionStore
 from .domains.charges.models import Charge
 from .domains.ledger.ledger import Posting
 from .domains.merchants.models import Merchant
+from .domains.staff.service import StaffAuthService, StaffCredentialStore, StaffSessionStore
 from .domains.transactions.models import Transaction
 from .domains.transactions.ports import PaymentRail
 from .integrations.pawapay.client import PawaPayClient
 from .integrations.pawapay.rail import PawaPayRail
 from .integrations.pawapay.simulator import SimulatedPaymentRail
 from .integrations.pawapay.status import StatusPoller
-from .seed import seed_demo_credentials, seed_demo_merchants
+from .seed import seed_demo_credentials, seed_demo_merchants, seed_demo_staff
 
 
 class TxStore(Protocol):
@@ -113,6 +118,13 @@ def _seeded_credential_store() -> InMemoryCredentialStore:
     return store
 
 
+def _seeded_staff_credential_store() -> InMemoryStaffCredentialStore:
+    # Zero-setup admin: the demo admin login, so local dev and tests can act as staff.
+    store = InMemoryStaffCredentialStore()
+    seed_demo_staff(store)
+    return store
+
+
 @dataclass
 class Container:
     store: TxStore
@@ -125,16 +137,30 @@ class Container:
     charges: ChargeStore = field(default_factory=InMemoryChargeStore)
     credentials: CredentialStore = field(default_factory=_seeded_credential_store)
     sessions: SessionStore = field(default_factory=InMemorySessionStore)
+    staff_credentials: StaffCredentialStore = field(default_factory=_seeded_staff_credential_store)
+    staff_sessions: StaffSessionStore = field(default_factory=InMemoryStaffSessionStore)
     ussd_shortcode: str = "*123#"  # the code customers dial; each merchant's till appended
     pawapay_public_key: str = ""  # PEM; verifies signed callbacks (blank → reject all)
     poller: StatusPoller | None = None  # pawaPay status polling for reconciliation (live rail only)
     pawapay_client: PawaPayClient | None = None  # the live client, for the startup key fetch below
-    # Built from the two stores above in __post_init__ — one service instance per container,
-    # so the login throttle's state survives across requests.
+    # Built from the stores above in __post_init__ — one service instance per container, so each
+    # login throttle's state survives across requests.
     auth: AuthService = field(init=False)
+    staff_auth: StaffAuthService = field(init=False)
 
     def __post_init__(self) -> None:
-        self.auth = AuthService(self.credentials, self.sessions)
+        self.auth = AuthService(
+            self.credentials, self.sessions, is_merchant_active=self._merchant_active
+        )
+        self.staff_auth = StaffAuthService(self.staff_credentials, self.staff_sessions)
+
+    def _merchant_active(self, merchant_id: str) -> bool:
+        """Login gate: only an ACTIVE merchant may get a session. A pending (self-onboarded,
+        awaiting approval), rejected, suspended, or missing merchant is denied."""
+        try:
+            return self.merchants.get(merchant_id).is_active
+        except KeyError:
+            return False
 
     @property
     def demo_controls_enabled(self) -> bool:
@@ -207,6 +233,8 @@ def build_container(
         charges: ChargeStore = SqlChargeStore(session_factory)
         credentials: CredentialStore = SqlCredentialStore(session_factory)
         sessions: SessionStore = SqlSessionStore(session_factory)
+        staff_credentials: StaffCredentialStore = SqlStaffCredentialStore(session_factory)
+        staff_sessions: StaffSessionStore = SqlStaffSessionStore(session_factory)
         print(f"[container] persistence: Postgres ({environment})")
     elif environment != "local":
         raise RuntimeError(
@@ -221,6 +249,8 @@ def build_container(
         charges = InMemoryChargeStore()
         credentials = _seeded_credential_store()
         sessions = InMemorySessionStore()
+        staff_credentials = _seeded_staff_credential_store()
+        staff_sessions = InMemoryStaffSessionStore()
         print("[container] persistence: in-memory (local dev — data is NOT durable)")
 
     return Container(
@@ -233,6 +263,8 @@ def build_container(
         charges=charges,
         credentials=credentials,
         sessions=sessions,
+        staff_credentials=staff_credentials,
+        staff_sessions=staff_sessions,
         ussd_shortcode=ussd_shortcode,
         pawapay_public_key=pawapay_public_key,
         poller=poller,

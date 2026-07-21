@@ -23,9 +23,12 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .container import build_container
+from .http.admin_merchants_routes import admin_merchants_router
+from .http.admin_routes import admin_router
 from .http.auth_routes import auth_router
 from .http.demo_routes import demo_router
 from .http.merchant_api import merchant_api_router
+from .http.onboarding_routes import onboarding_router
 from .http.public_routes import public_router
 from .http.ussd_routes import SlidingWindowLimiter, ussd_router
 from .http.webhook_routes import webhook_router
@@ -37,6 +40,8 @@ from .ussd.session import UssdHandler
 #   - the pawaPay callback under /webhooks/ (verified by RFC-9421 signature instead),
 #   - the platform's health probe,
 #   - customer-facing paths (a customer who scans a QR has no login),
+#   - /signup: merchant self-onboarding is public by design — a business registering itself
+#     has no demo password (it creates a PENDING merchant that can't act until approved),
 #   - the merchant API + /auth (each merchant authenticates with their OWN session — a shared
 #     password would have to be handed to every merchant, defeating per-merchant auth).
 #   - /demo/credentials: the login page's demo chips fetch it in the background, and some
@@ -45,8 +50,8 @@ from .ussd.session import UssdHandler
 #     is public anyway. (Still 404s in production; the rest of the demo shell stays gated.)
 _AUTH_EXEMPT = {"/health", "/demo/credentials"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
-_PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer")
-_SESSION_GATED_PREFIXES = ("/auth", "/transactions", "/merchants", "/charges")
+_PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer", "/signup")
+_SESSION_GATED_PREFIXES = ("/auth", "/admin", "/transactions", "/merchants", "/charges")
 
 
 async def _reconcile_loop(app: FastAPI, interval: int) -> None:
@@ -205,6 +210,9 @@ def create_app() -> FastAPI:
     app.state.ussd_handler = UssdHandler(app.state.container, lang=settings.ussd_lang)
     app.state.ussd_limiter = SlidingWindowLimiter()
     app.include_router(auth_router)
+    app.include_router(admin_router)
+    app.include_router(admin_merchants_router)
+    app.include_router(onboarding_router)
     app.include_router(merchant_api_router)
     app.include_router(ussd_router)
     app.include_router(webhook_router)
@@ -230,6 +238,13 @@ def create_app() -> FastAPI:
         app.mount(
             "/customer", StaticFiles(directory=settings.customer_dir, html=True), name="customer"
         )
+
+    # Internal Staff Console (approve/reject merchant sign-ups). Mounted at /staff, not /admin:
+    # /admin/* is the session-managed API (it must be reachable to log in), while this page is
+    # treated like /console and stays behind the sandbox demo password. Everything it displays
+    # requires an admin session regardless.
+    if settings.staff_dir:
+        app.mount("/staff", StaticFiles(directory=settings.staff_dir, html=True), name="staff")
 
     @app.get("/health")
     def health() -> dict[str, str]:

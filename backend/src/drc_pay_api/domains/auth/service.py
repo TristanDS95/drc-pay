@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
@@ -61,9 +62,20 @@ class SessionStore(Protocol):
 
 
 class AuthService:
-    def __init__(self, credentials: CredentialStore, sessions: SessionStore) -> None:
+    def __init__(
+        self,
+        credentials: CredentialStore,
+        sessions: SessionStore,
+        is_merchant_active: Callable[[str], bool] | None = None,
+    ) -> None:
         self._credentials = credentials
         self._sessions = sessions
+        # Optional gate: a merchant must be ACTIVE to get a session. Self-onboarded merchants
+        # start PENDING (and REJECTED/SUSPENDED are also non-active), so a correct password alone
+        # is not enough — the account must be approved. Default None means "no gate" (kept so the
+        # auth service stays usable standalone, e.g. in focused auth tests); the container wires
+        # the real merchant-status check.
+        self._is_merchant_active = is_merchant_active
         # username -> (consecutive failures, lockout-until monotonic timestamp)
         self._failures: dict[str, tuple[int, float]] = {}
 
@@ -83,7 +95,15 @@ class AuthService:
         except (VerifyMismatchError, VerificationError):
             self._record_failure(username)
             return None
-        self._failures.pop(username, None)
+        self._failures.pop(username, None)  # correct password clears the throttle
+        # Correct credentials, but the merchant must be ACTIVE to get a session. A pending
+        # (awaiting-approval), rejected, or suspended merchant is denied — indistinguishably,
+        # and without counting as a password failure (it isn't one). The signup response sets
+        # the "await approval" expectation, so this is not a surprise to a new merchant.
+        if self._is_merchant_active is not None and not self._is_merchant_active(
+            credential.merchant_id
+        ):
+            return None
         token = secrets.token_urlsafe(32)
         self._sessions.save(
             MerchantSession(

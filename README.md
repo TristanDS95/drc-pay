@@ -38,8 +38,13 @@ opt-in live-sandbox e2e tests, off by default - see [DEVLOG](docs/DEVLOG.md#how-
 - **Merchant auth + per-merchant authorization:** every merchant signs in with their own account
   (Argon2id-hashed passwords, opaque expiring sessions), and every merchant endpoint is scoped to the
   session's merchant - you can only see, confirm, and charge your own payments (security roadmap, Gate A).
+- **Merchant self-onboarding:** a business registers itself (public `POST /signup`, or the console's
+  "Create an account" form) as a **pending** merchant that cannot log in or take payments until a
+  **staff member** approves it in the **Staff Console** (`/staff`). Staff are a separate identity from
+  merchants, with their own login and role. Adding a merchant no longer means editing `seed.py`.
 - **Not started:** the native mobile app (React Native/Expo - deliberately web-first for now; plan in
-  [`docs/future-dev.md`](docs/future-dev.md)) and merchant onboarding/KYC.
+  [`docs/future-dev.md`](docs/future-dev.md)), merchant **KYC**, and a production admin bootstrap
+  (the demo staff account is seeded for sandbox/local only).
 
 
 ## Live demo (sandbox)
@@ -59,7 +64,8 @@ drc-pay/
 ├── backend/           # Python / FastAPI - the money core + every channel (HTTP, USSD, webhooks)
 ├── frontend/
 │   ├── merchant-console/  # gated web cockpit (merchant side) - Charge-by-QR, live feed, ledger
-│   └── customer-app/      # public scan-to-pay (charge-driven) + USSD dial simulator (customer side)
+│   ├── customer-app/      # public scan-to-pay (charge-driven) + USSD dial simulator (customer side)
+│   └── staff-console/     # internal /staff - staff login, approve/reject merchant sign-ups
 ├── docs/              # DEVLOG, future-dev, design tokens, ADRs
 ├── Dockerfile         # single-container image: API + both web apps, served same-origin
 ├── docker-compose.yml # local Postgres
@@ -118,6 +124,7 @@ ruff check . && mypy src && pytest                    # all green (offline; sand
 
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
+export DRCPAY_STAFF_DIR="$PWD/../frontend/staff-console"     # Staff Console at /staff (approvals)
 uvicorn --app-dir src drc_pay_api.main:app --reload
 #   API docs:  http://localhost:8000/docs
 #   console:   http://localhost:8000/console/   (post a charge → scan/open its QR to pay)

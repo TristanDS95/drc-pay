@@ -172,6 +172,10 @@
         cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;}
   .logincard .demo .chips button .net{font-size:10px;font-weight:600;color:var(--muted);}
   .logincard .demo .chips button:hover{border-color:var(--coral);color:var(--coral-dark);}
+  /* the sign-in <-> sign-up switch on the login overlay */
+  .logincard .swap{margin-top:14px;text-align:center;}
+  .logincard .swap button{background:none;border:none;color:var(--coral-dark);font-size:12.5px;
+        font-weight:700;cursor:pointer;padding:6px;text-decoration:underline;}
   .logincard .ver{margin-top:12px;font-size:10px;color:#b9b4a8;text-align:right;
         font-family:"SF Mono",Menlo,Consolas,monospace;}
   /* phone polish: tighter chrome, bottom-sheet detail modal */
@@ -213,12 +217,49 @@
       <input id="login-pass" name="password" type="password" autocomplete="current-password" />
       <button class="cta" type="submit" data-i18n="login_btn">Log in</button>
       <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
+      <div class="swap"><button type="button" id="to-signup" data-i18n="to_signup">Create an account</button></div>
       <!-- bump per console change: makes "which version is my browser running?" answerable -->
-      <div class="ver">build 2026-07-18c</div>
+      <div class="ver">build 2026-07-21a</div>
       <div id="login-demo" class="demo hidden">
         <div class="cap" data-i18n="login_demo">Demo accounts - one click signs you in:</div>
         <div class="chips" id="login-demo-chips"></div>
       </div>
+    </form>
+
+    <!-- Self-onboarding: a business registers itself. This creates a PENDING merchant that
+         cannot sign in until an administrator approves it, so the success state below sets
+         that expectation rather than dropping the user at a login that would just fail. -->
+    <form class="logincard hidden" id="signup-form">
+      <div class="lbrand">DRC <span>Pay</span></div>
+      <h3 data-i18n="signup_title">Create a merchant account</h3>
+      <p class="sub" data-i18n="signup_sub">Register your business. We'll review it and activate your account.</p>
+
+      <label class="fld" for="su-name" data-i18n="signup_name">Business name</label>
+      <input id="su-name" autocomplete="organization" />
+
+      <label class="fld" for="su-msisdn" data-i18n="signup_msisdn">Mobile-money number for payouts</label>
+      <input id="su-msisdn" type="tel" inputmode="numeric" placeholder="243XXXXXXXXX" autocomplete="tel" />
+
+      <label class="fld" for="su-provider" data-i18n="signup_provider">Network</label>
+      <select id="su-provider" class="in">
+        <option value="">-</option>
+        <option value="VODACOM_MPESA_COD">Vodacom M-Pesa</option>
+        <option value="AIRTEL_COD">Airtel</option>
+        <option value="ORANGE_COD">Orange</option>
+      </select>
+
+      <label class="fld" for="su-till" data-i18n="signup_till">Operator till (optional)</label>
+      <input id="su-till" inputmode="numeric" />
+
+      <label class="fld" for="su-user" data-i18n="login_user">Username</label>
+      <input id="su-user" autocomplete="username" autocapitalize="none" />
+
+      <label class="fld" for="su-pass" data-i18n="signup_pass">Password (at least 8 characters)</label>
+      <input id="su-pass" type="password" autocomplete="new-password" />
+
+      <button class="cta" type="submit" id="su-submit" data-i18n="signup_btn">Create account</button>
+      <div id="signup-out" class="out hidden" style="margin-top:12px;"></div>
+      <div class="swap"><button type="button" id="to-login" data-i18n="to_login">Back to sign in</button></div>
     </form>
   </div>
 
@@ -362,6 +403,19 @@
       login_btn: "Log in",
       login_err: "Invalid username or password.",
       login_demo: "Demo accounts - one click signs you in:",
+      to_signup: "Create an account",
+      to_login: "Back to sign in",
+      signup_title: "Create a merchant account",
+      signup_sub: "Register your business. We'll review it and activate your account.",
+      signup_name: "Business name",
+      signup_msisdn: "Mobile-money number for payouts",
+      signup_provider: "Network",
+      signup_till: "Operator till (optional)",
+      signup_pass: "Password (at least 8 characters)",
+      signup_btn: "Create account",
+      signup_ok: "Account created. An administrator will review it - you'll be able to sign in once it's approved.",
+      signup_taken: "That username is already taken.",
+      signup_fail: "Couldn't create the account: ",
       settles_to: (op, msisdn) => `Settles to ${op} · ${msisdn}`,
       onnet_till: (op, till) => `On-net (same-network): customers pay your ${op} till ${till}`,
       onnet_no_till: (msisdn) => `On-net (same-network): no till set - customers send to ${msisdn}`,
@@ -442,6 +496,19 @@
       login_btn: "Se connecter",
       login_err: "Nom d'utilisateur ou mot de passe invalide.",
       login_demo: "Comptes démo - un clic pour se connecter :",
+      to_signup: "Créer un compte",
+      to_login: "Retour à la connexion",
+      signup_title: "Créer un compte marchand",
+      signup_sub: "Inscrivez votre entreprise. Nous l'examinerons et activerons votre compte.",
+      signup_name: "Nom de l'entreprise",
+      signup_msisdn: "Numéro mobile money pour les règlements",
+      signup_provider: "Réseau",
+      signup_till: "Till opérateur (facultatif)",
+      signup_pass: "Mot de passe (au moins 8 caractères)",
+      signup_btn: "Créer le compte",
+      signup_ok: "Compte créé. Un administrateur va l'examiner - vous pourrez vous connecter une fois approuvé.",
+      signup_taken: "Ce nom d'utilisateur est déjà pris.",
+      signup_fail: "Impossible de créer le compte : ",
       settles_to: (op, msisdn) => `Règlement vers ${op} · ${msisdn}`,
       onnet_till: (op, till) => `Même réseau (on-net) : les clients paient votre till ${op} ${till}`,
       onnet_no_till: (msisdn) => `Même réseau (on-net) : pas de till - les clients envoient au ${msisdn}`,
@@ -561,6 +628,10 @@
   function showLogin(){
     session = ""; localStorage.removeItem("drcpay.session"); me = null;
     $("login").classList.remove("hidden");
+    // Always land on the sign-in card, never on a half-filled sign-up form (e.g. if a session
+    // expired while the user had sign-up open).
+    $("signup-form").classList.add("hidden");
+    $("login-form").classList.remove("hidden");
     $("whoami").classList.add("hidden"); $("logout").classList.add("hidden");
     demoHint();
   }
@@ -961,6 +1032,53 @@
   $("login-form").addEventListener("submit", (e) => {
     e.preventDefault();
     doLogin($("login-user").value.trim(), $("login-pass").value);
+  });
+
+  // ----- self-onboarding (sign-up) -----
+  // Creates a PENDING merchant: the server decides the id, till code, and status - the form only
+  // supplies details. On success we stay on this card and show the "await approval" message,
+  // because signing in would (correctly) fail until an admin approves.
+  const showSignup = (on) => {
+    $("signup-form").classList.toggle("hidden", !on);
+    $("login-form").classList.toggle("hidden", on);
+  };
+  $("to-signup").addEventListener("click", () => showSignup(true));
+  $("to-login").addEventListener("click", () => showSignup(false));
+
+  $("signup-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const out = $("signup-out");
+    out.classList.add("hidden");
+    const payload = {
+      name: $("su-name").value.trim(),
+      settlement_msisdn: $("su-msisdn").value.trim(),
+      settlement_provider: $("su-provider").value || null,
+      operator_till: $("su-till").value.trim() || null,
+      username: $("su-user").value.trim(),
+      password: $("su-pass").value,
+    };
+    $("su-submit").disabled = true;
+    let body, status;
+    try {
+      const r = await fetch(`${API}/signup`, { method:"POST",
+        headers:{ "content-type":"application/json" }, body: JSON.stringify(payload) });
+      status = r.status;
+      body = await r.json();
+    } catch(err){
+      out.className = "out bad"; out.textContent = t().signup_fail + String(err);
+      out.classList.remove("hidden"); $("su-submit").disabled = false; return;
+    }
+    $("su-submit").disabled = false;
+    if(status === 201){
+      out.className = "out ok"; out.textContent = t().signup_ok;
+      out.classList.remove("hidden");
+      $("signup-form").querySelectorAll("input, select").forEach((i) => { i.value = ""; });
+      return;
+    }
+    out.className = "out bad";
+    // 409 is the one case worth its own wording; everything else surfaces the server's reason.
+    out.textContent = status === 409 ? t().signup_taken : t().signup_fail + (body && body.detail ? body.detail : `HTTP ${status}`);
+    out.classList.remove("hidden");
   });
   $("logout").addEventListener("click", async () => {
     try { await fetch(`${API}/auth/logout`, { method:"POST", headers: authHeaders() }); } catch(e){ /* revoked or unreachable - either way we drop it */ }

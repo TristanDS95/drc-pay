@@ -21,6 +21,7 @@ from typing import Protocol
 from .domains.auth.models import MerchantCredential
 from .domains.auth.service import hash_password
 from .domains.merchants.models import Merchant
+from .domains.staff.models import ROLE_ADMIN, StaffCredential
 
 DEMO_MERCHANTS: tuple[Merchant, ...] = (
     Merchant(
@@ -70,6 +71,27 @@ def _demo_credentials() -> tuple[MerchantCredential, ...]:
     )
 
 
+# Demo admin login (sandbox/local only — production seeds nothing). Deliberately guessable,
+# like the merchant demos, and safe for the same reason: it only ever exists off the real-money
+# path, where it can approve *test* merchants that transact on the sandbox rail. A production
+# deploy provisions real admin accounts separately (it never runs this seed).
+DEMO_ADMIN = ("s_admin", "admin", "admin-demo")  # (staff_id, username, password)
+
+
+@lru_cache(maxsize=1)
+def _demo_staff() -> tuple[StaffCredential, ...]:
+    """The demo admin credential with its Argon2id hash (cached like the merchant demos)."""
+    staff_id, username, password = DEMO_ADMIN
+    return (
+        StaffCredential(
+            staff_id=staff_id,
+            username=username,
+            password_hash=hash_password(password),
+            role=ROLE_ADMIN,
+        ),
+    )
+
+
 class _MerchantStore(Protocol):
     """The minimal store surface the seed needs (``InMemoryMerchantStore`` and
     ``SqlMerchantStore`` both satisfy it)."""
@@ -79,6 +101,10 @@ class _MerchantStore(Protocol):
 
 class _CredentialStore(Protocol):
     def save(self, credential: MerchantCredential) -> None: ...
+
+
+class _StaffCredentialStore(Protocol):
+    def save(self, credential: StaffCredential) -> None: ...
 
 
 def seed_demo_merchants(merchants: _MerchantStore) -> list[str]:
@@ -98,13 +124,26 @@ def seed_demo_credentials(credentials: _CredentialStore) -> list[str]:
     return [credential.username for credential in _demo_credentials()]
 
 
+def seed_demo_staff(staff_credentials: _StaffCredentialStore) -> list[str]:
+    """Idempotently ensure the demo admin can log in (sandbox/local only). Same upsert
+    semantics; never touches real staff accounts provisioned separately."""
+    for credential in _demo_staff():
+        staff_credentials.save(credential)
+    return [credential.username for credential in _demo_staff()]
+
+
 def main() -> None:
     """Entrypoint seed: upsert the demo merchants into the configured Postgres database. A no-op
     when no database is configured (the in-memory demo seeds itself) or in production (which starts
     empty by design). Gating lives here, so the shell entrypoint can call it unconditionally."""
     from sqlalchemy.orm import sessionmaker
 
-    from .adapters.sql import SqlCredentialStore, SqlMerchantStore, make_engine
+    from .adapters.sql import (
+        SqlCredentialStore,
+        SqlMerchantStore,
+        SqlStaffCredentialStore,
+        make_engine,
+    )
     from .config import settings
 
     if not settings.database_url:
@@ -119,8 +158,10 @@ def main() -> None:
     session_factory = sessionmaker(make_engine(settings.database_url))
     seeded = seed_demo_merchants(SqlMerchantStore(session_factory))
     logins = seed_demo_credentials(SqlCredentialStore(session_factory))
+    admins = seed_demo_staff(SqlStaffCredentialStore(session_factory))
     print(f"[seed] demo merchants ready: {', '.join(seeded)}")
     print(f"[seed] demo console logins ready: {', '.join(logins)} (password: <username>-demo)")
+    print(f"[seed] demo admin login ready: {', '.join(admins)} (password: admin-demo)")
 
 
 if __name__ == "__main__":

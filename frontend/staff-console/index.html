@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#FF6B5B" />
+<title>DRC Pay - Staff Console</title>
+<!--
+  The internal staff surface: sign in as a staff member and approve or reject merchant sign-ups.
+  Deliberately English-only (an internal operator tool, like the console's ops-trace panel) and
+  deliberately plain - it does one job. Everything here needs an admin session; the page itself
+  holds no data.
+
+  Talks to: POST /admin/login · GET /admin/me · POST /admin/logout ·
+            GET /admin/merchants?status= · POST /admin/merchants/{id}/approve|reject
+-->
+<style>
+  :root{
+    --coral:#FF6B5B; --coral-dark:#E2553F; --cream:#FFFCF8; --charcoal:#1A1A1A;
+    --muted:#5A5A57; --border:#ECE8E1; --surface:#FFFFFF; --bg:#1f2933;
+    --ok:#136c44; --okbg:#e7f6ee; --bad:#a5302c; --badbg:#fdeceb; --wait:#9a6b2f; --waitbg:#fff4e0;
+  }
+  *{box-sizing:border-box;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--charcoal);}
+  .topbar{display:flex;align-items:center;gap:12px;padding:14px 22px;background:#0c0f12;color:#e7edf2;
+        position:sticky;top:0;z-index:20;flex-wrap:wrap;}
+  .topbar .brand{font-weight:800;font-size:16px;}
+  .topbar .brand span{color:var(--coral);}
+  .topbar .tag{font-size:10px;font-weight:700;letter-spacing:.08em;color:#9aa6b2;border:1px solid #2b3640;
+        padding:3px 8px;border-radius:6px;text-transform:uppercase;}
+  .topbar .sp{flex:1;}
+  .topbar .who{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .topbar .who .dot{width:8px;height:8px;border-radius:50%;background:#28c840;}
+  .topbar button.logout{border:1px solid #2b3640;background:#161c22;color:#9aa6b2;border-radius:8px;
+        padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+  .wrap{display:flex;flex-direction:column;gap:16px;padding:18px 14px 44px;max-width:860px;margin:0 auto;width:100%;}
+  .card{background:var(--cream);border-radius:18px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.28);}
+  .card h2{margin:0 0 4px;font-size:15px;}
+  .card .sub{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.5;}
+  label.fld{display:block;font-size:11.5px;color:var(--muted);margin:11px 0 5px;font-weight:600;}
+  input,select{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;font-size:16px;
+        background:var(--surface);color:var(--charcoal);outline:none;}
+  input:focus{border-color:var(--coral);}
+  button.cta{margin-top:13px;width:100%;padding:14px;min-height:48px;border:none;border-radius:13px;
+        background:var(--coral);color:#fff;font-size:16px;font-weight:700;cursor:pointer;}
+  button.cta:active{background:var(--coral-dark);} button.cta:disabled{opacity:.55;cursor:default;}
+  button.ghost{background:var(--surface);color:var(--charcoal);border:1px solid var(--border);}
+  .out{margin-top:11px;font-size:13px;padding:10px 12px;border-radius:10px;background:#f3efe7;white-space:pre-wrap;
+        line-height:1.5;} .out.ok{background:var(--okbg);color:var(--ok);} .out.bad{background:var(--badbg);color:var(--bad);}
+  .hidden{display:none !important;}
+  /* login overlay */
+  .loginwrap{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;
+        justify-content:center;z-index:60;padding:20px;}
+  .logincard{background:var(--cream);border-radius:18px;padding:26px;width:100%;max-width:380px;
+        box-shadow:0 12px 40px rgba(0,0,0,.28);}
+  .logincard .lbrand{font-weight:800;font-size:18px;} .logincard .lbrand span{color:var(--coral);}
+  .logincard h3{margin:14px 0 4px;font-size:16px;}
+  /* pending list */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .filters button{border:1px solid var(--border);background:var(--surface);border-radius:999px;
+        padding:7px 14px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;}
+  .filters button.on{background:var(--coral);color:#fff;border-color:var(--coral);}
+  ul.list{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:10px;}
+  ul.list li{padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);
+        display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;}
+  ul.list .name{font-weight:800;font-size:15px;}
+  ul.list .meta{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:3px;}
+  ul.list .meta code{font-family:"SF Mono",Menlo,Consolas,monospace;}
+  ul.list .acts{display:flex;gap:8px;flex-wrap:wrap;}
+  ul.list .acts button{margin:0;width:auto;padding:11px 16px;min-height:44px;font-size:14px;}
+  button.cta.approve{background:var(--ok);} button.cta.approve:active{background:#0f5a39;}
+  .pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+  .pill.wait{background:var(--waitbg);color:var(--wait);} .pill.ok{background:var(--okbg);color:var(--ok);}
+  .pill.bad{background:var(--badbg);color:var(--bad);} .pill.mut{background:#eee;color:#666;}
+  .empty{color:var(--muted);font-size:13px;font-style:italic;padding:10px 2px;}
+  .err{color:#ffb3ab;font-size:12.5px;padding:6px 22px;background:#2a1310;}
+  @media (max-width:600px){ .topbar{padding:10px 12px;} .topbar .brand{font-size:14px;} }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">DRC <span>Pay</span> - Staff Console</div>
+    <div class="tag" id="mode">merchant approvals</div>
+    <div class="sp"></div>
+    <span class="who hidden" id="whoami"><span class="dot"></span><span id="whoami-name"></span></span>
+    <button class="logout hidden" id="logout">Log out</button>
+  </div>
+  <div id="err" class="err hidden"></div>
+
+  <div class="loginwrap hidden" id="login">
+    <form class="logincard" id="login-form">
+      <div class="lbrand">DRC <span>Pay</span></div>
+      <h3>Staff sign in</h3>
+      <p class="sub">Sign in with your staff account to review merchant sign-ups.</p>
+      <label class="fld" for="login-user">Username</label>
+      <input id="login-user" name="username" autocomplete="username" autocapitalize="none" />
+      <label class="fld" for="login-pass">Password</label>
+      <input id="login-pass" name="password" type="password" autocomplete="current-password" />
+      <button class="cta" type="submit">Sign in</button>
+      <div id="login-err" class="out bad hidden" style="margin-top:12px;"></div>
+      <div class="ver" style="margin-top:12px;font-size:10px;color:#b9b4a8;text-align:right;
+           font-family:'SF Mono',Menlo,monospace;">build 2026-07-21a</div>
+    </form>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>Merchant sign-ups</h2>
+      <p class="sub">Businesses that registered themselves. A <b>pending</b> merchant cannot sign in
+        or take payments until you approve it.</p>
+      <div class="filters" id="filters">
+        <button data-status="pending" class="on">Pending</button>
+        <button data-status="active">Approved</button>
+        <button data-status="rejected">Rejected</button>
+        <button data-status="all">All</button>
+      </div>
+      <ul class="list" id="list"></ul>
+      <div id="action-out" class="out hidden"></div>
+    </div>
+  </div>
+
+<script>
+  // Same-origin with the API (the page is served by it); ?api= overrides for split local dev.
+  const API = new URLSearchParams(location.search).get("api") || location.origin;
+  const $ = (id) => document.getElementById(id);
+  // Merchant names and numbers are user-supplied (anyone can sign up), so every value that
+  // reaches innerHTML is escaped — this page runs same-origin with the API on an admin session.
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
+    (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+  const NETWORK = { VODACOM_MPESA_COD:"Vodacom M-Pesa", AIRTEL_COD:"Airtel", ORANGE_COD:"Orange" };
+  const opName = (code) => NETWORK[code] || code || "-";
+  const STATUS_PILL = { pending:"wait", active:"ok", rejected:"bad", suspended:"mut" };
+
+  let session = localStorage.getItem("drcpay.staffsession") || "";
+  let filter = "pending";
+  const authHeaders = () => session ? { authorization: `Bearer ${session}` } : {};
+  const showErr = (e) => { $("err").textContent = String(e); $("err").classList.remove("hidden"); };
+  const clearErr = () => $("err").classList.add("hidden");
+
+  function showLogin(){
+    session = ""; localStorage.removeItem("drcpay.staffsession");
+    $("login").classList.remove("hidden");
+    $("whoami").classList.add("hidden"); $("logout").classList.add("hidden");
+  }
+  function hideLogin(){
+    $("login").classList.add("hidden");
+    $("whoami").classList.remove("hidden"); $("logout").classList.remove("hidden");
+  }
+
+  async function jget(path){
+    const r = await fetch(`${API}${path}`, { headers: authHeaders() });
+    if(r.status === 401){ showLogin(); throw new Error("session expired"); }
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async function boot(){
+    let me;
+    try { me = await jget("/admin/me"); }
+    catch(e){
+      // A 401 already dropped us to the login screen (the normal not-signed-in case).
+      if(!String(e).includes("session expired")){ showLogin(); showErr(e); }
+      return;
+    }
+    hideLogin(); clearErr();
+    $("whoami-name").textContent = `${me.username} · ${me.role}`;
+    await refresh();
+  }
+
+  async function refresh(){
+    if(!session) return;
+    let rows;
+    try { rows = await jget(`/admin/merchants?status=${encodeURIComponent(filter)}`); }
+    catch(e){ return; }
+    clearErr();
+    render(rows);
+  }
+
+  function render(rows){
+    const ul = $("list");
+    if(!rows.length){
+      ul.innerHTML = `<li class="empty">Nothing here${filter === "pending" ? " - no sign-ups waiting for review." : "."}</li>`;
+      return;
+    }
+    ul.innerHTML = rows.map((m) => `
+      <li>
+        <span>
+          <span class="name">${esc(m.name)}</span>
+          <span class="pill ${STATUS_PILL[m.status] || "mut"}">${esc(m.status)}</span>
+          <div class="meta">
+            Settles to ${esc(opName(m.settlement_provider))} · ${esc(m.settlement_msisdn)}<br>
+            Till code <code>${esc(m.short_code)}</code>${m.operator_till ? ` · operator till <code>${esc(m.operator_till)}</code>` : ""}<br>
+            <code>${esc(m.id)}</code>
+          </div>
+        </span>
+        ${m.status === "pending" ? `<span class="acts">
+          <button class="cta approve" data-id="${esc(m.id)}" data-act="approve">Approve</button>
+          <button class="cta ghost" data-id="${esc(m.id)}" data-act="reject">Reject</button>
+        </span>` : ""}
+      </li>`).join("");
+    ul.querySelectorAll("button[data-id]").forEach((b) =>
+      b.addEventListener("click", () => decide(b.dataset.id, b.dataset.act, b)));
+  }
+
+  async function decide(merchantId, action, button){
+    clearErr();
+    button.disabled = true;
+    const out = $("action-out");
+    let body;
+    try {
+      const r = await fetch(`${API}/admin/merchants/${merchantId}/${action}`,
+        { method:"POST", headers: authHeaders() });
+      body = await r.json();
+      if(!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
+    } catch(e){
+      out.className = "out bad"; out.textContent = String(e.message || e);
+      out.classList.remove("hidden"); button.disabled = false; return;
+    }
+    out.className = "out ok";
+    out.textContent = action === "approve"
+      ? `✓ ${body.name} approved - they can now sign in and take payments.`
+      : `${body.name} rejected - they still cannot sign in.`;
+    out.classList.remove("hidden");
+    await refresh();
+  }
+
+  async function doLogin(username, password){
+    $("login-err").classList.add("hidden");
+    let body;
+    try {
+      const r = await fetch(`${API}/admin/login`, { method:"POST",
+        headers:{ "content-type":"application/json" },
+        body: JSON.stringify({ username, password }) });
+      body = await r.json();
+      if(!r.ok) throw new Error();
+    } catch(err){
+      $("login-err").textContent = "Invalid username or password.";
+      $("login-err").classList.remove("hidden");
+      return;
+    }
+    session = body.token;
+    localStorage.setItem("drcpay.staffsession", session);
+    $("login-pass").value = "";
+    boot();
+  }
+
+  $("login-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    doLogin($("login-user").value.trim(), $("login-pass").value);
+  });
+  $("logout").addEventListener("click", async () => {
+    try { await fetch(`${API}/admin/logout`, { method:"POST", headers: authHeaders() }); }
+    catch(e){ /* revoked or unreachable - either way we drop it */ }
+    showLogin();
+  });
+  $("filters").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    filter = b.dataset.status;
+    $("filters").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    $("action-out").classList.add("hidden");
+    refresh();
+  }));
+
+  boot();
+  setInterval(refresh, 10000);  // keep the worklist fresh while it sits open
+</script>
+</body>
+</html>

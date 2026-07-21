@@ -33,6 +33,7 @@ from ..domains.charges.models import Charge
 from ..domains.ledger.ledger import Direction, Entry, Posting
 from ..domains.ledger.money import Money
 from ..domains.merchants.models import Merchant
+from ..domains.staff.models import StaffCredential, StaffSession
 from ..domains.transactions.models import Transaction
 from ..domains.transactions.ports import DuplicateIdempotencyKey
 from ..domains.transactions.state_machine import PENDING_STATES, TxState
@@ -75,6 +76,30 @@ class MerchantSessionRow(Base):
 
     token_hash: Mapped[str] = mapped_column(String, primary_key=True)
     merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StaffCredentialRow(Base):
+    """A staff (admin) login. Stores only the Argon2id hash — never a password. Separate table
+    from merchant_credentials: staff are the platform's own operators, not merchants."""
+
+    __tablename__ = "staff_credentials"
+
+    staff_id: Mapped[str] = mapped_column(String, primary_key=True)
+    username: Mapped[str] = mapped_column(String, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StaffSessionRow(Base):
+    """A live staff login. Keyed by the SHA-256 of the bearer token, like merchant sessions."""
+
+    __tablename__ = "staff_sessions"
+
+    token_hash: Mapped[str] = mapped_column(String, primary_key=True)
+    staff_id: Mapped[str] = mapped_column(ForeignKey("staff_credentials.staff_id"), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -399,6 +424,74 @@ class SqlSessionStore:
     def delete(self, token_hash: str) -> None:
         with self._sf() as session:
             row = session.get(MerchantSessionRow, token_hash)
+            if row is not None:
+                session.delete(row)
+                session.commit()
+
+
+class SqlStaffCredentialStore:
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._sf = session_factory
+
+    def get_by_username(self, username: str) -> StaffCredential | None:
+        with self._sf() as session:
+            row = session.scalars(
+                select(StaffCredentialRow).where(StaffCredentialRow.username == username)
+            ).first()
+            return self._to_domain(row) if row is not None else None
+
+    def get_by_id(self, staff_id: str) -> StaffCredential | None:
+        with self._sf() as session:
+            row = session.get(StaffCredentialRow, staff_id)
+            return self._to_domain(row) if row is not None else None
+
+    def save(self, credential: StaffCredential) -> None:
+        with self._sf() as session:
+            row = session.get(StaffCredentialRow, credential.staff_id)
+            if row is None:
+                row = StaffCredentialRow(staff_id=credential.staff_id)
+                session.add(row)
+            row.username = credential.username
+            row.password_hash = credential.password_hash
+            row.role = credential.role
+            session.commit()
+
+    @staticmethod
+    def _to_domain(row: StaffCredentialRow) -> StaffCredential:
+        return StaffCredential(
+            staff_id=row.staff_id,
+            username=row.username,
+            password_hash=row.password_hash,
+            role=row.role,
+        )
+
+
+class SqlStaffSessionStore:
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._sf = session_factory
+
+    def get(self, token_hash: str) -> StaffSession | None:
+        with self._sf() as session:
+            row = session.get(StaffSessionRow, token_hash)
+            if row is None:
+                return None
+            return StaffSession(
+                token_hash=row.token_hash, staff_id=row.staff_id, expires_at=row.expires_at
+            )
+
+    def save(self, staff_session: StaffSession) -> None:
+        with self._sf() as session:
+            row = session.get(StaffSessionRow, staff_session.token_hash)
+            if row is None:
+                row = StaffSessionRow(token_hash=staff_session.token_hash)
+                session.add(row)
+            row.staff_id = staff_session.staff_id
+            row.expires_at = staff_session.expires_at
+            session.commit()
+
+    def delete(self, token_hash: str) -> None:
+        with self._sf() as session:
+            row = session.get(StaffSessionRow, token_hash)
             if row is not None:
                 session.delete(row)
                 session.commit()

@@ -55,6 +55,25 @@ def test_password_gates_the_demo_shell_not_the_merchant_api(monkeypatch) -> None
     assert as_merchant(client).get("/transactions").status_code == 200  # no Basic needed
 
 
+def test_signup_is_public_not_behind_the_demo_gate(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Merchant self-onboarding must work without the sandbox demo password — a business
+    registering itself has no such password. /signup only ever creates a PENDING merchant,
+    which can't act until an admin approves it, so exempting it gives up nothing."""
+    monkeypatch.setattr(config.settings, "basic_auth_password", "sesame")
+    client = TestClient(create_app())
+    response = client.post(
+        "/signup",
+        json={
+            "name": "Public Signup Co",
+            "settlement_msisdn": "243973456712",
+            "username": "publicsignup",
+            "password": "open-signup-1234",
+        },
+    )
+    assert response.status_code == 201, response.text  # reached the handler, not Basic-blocked
+    assert response.json()["status"] == "pending"
+
+
 def test_demo_credentials_exempt_but_demo_shell_gated(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # The login page's chips fetch /demo/credentials in the background; some browsers don't
     # attach Basic credentials to fetch(). Exempting it reveals nothing an outsider can't
