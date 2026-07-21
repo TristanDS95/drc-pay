@@ -77,9 +77,17 @@ sandbox-vs-real-money fork before sequencing security ahead of UI.
    - **UIs:** a "Create an account" form on the merchant console login (bilingual FR/EN) and a
      **Staff Console** at `/staff` (`frontend/staff-console/`, `DRCPAY_STAFF_DIR`) - sign in, review
      sign-ups, approve/reject. English-only on purpose (internal operator tool).
-   - **Still open:** **KYC** (deferred by design) and a **production admin bootstrap** - the demo
-     admin (`admin`/`admin-demo`) is seeded for sandbox/local only, so a production deploy has no
-     way to create the first staff account yet.
+   - **Staff account management - DONE ✅ (2026-07-21).** Three ways to mint an admin, sharing one
+     validated create/upsert (`application/staff_accounts.py`):
+     **(1) bootstrap** - set `DRCPAY_ADMIN_USERNAME` + `DRCPAY_ADMIN_PASSWORD` and every deploy
+     creates-or-updates that one account **in every environment, production included** (idempotent
+     by username, so changing the env var rotates the password instead of duplicating the account);
+     **(2) CLI** - `python -m drc_pay_api.create_staff --username X` (prompts for the password, so
+     it stays out of shell history) for ad-hoc creation and password resets;
+     **(3) admin-creates-admin** - `GET`/`POST /admin/staff` plus an "Add a staff member" form in
+     the Staff Console. That path is deliberately **create-only**: a taken username is a 409, never
+     a silent password reset, so one admin can't take over another's account.
+   - **Still open:** **KYC** (deferred by design).
 2. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to
    `http/ussd_routes.py`). *(Also where the static-till QR returns.)*
@@ -227,6 +235,8 @@ export DRCPAY_STAFF_DIR="$PWD/../frontend/staff-console"     # Staff Console at 
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
 # console login (per-merchant auth): alpha / alpha-demo (also beta, gamma - password <username>-demo)
 # admin login (staff, sandbox/local only): admin / admin-demo — approves self-onboarded merchants
+#   real staff accounts: DRCPAY_ADMIN_USERNAME/_PASSWORD (every env, incl. production), or
+#   `python -m drc_pay_api.create_staff --username X`, or the Staff Console's "Add a staff member"
 # self-onboarding: POST /signup (public) -> pending merchant; admin approves via /admin/merchants/{id}/approve
 # live sandbox rail: token in backend/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
 # Postgres: docker compose up -d ; export DRCPAY_DATABASE_URL=… ; alembic upgrade head

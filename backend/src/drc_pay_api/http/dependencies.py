@@ -13,7 +13,7 @@ from fastapi import Cookie, Depends, Header, HTTPException, Request
 
 from ..container import Container
 from ..domains.merchants.models import Merchant
-from ..domains.staff.models import StaffPrincipal
+from ..domains.staff.models import ROLE_ADMIN, StaffPrincipal
 
 
 def get_container(request: Request) -> Container:
@@ -103,3 +103,11 @@ def get_current_admin(
 # A route writes ``admin: CurrentAdmin`` — injecting the logged-in staff member and rejecting
 # unauthenticated requests in one move.
 CurrentAdmin = Annotated[StaffPrincipal, Depends(get_current_admin)]
+
+
+def require_admin(admin: StaffPrincipal) -> None:
+    """Authorization on top of authentication: the staff member must hold the ``admin`` role.
+    One role today, so this always passes — it is explicit so that adding a narrower role later
+    (a read-only reviewer, say) doesn't silently grant approval or account-creation rights."""
+    if admin.role != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="admin role required")
