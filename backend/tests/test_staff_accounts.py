@@ -13,11 +13,20 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from drc_pay_api.adapters.memory import InMemoryStaffCredentialStore
+from datetime import UTC, datetime, timedelta
+
+from drc_pay_api.adapters.memory import (
+    InMemoryStaffCredentialStore,
+    InMemoryStaffSessionStore,
+)
 from drc_pay_api.application import staff_accounts
-from drc_pay_api.domains.staff.models import ROLE_ADMIN
+from drc_pay_api.domains.staff.models import ROLE_ADMIN, StaffSession
 from drc_pay_api.main import create_app
 from drc_pay_api.seed import ensure_bootstrap_admin
+
+
+def _soon() -> datetime:
+    return datetime.now(UTC) + timedelta(hours=1)
 
 
 def _client() -> TestClient:
@@ -174,3 +183,43 @@ def test_staff_endpoints_reject_bad_input_and_require_an_admin_session() -> None
         ).status_code
         == 401
     )
+
+
+# ---- 4. removal + the conditional demo seed -----------------------------------
+def _store_with(*usernames: str) -> tuple[InMemoryStaffCredentialStore, InMemoryStaffSessionStore]:
+    creds, sessions = InMemoryStaffCredentialStore(), InMemoryStaffSessionStore()
+    for name in usernames:
+        staff_accounts.create_staff(creds, username=name, password=f"{name}-pw-12345")
+    return creds, sessions
+
+
+def test_remove_staff_deletes_the_account_and_revokes_its_sessions() -> None:
+    creds, sessions = _store_with("admin", "alice")
+    victim = creds.get_by_username("admin")
+    assert victim is not None
+    # Two live sessions for the account being removed, one for someone else.
+    sessions.save(StaffSession(token_hash="a", staff_id=victim.staff_id, expires_at=_soon()))
+    sessions.save(StaffSession(token_hash="b", staff_id=victim.staff_id, expires_at=_soon()))
+    other = creds.get_by_username("alice")
+    assert other is not None
+    sessions.save(StaffSession(token_hash="c", staff_id=other.staff_id, expires_at=_soon()))
+
+    revoked = staff_accounts.remove_staff(creds, sessions, username="admin")
+
+    assert revoked == 2  # only the removed account's sessions
+    assert creds.get_by_username("admin") is None
+    assert sessions.get("a") is None and sessions.get("b") is None
+    assert sessions.get("c") is not None  # the other admin is untouched
+
+
+def test_remove_staff_refuses_the_last_account() -> None:
+    creds, sessions = _store_with("solo")
+    with pytest.raises(staff_accounts.LastStaffAccount):
+        staff_accounts.remove_staff(creds, sessions, username="solo")
+    assert creds.get_by_username("solo") is not None  # still there — no lockout
+
+
+def test_remove_staff_unknown_username() -> None:
+    creds, sessions = _store_with("admin", "alice")
+    with pytest.raises(staff_accounts.StaffNotFound):
+        staff_accounts.remove_staff(creds, sessions, username="nobody")

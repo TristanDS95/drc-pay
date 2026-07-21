@@ -463,6 +463,15 @@ class SqlStaffCredentialStore:
             ).all()
             return [self._to_domain(row) for row in rows]
 
+    def delete(self, staff_id: str) -> None:
+        """Remove a staff account. Its sessions are a foreign key to this row, so revoke those
+        first (``SqlStaffSessionStore.delete_for_staff``) or the delete will be rejected."""
+        with self._sf() as session:
+            row = session.get(StaffCredentialRow, staff_id)
+            if row is not None:
+                session.delete(row)
+                session.commit()
+
     @staticmethod
     def _to_domain(row: StaffCredentialRow) -> StaffCredential:
         return StaffCredential(
@@ -502,6 +511,18 @@ class SqlStaffSessionStore:
             if row is not None:
                 session.delete(row)
                 session.commit()
+
+    def delete_for_staff(self, staff_id: str) -> int:
+        """Revoke every live session for one staff member, returning how many. Must run BEFORE
+        deleting the credential — ``staff_sessions.staff_id`` is a foreign key to it."""
+        with self._sf() as session:
+            rows = session.scalars(
+                select(StaffSessionRow).where(StaffSessionRow.staff_id == staff_id)
+            ).all()
+            for row in rows:
+                session.delete(row)
+            session.commit()
+            return len(rows)
 
 
 def _charge_to_domain(row: ChargeRow) -> Charge:

@@ -87,6 +87,12 @@ sandbox-vs-real-money fork before sequencing security ahead of UI.
      **(3) admin-creates-admin** - `GET`/`POST /admin/staff` plus an "Add a staff member" form in
      the Staff Console. That path is deliberately **create-only**: a taken username is a 409, never
      a silent password reset, so one admin can't take over another's account.
+     The **demo admin is conditional**: once `DRCPAY_ADMIN_USERNAME` is set, a deploy stops seeding
+     `admin`/`admin-demo` (a privileged account with a guessable password has no place on a
+     deployment that has a real one). Local dev and the test suite, which set no such var, still
+     get it. Removing an *already-existing* account is explicit:
+     `python -m drc_pay_api.create_staff --username X --remove`, which revokes its sessions first
+     (they're an FK) and refuses to delete the last remaining staff account.
    - **Still open:** **KYC** (deferred by design).
 2. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to

@@ -205,10 +205,21 @@ def main() -> None:
         return
     seeded = seed_demo_merchants(SqlMerchantStore(session_factory))
     logins = seed_demo_credentials(SqlCredentialStore(session_factory))
-    admins = seed_demo_staff(SqlStaffCredentialStore(session_factory))
     print(f"[seed] demo merchants ready: {', '.join(seeded)}")
     print(f"[seed] demo console logins ready: {', '.join(logins)} (password: <username>-demo)")
-    print(f"[seed] demo admin login ready: {', '.join(admins)} (password: admin-demo)")
+
+    # The demo admin exists only so a demo with NO real staff account still works. Once a real one
+    # is configured we stop creating it: it is a privileged account (it approves merchants) with a
+    # deliberately guessable password, and a deployment with a real admin shouldn't carry one.
+    # Removing an already-existing demo row is a separate, explicit act — `create_staff --remove`.
+    if settings.admin_username:
+        print(
+            "[seed] DRCPAY_ADMIN_USERNAME is set — skipping the demo admin seed. Remove any "
+            "leftover demo account with: python -m drc_pay_api.create_staff --username admin --remove"
+        )
+    else:
+        admins = seed_demo_staff(SqlStaffCredentialStore(session_factory))
+        print(f"[seed] demo admin login ready: {', '.join(admins)} (password: admin-demo)")
 
 
 if __name__ == "__main__":

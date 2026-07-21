@@ -81,6 +81,11 @@ class InMemoryStaffCredentialStore:
     def all(self) -> list[StaffCredential]:
         return list(self._by_username.values())
 
+    def delete(self, staff_id: str) -> None:
+        for username, credential in list(self._by_username.items()):
+            if credential.staff_id == staff_id:
+                del self._by_username[username]
+
 
 class InMemoryStaffSessionStore:
     def __init__(self) -> None:
@@ -94,6 +99,14 @@ class InMemoryStaffSessionStore:
 
     def delete(self, token_hash: str) -> None:
         self._rows.pop(token_hash, None)
+
+    def delete_for_staff(self, staff_id: str) -> int:
+        """Revoke every live session for one staff member. Must run BEFORE deleting the
+        credential — ``staff_sessions.staff_id`` is a foreign key to it."""
+        doomed = [h for h, s in self._rows.items() if s.staff_id == staff_id]
+        for token_hash in doomed:
+            del self._rows[token_hash]
+        return len(doomed)
 
 
 class InMemoryChargeStore:

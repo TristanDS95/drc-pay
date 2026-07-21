@@ -19,7 +19,13 @@ import getpass
 import sys
 from collections.abc import Sequence
 
-from .application.staff_accounts import InvalidStaffAccount, upsert_staff
+from .application.staff_accounts import (
+    InvalidStaffAccount,
+    LastStaffAccount,
+    StaffNotFound,
+    remove_staff,
+    upsert_staff,
+)
 from .domains.staff.models import ROLE_ADMIN, ROLES_HELP
 
 
@@ -35,11 +41,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="omit to be prompted (keeps the secret out of shell history and the process list)",
     )
     parser.add_argument("--role", default=ROLE_ADMIN, help=ROLES_HELP)
+    parser.add_argument(
+        "--remove",
+        action="store_true",
+        help="delete this account and revoke its sessions instead of creating it "
+        "(refuses to remove the last remaining staff account)",
+    )
     args = parser.parse_args(argv)
 
     from sqlalchemy.orm import sessionmaker
 
-    from .adapters.sql import SqlStaffCredentialStore, make_engine
+    from .adapters.sql import SqlStaffCredentialStore, SqlStaffSessionStore, make_engine
     from .config import settings
 
     if not settings.database_url:
@@ -50,6 +62,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
+    session_factory = sessionmaker(make_engine(settings.database_url))
+    store = SqlStaffCredentialStore(session_factory)
+
+    if args.remove:
+        try:
+            revoked = remove_staff(
+                store, SqlStaffSessionStore(session_factory), username=args.username
+            )
+        except StaffNotFound:
+            print(f"error: no staff account named {args.username!r}.", file=sys.stderr)
+            return 2
+        except LastStaffAccount:
+            print(
+                f"error: {args.username!r} is the only staff account left. Create another one "
+                "first, or nobody could sign in to approve merchants.",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"staff account removed: {args.username} ({revoked} session(s) revoked)")
+        return 0
+
     password = args.password
     if password is None:
         password = getpass.getpass("Password: ")
@@ -57,7 +90,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("error: passwords did not match.", file=sys.stderr)
             return 2
 
-    store = SqlStaffCredentialStore(sessionmaker(make_engine(settings.database_url)))
     existed = store.get_by_username(args.username) is not None
     try:
         credential = upsert_staff(store, username=args.username, password=password, role=args.role)
