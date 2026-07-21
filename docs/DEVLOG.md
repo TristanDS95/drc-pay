@@ -58,8 +58,15 @@ simple/dev-views TL;DR bullet - then **(3) Gate A security** - required only onc
 the beta moves *real* money (a sandbox beta with real merchants doesn't need it first). Confirm the
 sandbox-vs-real-money fork before sequencing security ahead of UI.
 
-1. **Merchant onboarding + KYC** - merchants are seeded (`seed.py`); need a create/manage flow + KYC (no
-   onboarding UI/API; no DB FK on `merchant_id`). **Now the top beta priority** (see Direction above).
+1. **Merchant onboarding + KYC - backend IN PROGRESS (2026-07-21).** Self-onboarding with manual
+   approval, gated by staff/admin accounts. **Done:** public `POST /signup` creates a **pending**
+   merchant + Argon2id login (`application/onboarding.py`), which is inert until approved (login is
+   gated on merchant status; `is_active` already fenced take-payment/charge); a separate
+   **staff/admin identity** (`domains/staff/`, migration `f1a2b3c4d5e6`) with `POST /admin/login`;
+   and the admin approval surface - `GET /admin/merchants?status=pending`, `POST
+   /admin/merchants/{id}/approve` / `/reject`. **Next:** the UIs (a public sign-up form + an admin
+   approval page). **Then:** KYC (still deferred) and a production admin-bootstrap (the demo admin
+   is sandbox/local-only). Branch `feat/merchant-onboarding`.
 2. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to
    `http/ussd_routes.py`). *(Also where the static-till QR returns.)*
@@ -98,6 +105,9 @@ backend/src/drc_pay_api/
 ├── container.py              # composition root - every channel wires through it (not under http/)
 ├── http/   schemas.py dependencies.py (FastAPI glue injecting the container)
 │           merchant_api.py    # transactions + merchants + charges (one merchant trust tier)
+│           auth_routes.py           # merchant login/logout/me (session-gated)
+│           onboarding_routes.py     # public POST /signup — self-onboarding (pending merchant)
+│           admin_routes.py admin_merchants_routes.py  # staff login + merchant approve/reject
 │           ussd_routes.py webhook_routes.py
 │           demo_routes.py     # /demo/reconcile - off-real-money path only (404 in prod)
 │           public_routes.py   # /public/{merchant,charge,transaction}, /pay - public (sandbox-gated)
@@ -172,7 +182,7 @@ payer page.
   as *awaiting confirmation*, no rail, no money movement; the merchant taps **Confirm received** to mark
   it paid (merchant-attested). No toggle: on-net is always facilitate & record (ADR 0009).
 - **AWS is the eventual production target** (notes in `future-dev.md`); the Docker image is portable. Alembic head:
-  `e9b3c5d7f1a2` (adds `merchant_credentials` + `merchant_sessions`).
+  `f1a2b3c4d5e6` (adds `staff_credentials` + `staff_sessions` for admin accounts).
 
 ---
 
@@ -201,6 +211,8 @@ export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
 export DRCPAY_CUSTOMER_DIR="$PWD/../frontend/customer-app"
 uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ ; pay via "Charge by QR"
 # console login (per-merchant auth): alpha / alpha-demo (also beta, gamma - password <username>-demo)
+# admin login (staff, sandbox/local only): admin / admin-demo — approves self-onboarded merchants
+# self-onboarding: POST /signup (public) -> pending merchant; admin approves via /admin/merchants/{id}/approve
 # live sandbox rail: token in backend/.env (DRCPAY_PAWAPAY_BASE_URL + _API_TOKEN) → off the simulator.
 # Postgres: docker compose up -d ; export DRCPAY_DATABASE_URL=… ; alembic upgrade head
 # Integration / E2E against REAL Postgres (durability, concurrency, reconciliation): bring up

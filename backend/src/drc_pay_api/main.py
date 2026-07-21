@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .container import build_container
+from .http.admin_merchants_routes import admin_merchants_router
 from .http.admin_routes import admin_router
 from .http.auth_routes import auth_router
 from .http.demo_routes import demo_router
@@ -210,6 +211,7 @@ def create_app() -> FastAPI:
     app.state.ussd_limiter = SlidingWindowLimiter()
     app.include_router(auth_router)
     app.include_router(admin_router)
+    app.include_router(admin_merchants_router)
     app.include_router(onboarding_router)
     app.include_router(merchant_api_router)
     app.include_router(ussd_router)
