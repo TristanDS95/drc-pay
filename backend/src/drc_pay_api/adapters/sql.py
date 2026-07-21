@@ -456,6 +456,13 @@ class SqlStaffCredentialStore:
             row.role = credential.role
             session.commit()
 
+    def all(self) -> list[StaffCredential]:
+        with self._sf() as session:
+            rows = session.scalars(
+                select(StaffCredentialRow).order_by(StaffCredentialRow.created_at)
+            ).all()
+            return [self._to_domain(row) for row in rows]
+
     @staticmethod
     def _to_domain(row: StaffCredentialRow) -> StaffCredential:
         return StaffCredential(

@@ -14,9 +14,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-# The only staff role today: may review and approve/reject merchant sign-ups. Kept as a field
-# (not a boolean) so finer roles can be added later without a schema change.
+# The only staff role today: may review and approve/reject merchant sign-ups, and create other
+# staff accounts. Kept as a field (not a boolean) so finer roles (e.g. a read-only reviewer) can
+# be added later without a schema change.
 ROLE_ADMIN = "admin"
+ROLES_HELP = f"staff role (currently only {ROLE_ADMIN!r})"
 
 
 @dataclass

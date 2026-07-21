@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     # gate so a login can happen), whereas this page is treated like /console and stays behind
     # the sandbox demo password. Its data still requires an admin session either way.
     staff_dir: str = ""
+    # Bootstrap staff account. Production seeds NOTHING (no demo admin), so without this a
+    # production deploy would have no way to approve any merchant. When BOTH are set, startup
+    # creates-or-updates this one admin account — in EVERY environment, including production.
+    # The env var is the source of truth for its password: change it here to rotate on the next
+    # deploy. Blank (the default) means no bootstrap account. The real value lives ONLY in the
+    # secret store — it is never logged.
+    admin_username: str = ""
+    admin_password: str = ""
 
     @field_validator("ussd_lang")
     @classmethod

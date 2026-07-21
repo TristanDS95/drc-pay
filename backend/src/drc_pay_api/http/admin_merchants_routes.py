@@ -13,8 +13,7 @@ from pydantic import BaseModel
 
 from ..application import onboarding
 from ..domains.merchants.models import STATUS_PENDING, Merchant
-from ..domains.staff.models import ROLE_ADMIN, StaffPrincipal
-from .dependencies import ContainerDep, CurrentAdmin
+from .dependencies import ContainerDep, CurrentAdmin, require_admin
 
 admin_merchants_router = APIRouter()
 
@@ -43,20 +42,13 @@ def _to_response(merchant: Merchant) -> AdminMerchantResponse:
     )
 
 
-def _require_admin(admin: StaffPrincipal) -> None:
-    # Only the admin role may act on merchant sign-ups. One role today, but the check is explicit
-    # so adding a read-only or finer staff role later doesn't accidentally grant approval.
-    if admin.role != ROLE_ADMIN:
-        raise HTTPException(status_code=403, detail="admin role required")
-
-
 @admin_merchants_router.get("/admin/merchants", response_model=list[AdminMerchantResponse])
 def list_merchants(
     admin: CurrentAdmin, container: ContainerDep, status: str = STATUS_PENDING
 ) -> list[AdminMerchantResponse]:
     """Merchants for review, filtered by ``status`` (default ``pending`` — the approval worklist);
     pass ``status=all`` for every merchant."""
-    _require_admin(admin)
+    require_admin(admin)
     if status != "all" and status not in _STATUSES:
         raise HTTPException(status_code=422, detail=f"unknown status filter: {status}")
     merchants = container.merchants.all()
@@ -72,7 +64,7 @@ def approve_merchant(
     merchant_id: str, admin: CurrentAdmin, container: ContainerDep
 ) -> AdminMerchantResponse:
     """Activate a merchant so it can log in and transact. Idempotent."""
-    _require_admin(admin)
+    require_admin(admin)
     try:
         merchant = onboarding.approve(container.merchants, merchant_id)
     except onboarding.MerchantNotFound as exc:
@@ -87,7 +79,7 @@ def reject_merchant(
     merchant_id: str, admin: CurrentAdmin, container: ContainerDep
 ) -> AdminMerchantResponse:
     """Reject a merchant; it stays unable to log in or transact. Idempotent."""
-    _require_admin(admin)
+    require_admin(admin)
     try:
         merchant = onboarding.reject(container.merchants, merchant_id)
     except onboarding.MerchantNotFound as exc:
