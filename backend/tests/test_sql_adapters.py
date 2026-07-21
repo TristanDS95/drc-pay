@@ -15,12 +15,15 @@ from drc_pay_api.adapters.sql import (
     Base,
     SqlLedger,
     SqlMerchantStore,
+    SqlStaffCredentialStore,
+    SqlStaffSessionStore,
     SqlTransactionStore,
     normalize_db_url,
 )
 from drc_pay_api.domains.ledger.ledger import Direction, Entry, Posting
 from drc_pay_api.domains.ledger.money import Money
 from drc_pay_api.domains.merchants.models import Merchant
+from drc_pay_api.domains.staff.models import StaffCredential, StaffSession
 from drc_pay_api.domains.transactions.models import Transaction
 from drc_pay_api.domains.transactions.ports import DuplicateIdempotencyKey
 from drc_pay_api.domains.transactions.state_machine import TxState
@@ -191,6 +194,35 @@ def test_normalize_db_url() -> None:
     assert normalize_db_url("postgresql://u:p@h:5432/db") == "postgresql+psycopg://u:p@h:5432/db"
     assert normalize_db_url("postgresql+psycopg://u:p@h/db") == "postgresql+psycopg://u:p@h/db"
     assert normalize_db_url("sqlite://") == "sqlite://"
+
+
+def test_staff_credential_store_roundtrip_and_upsert() -> None:
+    store = SqlStaffCredentialStore(_factory())
+    store.save(StaffCredential(staff_id="s1", username="admin", password_hash="h1", role="admin"))
+    by_user = store.get_by_username("admin")
+    assert by_user is not None and by_user.staff_id == "s1" and by_user.role == "admin"
+    by_id = store.get_by_id("s1")
+    assert by_id is not None and by_id.username == "admin"
+    # upsert by staff_id — a re-save updates hash + role in place
+    store.save(
+        StaffCredential(staff_id="s1", username="admin", password_hash="h2", role="superadmin")
+    )
+    updated = store.get_by_id("s1")
+    assert updated is not None and updated.password_hash == "h2" and updated.role == "superadmin"
+    assert store.get_by_username("ghost") is None
+    assert store.get_by_id("nope") is None
+
+
+def test_staff_session_store_roundtrip_and_delete() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    store = SqlStaffSessionStore(_factory())
+    expires = datetime.now(UTC) + timedelta(hours=1)
+    store.save(StaffSession(token_hash="th1", staff_id="s1", expires_at=expires))
+    got = store.get("th1")
+    assert got is not None and got.staff_id == "s1"
+    store.delete("th1")
+    assert store.get("th1") is None
 
 
 def _run_all() -> None:

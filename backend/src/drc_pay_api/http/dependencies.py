@@ -13,6 +13,7 @@ from fastapi import Cookie, Depends, Header, HTTPException, Request
 
 from ..container import Container
 from ..domains.merchants.models import Merchant
+from ..domains.staff.models import StaffPrincipal
 
 
 def get_container(request: Request) -> Container:
@@ -65,3 +66,40 @@ def get_current_merchant(
 # A route writes ``merchant: CurrentMerchant`` — injecting the logged-in merchant and
 # rejecting unauthenticated requests in one move.
 CurrentMerchant = Annotated[Merchant, Depends(get_current_merchant)]
+
+
+ADMIN_SESSION_COOKIE = "drcpay_admin_session"
+
+
+def get_current_admin(
+    container: ContainerDep,
+    authorization: Annotated[str, Header()] = "",
+    drcpay_admin_session: Annotated[str, Cookie()] = "",
+) -> StaffPrincipal:
+    """The staff member behind the request's admin session — the admin analogue of
+    ``get_current_merchant``. 401 (never 403) on any auth failure, indistinguishably. A separate
+    cookie (``drcpay_admin_session``) from the merchant console's, so being logged into one is
+    never being logged into the other. Role/username are read fresh from the credential, so a
+    role change or a deleted account takes effect immediately."""
+    challenge = {"WWW-Authenticate": "Bearer"}
+    token = (
+        authorization[len("Bearer ") :]
+        if authorization.startswith("Bearer ")
+        else drcpay_admin_session
+    )
+    if not token:
+        raise HTTPException(status_code=401, detail="admin login required", headers=challenge)
+    staff_id = container.staff_auth.resolve(token)
+    if staff_id is None:
+        raise HTTPException(status_code=401, detail="session invalid or expired", headers=challenge)
+    credential = container.staff_credentials.get_by_id(staff_id)
+    if credential is None:  # session for a deleted staff account — treat as unauthenticated
+        raise HTTPException(status_code=401, detail="session invalid or expired", headers=challenge)
+    return StaffPrincipal(
+        staff_id=credential.staff_id, username=credential.username, role=credential.role
+    )
+
+
+# A route writes ``admin: CurrentAdmin`` — injecting the logged-in staff member and rejecting
+# unauthenticated requests in one move.
+CurrentAdmin = Annotated[StaffPrincipal, Depends(get_current_admin)]

@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .container import build_container
+from .http.admin_routes import admin_router
 from .http.auth_routes import auth_router
 from .http.demo_routes import demo_router
 from .http.merchant_api import merchant_api_router
@@ -49,7 +50,7 @@ from .ussd.session import UssdHandler
 _AUTH_EXEMPT = {"/health", "/demo/credentials"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
 _PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer", "/signup")
-_SESSION_GATED_PREFIXES = ("/auth", "/transactions", "/merchants", "/charges")
+_SESSION_GATED_PREFIXES = ("/auth", "/admin", "/transactions", "/merchants", "/charges")
 
 
 async def _reconcile_loop(app: FastAPI, interval: int) -> None:
@@ -208,6 +209,7 @@ def create_app() -> FastAPI:
     app.state.ussd_handler = UssdHandler(app.state.container, lang=settings.ussd_lang)
     app.state.ussd_limiter = SlidingWindowLimiter()
     app.include_router(auth_router)
+    app.include_router(admin_router)
     app.include_router(onboarding_router)
     app.include_router(merchant_api_router)
     app.include_router(ussd_router)
