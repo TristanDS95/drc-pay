@@ -5,14 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DRC-Pay - design tokens preview</title>
 <!--
-  This page is a RENDERER, not a copy. It reads ./design-tokens.md at load time and
-  draws the swatches, themes, and scales from it. The markdown is the single source of
-  truth - edit a token there, reload this page, and the preview updates. This file holds
-  no token values of its own.
+  A rendered preview of the DRC-Pay design tokens. design-tokens.md stays the single source
+  of truth; this page draws the swatches, themes, and scales from it.
 
-  Viewing: browsers block a file:// page from reading a sibling file, so serve the folder:
-      cd drc-pay/docs && python3 -m http.server 8000
-  then open  http://localhost:8000/design-tokens.html
+  Two ways to view, both work:
+    - Double-click this file. It renders from an EMBEDDED SNAPSHOT of design-tokens.md
+      (browsers block a file:// page from fetching a sibling file, so the snapshot is what
+      makes double-click work).
+    - Serve the folder (cd drc-pay/docs && python3 -m http.server 8000) and open
+      http://localhost:8000/design-tokens.html - this reads design-tokens.md LIVE, so edits
+      show on reload.
+
+  The embedded snapshot is GENERATED - after editing design-tokens.md, refresh it with:
+      python3 docs/refresh-design-tokens-html.py
+  (never hand-edit the block between TOKENS-MD:BEGIN and TOKENS-MD:END).
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -76,6 +82,49 @@
   <p class="src">rendered live from <strong>design-tokens.md</strong></p>
   <div id="out"></div>
 </div>
+
+<!-- TOKENS-MD:BEGIN - generated snapshot of design-tokens.md; refresh via docs/refresh-design-tokens-html.py -->
+<script type="text/markdown" id="tokens-md">
+# Design tokens - the look of the app
+
+The single source of truth for the product's visual language, so the spec and any future client
+code can't drift. Mirrors `../../drc-mvp-research/05-product-spec/ui-spec.md`: **Wave-style minimal**,
+a distinctive **coral** accent, warm **cream + charcoal** neutrals, flat **12px-rounded** components
+(no shadows), **Inter**. Light + dark (follows the system setting).
+
+> Extracted from the former `apps/mobile/src/theme/tokens.ts` when `apps/` was removed (ADR 0008).
+> When the mobile app is built, re-create `tokens.ts` from this note.
+
+## Palette
+
+| Token | Hex | Use |
+|---|---|---|
+| `coral` | `#FF6B5B` | primary accent / primary action |
+| `coralDark` | `#E2553F` | pressed/hover accent |
+| `cream` | `#FFFCF8` | light background |
+| `charcoal` | `#1A1A1A` | dark background / primary text on light |
+| `success` | `#1E8E5A` | semantic - success |
+| `error` | `#D64541` | semantic - error |
+| `warning` | `#C77700` | semantic - warning |
+
+## Theme (semantic, light + dark)
+
+| Role | Light | Dark |
+|---|---|---|
+| `background` | `#FFFCF8` (cream) | `#1A1A1A` (charcoal) |
+| `surface` | `#FFFFFF` | `#242422` |
+| `text` | `#1A1A1A` (charcoal) | `#F5F3EF` |
+| `textMuted` | `#5A5A57` | `#A8A6A1` |
+| `accent` | `#FF6B5B` (coral) | `#FF6B5B` (coral) |
+| `border` | `#ECE8E1` | `#34332F` |
+
+## Scale
+
+- **Radius:** `sm 8` · `md 12` · `lg 16` · `pill 999`
+- **Spacing:** `xs 4` · `sm 8` · `md 16` · `lg 24` · `xl 32`
+- **Font:** family **Inter**; sizes `caption 13` · `body 16` · `title 22` · `display 32`
+</script>
+<!-- TOKENS-MD:END -->
 
 <script>
 const HEX = /#[0-9A-Fa-f]{3,8}/;
@@ -234,21 +283,24 @@ function render(md) {
 
 function showError(detail) {
   document.getElementById("out").innerHTML =
-    `<div class="err"><strong>Couldn't read design-tokens.md.</strong><br>
-     Browsers block a double-clicked <code>file://</code> page from reading a sibling file.
-     Serve this folder instead:<br><br>
-     <code>cd drc-pay/docs &amp;&amp; python3 -m http.server 8000</code><br><br>
-     then open <code>http://localhost:8000/design-tokens.html</code>.
+    `<div class="err"><strong>Couldn't load the design tokens.</strong><br>
+     The embedded snapshot is missing - regenerate it with
+     <code>python3 docs/refresh-design-tokens-html.py</code>, or serve this folder over http.
      <br><br><span style="opacity:.7">(${detail})</span></div>`;
 }
 
 (async () => {
+  // Prefer the LIVE markdown when this page is served over http (edits show on reload);
+  // fall back to the embedded snapshot when opened as a double-clicked file:// page,
+  // where browsers block fetching a sibling file.
+  const embedded = (document.getElementById("tokens-md")?.textContent || "").trim();
   try {
     const res = await fetch("design-tokens.md", { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     render(await res.text());
   } catch (e) {
-    showError(e.message || String(e));
+    if (embedded) render(embedded);
+    else showError(e.message || String(e));
   }
 })();
 </script>
