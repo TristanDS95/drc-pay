@@ -1,0 +1,24 @@
+# Secret-scan configuration (gitleaks). CI runs `gitleaks git .` over the FULL history, so this
+# config is how findings are tuned - editing a file in a later commit does not clear a finding in
+# an earlier one.
+#
+# We keep every default rule. The single exception below exists because test fixtures must contain
+# credential-shaped strings (a sign-up test has to post *some* password), and gitleaks' catch-all
+# `generic-api-key` rule is an entropy heuristic that flags them.
+#
+# The exemption is deliberately narrow on BOTH axes:
+#   - only the `generic-api-key` heuristic - the high-confidence rules (private keys, AWS/GCP/Stripe
+#     tokens, etc.) still fire inside tests, so a genuinely leaked key is still caught there;
+#   - only under `backend/tests/` - `src/`, config, workflows, docs, and everything else stay fully
+#     scanned by every rule.
+#
+# Real secrets never live in the repo at all: they come from env vars (`.env` is git-ignored; only
+# `.env.example` is committed) and Railway's dashboard. See CLAUDE.md "Security & secrets".
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures use fake, throwaway credentials - not secrets (generic-api-key only)"
+targetRules = ["generic-api-key"]
+paths = ['''^backend/tests/''']
