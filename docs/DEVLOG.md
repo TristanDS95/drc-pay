@@ -93,6 +93,15 @@ sandbox-vs-real-money fork before sequencing security ahead of UI.
      get it. Removing an *already-existing* account is explicit:
      `python -m drc_pay_api.create_staff --username X --remove`, which revokes its sessions first
      (they're an FK) and refuses to delete the last remaining staff account.
+   - **The sign-up form is publicly reachable (2026-07-21).** The shared demo password used to gate
+     `/console` and `/staff`, so a business could not reach the sign-up form without being handed
+     it - which blocked self-registration entirely. Both pages are login forms whose every byte of
+     data needs a session, so gating them bought nothing. The shared password now gates only the
+     **developer shell** (`/docs`, `/demo/*`). Relatedly, `/demo/credentials` (deliberately exempt
+     from that gate) now publishes passwords on **local only** - on a deployment it answers
+     200-with-an-empty-list, which keeps the console's developer-view probe working while no longer
+     serving working merchant logins to anyone who asks, or showing "Demo accounts" on a public
+     sign-in page.
    - **Still open:** **KYC** (deferred by design).
 2. **Rent a real USSD aggregator** (Africa's Talking / Infobip) when going live: shortcode + MNO PIN
    wiring; our `/ussd` handler is provider-neutral and ready (adapting the wire format is confined to

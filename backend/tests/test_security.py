@@ -2,9 +2,10 @@
 
 - **Merchant sessions** (per-merchant login) gate the merchant API in EVERY environment —
   see ``test_auth.py`` for the full auth behavior.
-- **The shared Basic password** gates only the sandbox demo SHELL (console static files,
-  docs, demo endpoints). It never gates the merchant API, the webhook, health, or the
-  customer paths. Off when unset (local dev / tests / production).
+- **The shared Basic password** gates only the DEVELOPER shell (the API docs and /demo/*
+  controls). It never gates the merchant API, the webhook, health, the customer paths, or
+  the console/staff PAGES — those are login forms whose data needs a session, and gating
+  them blocked merchants from reaching the sign-up form. Off when unset (local/tests/production).
 """
 
 from __future__ import annotations
@@ -118,3 +119,50 @@ def _run_all() -> None:
 if __name__ == "__main__":
     _run_all()
     print("test_security: all passed (run via pytest for the monkeypatch tests)")
+
+
+def test_console_pages_are_public_but_the_developer_shell_stays_gated(
+    monkeypatch, tmp_path
+) -> None:  # type: ignore[no-untyped-def]
+    """A real business must be able to reach the sign-up form without the shared password, and a
+    staff member must be able to reach their sign-in form. Both pages are login forms - all their
+    data needs a session - so gating them bought nothing and blocked self-registration. The
+    developer shell (docs, /demo/* controls) stays behind the password."""
+    for name in ("console", "staff", "customer"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "index.html").write_text(f"<h1>{name}</h1>")
+    monkeypatch.setattr(config.settings, "basic_auth_password", "sesame")
+    monkeypatch.setattr(config.settings, "console_dir", str(tmp_path / "console"))
+    monkeypatch.setattr(config.settings, "staff_dir", str(tmp_path / "staff"))
+    monkeypatch.setattr(config.settings, "customer_dir", str(tmp_path / "customer"))
+    client = TestClient(create_app())
+
+    # Public: the pages a merchant or staff member must reach to sign in / sign up.
+    assert client.get("/console/").status_code == 200
+    assert client.get("/staff/").status_code == 200
+    assert client.get("/", follow_redirects=False).status_code in (200, 307)  # redirect, not 401
+
+    # Still gated: the developer shell.
+    assert client.get("/docs").status_code == 401
+    assert client.post("/demo/reconcile").status_code == 401
+
+
+def test_demo_credentials_publishes_no_passwords_off_local() -> None:
+    """This endpoint is reachable without the shared password, so on a DEPLOYED environment it
+    would hand working merchant logins to anyone - and the sign-in page is now public. It answers
+    200-with-nothing there (so the console still detects a demo environment for its developer
+    view) and only returns credentials on local.
+
+    The container's environment is set directly rather than booting a sandbox app, because a
+    sandbox refuses to start without a database (see the fail-closed boot guard above).
+    """
+    app = create_app()
+    client = TestClient(app)
+    assert config.settings.environment == "local"
+    assert len(client.get("/demo/credentials").json()) == 3  # convenience kept for local dev
+
+    app.state.container.environment = "sandbox"  # as a deployed environment would be
+    response = client.get("/demo/credentials")
+    assert response.status_code == 200, "the console uses a 200 as its demo-environment signal"
+    assert response.json() == [], "no passwords may be published off local"
+    assert "alpha-demo" not in response.text

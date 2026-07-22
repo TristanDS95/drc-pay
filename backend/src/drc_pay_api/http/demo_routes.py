@@ -29,12 +29,23 @@ class DemoLogin(BaseModel):
 
 @demo_router.get("/demo/credentials", response_model=list[DemoLogin])
 def demo_credentials(container: ContainerDep) -> list[DemoLogin]:
-    """The seeded demo merchants' console logins — so demoing stays one copy-paste. Each also
-    carries its settlement operator, so the login chips can show which wallet the merchant
-    settles to. Off the real-money path only (the router isn't mounted in production, and this
-    404s as a belt)."""
+    """The seeded demo merchants' console logins — so demoing stays one copy-paste.
+
+    **Passwords are returned on LOCAL only.** This endpoint is deliberately reachable without the
+    shared site password (browsers don't reliably attach cached Basic credentials to ``fetch``), so
+    on a deployed environment it would publish working merchant logins to anyone who asked — and
+    the merchant console is now public, which would also show a real business "Demo accounts - one
+    click signs you in" on the sign-in page.
+
+    A deployed environment therefore gets an EMPTY list rather than a 404: the console uses a
+    successful response as its "this is a demo environment" signal for the developer view, so
+    answering 200-with-nothing keeps that working while publishing no credentials. The demo
+    merchants still exist and can be signed into by anyone who knows the password.
+    """
     if not container.demo_controls_enabled:
         raise HTTPException(status_code=404, detail="demo controls are disabled in production")
+    if container.environment != "local":
+        return []
     out: list[DemoLogin] = []
     for merchant_id, user, pw in DEMO_LOGINS:
         try:

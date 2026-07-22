@@ -647,6 +647,10 @@
       const r = await fetch(`${API}/demo/credentials`, { cache: "no-store" });
       if(!r.ok) return;
       const creds = await r.json();
+      // A deployed environment answers 200 with an EMPTY list (it publishes no passwords). Without
+      // this, a real merchant on the now-public sign-in page would see the "Demo accounts" heading
+      // with no chips under it.
+      if(!creds.length) return;
       $("login-demo-chips").innerHTML = creds.map((c) =>
         `<button type="button" data-u="${esc(c.username)}" data-p="${esc(c.password)}">${esc(c.username)}` +
         (c.provider ? `<span class="net">${esc(opName(c.provider))}</span>` : "") + `</button>`

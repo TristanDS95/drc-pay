@@ -31,18 +31,12 @@ to the end, and bookmark it.
 
 ## 2. Signing in
 
-The Staff page asks for a password **twice**, and they are two different passwords.
-
-| Step | What appears | What to enter |
-|---|---|---|
-| 1 | A small grey box from your browser | Username `drcpay`, and the shared site password |
-| 2 | The page's own "Staff sign in" form | **Your own** staff username and password |
-
-Step 1 is a shared password protecting the whole demo site. Step 2 is your personal account.
+Open the Staff page address and sign in with **your own** staff username and password.
 
 ![The staff sign-in form](images/staff-sign-in.png){width=3.2in}
 
-If you never get past the grey box to this form, you are on the wrong address.
+That is the only password you need. If you reach a page that asks for a business name and payout
+number instead, you are on the Merchant page - add `/staff/` to the address.
 
 ---
 
