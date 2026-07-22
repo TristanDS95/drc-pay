@@ -47,3 +47,12 @@ def test_merchant_supplied_values_are_escaped() -> None:
     assert "const esc = (s) =>" in html, "the staff console must define an escaper"
     for field in ("m.name", "m.settlement_msisdn", "m.short_code", "m.id"):
         assert f"esc({field})" in html, f"{field} must be escaped before reaching innerHTML"
+
+
+def test_rejected_rows_offer_a_re_approve_action() -> None:
+    """Guards the fix for rejecting being a dead end. The Python suite can't run the page's JS, so
+    assert the status-dependent action helper still handles 'rejected'."""
+    html = STAFF.read_text()
+    assert "function actionsFor(m)" in html, "actions must be chosen per merchant status"
+    assert 'm.status === "rejected"' in html, "rejected rows must offer an action"
+    assert "Re-approve" in html

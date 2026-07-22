@@ -35,8 +35,8 @@ from .http.webhook_routes import webhook_router
 from .jobs.reconciliation.sweep import run_reconciliation
 from .ussd.session import UssdHandler
 
-# The shared Basic password is now ONLY the sandbox demo's outer gate (console static files,
-# docs, demo endpoints). It never gates:
+# The shared Basic password now gates only the DEVELOPER shell: the API docs and the /demo/*
+# controls. It never gates:
 #   - the pawaPay callback under /webhooks/ (verified by RFC-9421 signature instead),
 #   - the platform's health probe,
 #   - customer-facing paths (a customer who scans a QR has no login),
@@ -44,13 +44,16 @@ from .ussd.session import UssdHandler
 #     has no demo password (it creates a PENDING merchant that can't act until approved),
 #   - the merchant API + /auth (each merchant authenticates with their OWN session — a shared
 #     password would have to be handed to every merchant, defeating per-merchant auth).
-#   - /demo/credentials: the login page's demo chips fetch it in the background, and some
-#     browsers don't attach cached Basic credentials to fetch(). Exempting it gives up
-#     nothing: the demo logins are deterministic, documented in the README, and /auth/login
-#     is public anyway. (Still 404s in production; the rest of the demo shell stays gated.)
-_AUTH_EXEMPT = {"/health", "/demo/credentials"}
+#   - /demo/credentials: fetched in the background by the sign-in page, and some browsers don't
+#     attach cached Basic credentials to fetch(). It publishes no passwords off local.
+#   - **the two console PAGES themselves** (/console, /staff, and the root that redirects to
+#     /console). They are login forms and nothing else — every byte of data behind them needs a
+#     merchant or staff session. Gating them meant a real business could not even reach the
+#     sign-up form without being handed the shared password, which blocked self-registration
+#     entirely. The password protecting a login form added no security, only a barrier.
+_AUTH_EXEMPT = {"/health", "/demo/credentials", "/"}
 _AUTH_EXEMPT_PREFIXES = ("/webhooks/",)
-_PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer", "/signup")
+_PUBLIC_PREFIXES = ("/pay", "/ussd", "/public", "/customer", "/signup", "/console", "/staff")
 _SESSION_GATED_PREFIXES = ("/auth", "/admin", "/transactions", "/merchants", "/charges")
 
 

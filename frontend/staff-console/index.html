@@ -153,13 +153,19 @@
   const STATUS_PILL = { pending:"wait", active:"ok", rejected:"bad", suspended:"mut" };
 
   let session = localStorage.getItem("drcpay.staffsession") || "";
+  // Whether /admin/me currently resolves — NOT whether we hold a bearer token. The session rides
+  // an HttpOnly cookie as well, so the two can disagree: clear local storage (a privacy extension,
+  // a partial "clear site data") while the cookie is still alive and the page is genuinely signed
+  // in with no token. Gating the lists on the token instead of this rendered a signed-in page with
+  // permanently empty lists.
+  let signedIn = false;
   let filter = "pending";
   const authHeaders = () => session ? { authorization: `Bearer ${session}` } : {};
   const showErr = (e) => { $("err").textContent = String(e); $("err").classList.remove("hidden"); };
   const clearErr = () => $("err").classList.add("hidden");
 
   function showLogin(){
-    session = ""; localStorage.removeItem("drcpay.staffsession");
+    session = ""; signedIn = false; localStorage.removeItem("drcpay.staffsession");
     $("login").classList.remove("hidden");
     $("whoami").classList.add("hidden"); $("logout").classList.add("hidden");
   }
@@ -184,6 +190,7 @@
       return;
     }
     hideLogin(); clearErr();
+    signedIn = true;
     $("whoami-name").textContent = `${me.username} · ${me.role}`;
     await refresh();
     await refreshStaff();
@@ -191,7 +198,7 @@
 
   // ----- staff accounts -----
   async function refreshStaff(){
-    if(!session) return;
+    if(!signedIn) return;
     let rows;
     try { rows = await jget("/admin/staff"); } catch(e){ return; }
     $("staff-list").innerHTML = rows.length
@@ -207,12 +214,33 @@
   }
 
   async function refresh(){
-    if(!session) return;
+    if(!signedIn) return;
     let rows;
     try { rows = await jget(`/admin/merchants?status=${encodeURIComponent(filter)}`); }
     catch(e){ return; }
     clearErr();
     render(rows);
+  }
+
+  // Which actions a row offers depends on where it stands. A REJECTED business can be approved
+  // again: rejecting used to be a dead end (the buttons only rendered while pending), so a
+  // mis-click permanently locked out a legitimate merchant with no way back from this page.
+  // Approving is idempotent server-side and works from any status, so this is purely a UI gap.
+  // An ACTIVE business shows no buttons - cutting off a merchant who is already taking money is a
+  // deliberate act, not something to sit one stray click away from the approval queue.
+  function actionsFor(m){
+    if(m.status === "pending"){
+      return `<span class="acts">
+        <button class="cta approve" data-id="${esc(m.id)}" data-act="approve">Approve</button>
+        <button class="cta ghost" data-id="${esc(m.id)}" data-act="reject">Reject</button>
+      </span>`;
+    }
+    if(m.status === "rejected"){
+      return `<span class="acts">
+        <button class="cta approve" data-id="${esc(m.id)}" data-act="approve">Re-approve</button>
+      </span>`;
+    }
+    return "";
   }
 
   function render(rows){
@@ -232,10 +260,7 @@
             <code>${esc(m.id)}</code>
           </div>
         </span>
-        ${m.status === "pending" ? `<span class="acts">
-          <button class="cta approve" data-id="${esc(m.id)}" data-act="approve">Approve</button>
-          <button class="cta ghost" data-id="${esc(m.id)}" data-act="reject">Reject</button>
-        </span>` : ""}
+        ${actionsFor(m)}
       </li>`).join("");
     ul.querySelectorAll("button[data-id]").forEach((b) =>
       b.addEventListener("click", () => decide(b.dataset.id, b.dataset.act, b)));
