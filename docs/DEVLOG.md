@@ -260,8 +260,12 @@ uvicorn --app-dir src drc_pay_api.main:app                  # console /console/ 
 # deterministic synchronous payouts, then drive /auth/login → /charges → /pay and read rows with
 # `docker compose exec -T postgres psql -U drcpay -c "select … from transactions/ledger_entries"`.
 ```
-**Gotcha:** the repo path has a space → pip *editable* installs break. Run uvicorn with `--app-dir src`;
-tests use `pythonpath=src`.
+**Local install:** use the **editable** install, `pip install -e ".[dev]"` (what CI does). Editable
+installs used to break on this repo's path space; they no longer do (verified 2026-07-22). It matters
+because a *plain* install copies `src` into `site-packages`, and that copy silently goes stale - a
+bare `python -c "import drc_pay_api"` then runs weeks-old code while uvicorn/pytest run the current
+source, so a change appears not to take effect. Editable makes `site-packages` point AT `src`, so
+there is one copy. (`--app-dir src` / `pythonpath=src` still pin the right source regardless.)
 
 ## Git & conventions
 Repo **github.com/TristanDS95/drc-pay** (`main`); **the human pushes**; commits use **no** Claude

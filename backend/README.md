@@ -6,15 +6,15 @@ The backend - **Python / FastAPI**. This is where the money logic lives.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install ".[dev]"
+pip install -e ".[dev]"   # editable - site-packages points at src, so it never goes stale
 ```
 
 ## Run
 
 ```bash
-# --app-dir src puts the package on the import path and runs straight from source. (This repo
-# sits under a path containing a space, which breaks pip *editable* installs; --app-dir sidesteps
-# that - and lets edits take effect without reinstalling.)
+# --app-dir src puts the package on the import path and runs straight from source, so edits take
+# effect without reinstalling. Install with `pip install -e ".[dev]"`: a plain install copies src
+# into site-packages and that copy goes stale, so a bare `import drc_pay_api` would run old code.
 uvicorn --app-dir src drc_pay_api.main:app --reload
 ```
 

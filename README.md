@@ -119,7 +119,8 @@ money (same-network payments route on-net and are recorded, no rail involved):
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install ".[dev]"                                  # runtime + dev deps (ruff, mypy, pytest)
+pip install -e ".[dev]"                               # editable: site-packages points AT src, so it
+                                                      # can never go stale (CI installs the same way)
 ruff check . && mypy src && pytest                    # all green (offline; sandbox tests skip)
 
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"
@@ -134,8 +135,10 @@ Point it at the live sandbox rail instead by putting `DRCPAY_PAWAPAY_BASE_URL` +
 `DRCPAY_PAWAPAY_API_TOKEN` in `backend/.env`. Postgres is optional locally
 (`docker compose up -d`, then set `DRCPAY_DATABASE_URL`); without it the app uses an in-memory store.
 
-> **Always run uvicorn with `--app-dir src`** - the repo path contains a space, which breaks pip's
-> *editable* install, so we run from `src` (tests do the same via `pythonpath=src`).
+> **Install with `pip install -e ".[dev]"`** (editable, as CI does) and run uvicorn with
+> `--app-dir src`. A *plain* install copies `src` into `site-packages`, where the copy goes stale and
+> a bare `import drc_pay_api` silently runs old code; editable points at `src` instead. (The path
+> space used to break editable installs - it no longer does.)
 
 ## Engineering standards
 
