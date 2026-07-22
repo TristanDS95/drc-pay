@@ -80,6 +80,13 @@ Single-source topics (update the one owner):
 - **Product spec** → lives in `drc-mvp-research/05-product-spec/`; link, don't duplicate.
 - **Plain-language architecture guide** → `docs/architecture-guide.md` (single source; the `.docx` is
   generated from it - `pandoc docs/architecture-guide.md -o docs/DRC-Pay-Architecture-Guide.docx` after editing).
+- **Staff/admin user guide** → `docs/admin-guide.md` (single source; the `.docx` is generated from it -
+  `pandoc docs/admin-guide.md -o docs/DRC-Pay-Staff-Guide.docx` after editing). It is written for a
+  **non-technical operator**: plain language, no acronyms, and it documents what the Staff page can
+  *and cannot* do. **Update it whenever you change the Staff Console, the approve/reject flow, staff
+  account management, or the sign-in steps** - a stale operations guide gets someone locked out or
+  gets the wrong merchant approved. If a change removes a limitation it lists (e.g. rejecting is
+  currently irreversible from the page), delete that warning in the same commit.
 
 Don't hard-code drift-prone values (test counts, dates) in prose - the README/DEVLOG count split came
 from exactly that.
