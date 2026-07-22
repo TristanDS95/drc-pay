@@ -85,8 +85,11 @@ Single-source topics (update the one owner):
   **non-technical operator**: plain language, no acronyms, and it documents what the Staff page can
   *and cannot* do. **Update it whenever you change the Staff Console, the approve/reject flow, staff
   account management, or the sign-in steps** - a stale operations guide gets someone locked out or
-  gets the wrong merchant approved. If a change removes a limitation it lists (e.g. rejecting is
-  currently irreversible from the page), delete that warning in the same commit.
+  gets the wrong merchant approved. If a change removes a limitation it lists, delete that warning
+  in the same commit (that is how "rejecting is final" came out when Re-approve shipped).
+  It embeds **real screenshots** from `docs/images/` - if your change alters what those screens look
+  like, recapture them, or the guide shows buttons that no longer exist. Keep images sized in the
+  markdown (`{width=6.3in}`); unsized 2x captures overflow the page.
 
 Don't hard-code drift-prone values (test counts, dates) in prose - the README/DEVLOG count split came
 from exactly that.

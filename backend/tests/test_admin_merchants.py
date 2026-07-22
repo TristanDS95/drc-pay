@@ -98,3 +98,24 @@ def test_approval_surface_is_admin_gated() -> None:
     merchant.headers["Authorization"] = f"Bearer {token}"
     assert merchant.get("/admin/merchants").status_code == 401
     assert merchant.post("/admin/merchants/m_alpha/approve").status_code == 401
+
+
+def test_a_rejected_merchant_can_be_approved_again() -> None:
+    """Rejecting must not be a dead end: a mis-click shouldn't permanently lock out a legitimate
+    business. Approve works from any status, so re-approving restores access fully."""
+    client = _client()
+    login = {"username": "kincoffee", "password": _SIGNUP["password"]}
+    merchant_id = client.post("/signup", json=_SIGNUP).json()["merchant_id"]
+    _admin(client)
+
+    assert client.post(f"/admin/merchants/{merchant_id}/reject").json()["status"] == "rejected"
+    assert client.post("/auth/login", json=login).status_code == 401  # locked out
+
+    again = client.post(f"/admin/merchants/{merchant_id}/approve")
+    assert again.status_code == 200
+    assert again.json()["status"] == "active"
+
+    # Fully restored: they can sign in, and they're out of the rejected list.
+    assert client.post("/auth/login", json=login).status_code == 200
+    rejected_ids = {m["id"] for m in client.get("/admin/merchants?status=rejected").json()}
+    assert merchant_id not in rejected_ids
