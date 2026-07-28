@@ -1,6 +1,5 @@
 <script lang="ts">
   import Icon from '../lib/Icon.svelte'
-  import StatTile from '../lib/StatTile.svelte'
   import NetworkBadge from '../lib/NetworkBadge.svelte'
   import Qr from '../lib/Qr.svelte'
   import type { Network } from '../lib/NetworkBadge.svelte'
@@ -20,16 +19,10 @@
   <div class="pagehead">
     <div>
       <h1 class="display">Good morning, Alpha</h1>
-      <p class="sub">Tuesday, 22 July · settling to <b>Airtel</b> · 243&thinsp;•••&thinsp;789</p>
+      <p class="sub">Tuesday, 22 July · settling to <b>Airtel</b> · +243&thinsp;970&thinsp;123&thinsp;789</p>
     </div>
     <button class="btn btn-primary head-cta"><Icon name="plus" size={18} /> New charge</button>
   </div>
-
-  <section class="stats">
-    <StatTile label="Received today" value="$128" cents=".50" sub="12% vs yesterday" positive spark />
-    <StatTile label="Payments today" value="6" sub="4 by QR · 2 by dial code" />
-    <StatTile label="Awaiting confirmation" value="1" sub="on-net · confirm receipt" />
-  </section>
 
   <section class="cols">
     <div class="card hero">
@@ -114,11 +107,6 @@
     white-space: nowrap;
   }
 
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
   .cols {
     display: grid;
     grid-template-columns: 1.25fr 1fr;
@@ -273,10 +261,6 @@
     }
     h1 {
       font-size: 24px;
-    }
-    .stats {
-      grid-template-columns: 1fr;
-      gap: 12px;
     }
     .cols {
       grid-template-columns: 1fr;
