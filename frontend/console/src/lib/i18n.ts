@@ -104,6 +104,33 @@ interface Strings {
   // errors
   err_api: string
   retry: string
+  // payments screen
+  pay_sub: string
+  stat_received: string
+  stat_received_sub: string
+  stat_payments: string
+  stat_payments_sub: string
+  stat_awaiting: string
+  stat_awaiting_sub: string
+  // customers screen
+  cust_sub: string
+  cust_empty: string
+  cust_count: (n: number) => string
+  cust_total: string
+  // settings screen
+  set_profile: string
+  set_payout: string
+  set_till: string
+  set_prefs: string
+  set_language: string
+  set_theme: string
+  set_theme_light: string
+  set_theme_dark: string
+  set_readonly: string
+  none: string
+  // dev view
+  dev_title: string
+  dev_sub: string
   // nested
   states: StateDict
   charge_states: StateDict
@@ -176,6 +203,29 @@ const en: Strings = {
   paid: 'Paid',
   err_api: "Couldn't reach the server.",
   retry: 'Retry',
+  pay_sub: 'Every payment to your business.',
+  stat_received: 'Received',
+  stat_received_sub: 'settled to you',
+  stat_payments: 'Payments',
+  stat_payments_sub: 'total',
+  stat_awaiting: 'Awaiting confirmation',
+  stat_awaiting_sub: 'on-net · confirm receipt',
+  cust_sub: "Everyone who's paid you.",
+  cust_empty: 'No customers yet.',
+  cust_count: (n) => `${n} payment${n === 1 ? '' : 's'}`,
+  cust_total: 'paid',
+  set_profile: 'Business profile',
+  set_payout: 'Payout account',
+  set_till: 'Operator till',
+  set_prefs: 'Preferences',
+  set_language: 'Language',
+  set_theme: 'Theme',
+  set_theme_light: 'Light',
+  set_theme_dark: 'Dark',
+  set_readonly: 'To change your business details, contact your InterPay administrator.',
+  none: 'None',
+  dev_title: 'Developer tools',
+  dev_sub: 'Sandbox only - simulate payments, walk the USSD menu, reconcile, and trace every operation.',
   states: {
     initiated: 'Starting',
     collection_pending: 'Awaiting payment',
@@ -265,6 +315,29 @@ const fr: Strings = {
   paid: 'Payé',
   err_api: 'Impossible de joindre le serveur.',
   retry: 'Réessayer',
+  pay_sub: 'Tous les paiements de votre entreprise.',
+  stat_received: 'Reçu',
+  stat_received_sub: 'réglé chez vous',
+  stat_payments: 'Paiements',
+  stat_payments_sub: 'au total',
+  stat_awaiting: 'En attente de confirmation',
+  stat_awaiting_sub: 'même réseau · à confirmer',
+  cust_sub: 'Toutes les personnes qui vous ont payé.',
+  cust_empty: 'Aucun client pour l’instant.',
+  cust_count: (n) => `${n} paiement${n === 1 ? '' : 's'}`,
+  cust_total: 'payé',
+  set_profile: "Profil de l'entreprise",
+  set_payout: 'Compte de règlement',
+  set_till: 'Till opérateur',
+  set_prefs: 'Préférences',
+  set_language: 'Langue',
+  set_theme: 'Thème',
+  set_theme_light: 'Clair',
+  set_theme_dark: 'Sombre',
+  set_readonly: 'Pour modifier vos informations, contactez votre administrateur InterPay.',
+  none: 'Aucun',
+  dev_title: 'Outils développeur',
+  dev_sub: 'Sandbox uniquement - simulez des paiements, parcourez le menu USSD, réconciliez et tracez chaque opération.',
   states: {
     initiated: 'Démarrage',
     collection_pending: 'En attente de paiement',

@@ -7,7 +7,7 @@
 <nav class="tabbar">
   <a class:on={active === 'home'} href="#home"><Icon name="home" size={22} /><span>{$t.tab_home}</span></a>
   <a class:on={active === 'payments'} href="#payments"><Icon name="list" size={22} /><span>{$t.nav_payments}</span></a>
-  <a class="fab" href="#charge" aria-label={$t.tab_charge}><Icon name="plus" size={26} stroke={1.9} /></a>
+  <a class="fab" href="#overview" aria-label={$t.tab_charge}><Icon name="plus" size={26} stroke={1.9} /></a>
   <a class:on={active === 'customers'} href="#customers"><Icon name="card" size={22} /><span>{$t.nav_customers}</span></a>
   <a class:on={active === 'settings'} href="#settings"><Icon name="cog" size={22} /><span>{$t.nav_settings}</span></a>
 </nav>
