@@ -3,25 +3,36 @@
   import Wordmark from './Wordmark.svelte'
   import Icon from './Icon.svelte'
   import { theme, toggleTheme } from './theme'
+  import { t, lang, toggleLang } from './i18n'
+  import { logout } from './session'
+  import type { Merchant } from './types'
 
-  let { merchant = 'Alpha Gas Station', active = 'Overview' }: { merchant?: string; active?: string } = $props()
-  const items = ['Overview', 'Payments', 'Customers', 'Settings']
+  let { merchant, active = 'Overview' }: { merchant: Merchant; active?: string } = $props()
+  const items = $derived([
+    { id: 'Overview', label: $t.nav_overview },
+    { id: 'Payments', label: $t.nav_payments },
+    { id: 'Customers', label: $t.nav_customers },
+    { id: 'Settings', label: $t.nav_settings },
+  ])
 </script>
 
 <header class="nav">
   <a class="brand" href="#overview"><Mark size={30} /><Wordmark size={19} /></a>
   <nav class="tabs">
     {#each items as item}
-      <a class:on={item === active} href={'#' + item.toLowerCase()}>{item}</a>
+      <a class:on={item.id === active} href={'#' + item.id.toLowerCase()}>{item.label}</a>
     {/each}
   </nav>
   <div class="right">
+    <button class="pill" onclick={toggleLang}>{$lang === 'fr' ? 'EN' : 'FR'}</button>
     <button class="icon-btn" onclick={toggleTheme} aria-label="Toggle theme">
       <Icon name={$theme === 'dark' ? 'sun' : 'moon'} size={18} />
     </button>
-    <button class="icon-btn" aria-label="Notifications"><Icon name="bell" size={18} /></button>
-    <span class="avatar display">{merchant.charAt(0)}</span>
-    <span class="mname">{merchant}</span>
+    <span class="avatar display">{merchant.name.charAt(0)}</span>
+    <span class="mname">{merchant.name}</span>
+    <button class="icon-btn" onclick={logout} aria-label={$t.logout} title={$t.logout}>
+      <Icon name="logout" size={17} />
+    </button>
   </div>
 </header>
 
@@ -86,6 +97,22 @@
     color: var(--ink);
     border-color: var(--line2);
   }
+  .pill {
+    height: 36px;
+    min-width: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: none;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .pill:hover {
+    color: var(--ink);
+    border-color: var(--line2);
+  }
   .avatar {
     width: 34px;
     height: 34px;
@@ -104,8 +131,7 @@
   }
   @media (max-width: 820px) {
     .tabs,
-    .mname,
-    .icon-btn[aria-label='Notifications'] {
+    .mname {
       display: none;
     }
     .nav {

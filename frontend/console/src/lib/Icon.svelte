@@ -17,6 +17,7 @@
     | 'refresh'
     | 'arrow-right'
     | 'exchange'
+    | 'logout'
 
   const P: Record<IconName, string> = {
     bell: 'M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6M10.5 20a1.5 1.5 0 0 0 3 0',
@@ -34,6 +35,7 @@
     refresh: 'M4 12a8 8 0 0 1 14-5.3L20 8M20 4v4h-4M20 12a8 8 0 0 1-14 5.3L4 16M4 20v-4h4',
     'arrow-right': 'M5 12h14M13 6l6 6-6 6',
     exchange: 'M4 9h13l-3.2-3.2M20 15H7l3.2 3.2',
+    logout: 'M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 12h9M16 9l3 3-3 3',
   }
 
   const RING: Partial<Record<IconName, string>> = {
