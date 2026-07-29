@@ -1,75 +1,203 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte'
   import Icon from '../lib/Icon.svelte'
   import NetworkBadge from '../lib/NetworkBadge.svelte'
-  import Qr from '../lib/Qr.svelte'
-  import type { Network } from '../lib/NetworkBadge.svelte'
+  import ChargeSheet from '../lib/ChargeSheet.svelte'
+  import { api, ApiError, merchantQrPath } from '../lib/api'
+  import { t, lang } from '../lib/i18n'
+  import { sessionExpired } from '../lib/session'
+  import { printSticker } from '../lib/sticker'
+  import {
+    opName,
+    providerToNetwork,
+    formatMsisdn,
+    money,
+    splitAmount,
+    pillClass,
+    needsConfirm,
+  } from '../lib/format'
+  import type { Merchant, Transaction } from '../lib/types'
 
-  // Placeholder data for phase 1 - wired to the API in phase 2.
+  let { merchant }: { merchant: Merchant } = $props()
+
   let amount = $state('10.00')
-  const feed: { net: Network; label: string; when: string; amount: string; status: 'ok' | 'wait' }[] = [
-    { net: 'airtel', label: 'Airtel', when: '243 ••• 789 · 2 min ago', amount: '$25.00', status: 'ok' },
-    { net: 'vodacom', label: 'Vodacom M-Pesa', when: '243 ••• 789 · 14 min ago', amount: '$8.50', status: 'ok' },
-    { net: 'orange', label: 'Orange', when: '243 ••• 789 · on-net', amount: '$40.00', status: 'wait' },
-    { net: 'airtel', label: 'Airtel', when: '243 ••• 789 · 1 hr ago', amount: '$12.00', status: 'ok' },
-    { net: 'vodacom', label: 'Vodacom M-Pesa', when: '243 ••• 789 · 3 hr ago', amount: '$43.00', status: 'ok' },
-  ]
+  let chargeOpen = $state(false)
+  let chargeAmount = $state('')
+
+  // Feed: first load shows a skeleton; later polls refresh silently and keep old rows on a blip.
+  let txns = $state<Transaction[]>([])
+  let feedState = $state<'loading' | 'ok' | 'error'>('loading')
+  let confirming = $state<Record<string, boolean>>({})
+  let feedTimer: ReturnType<typeof setInterval> | undefined
+
+  const FEED_MS = 6000
+
+  // Localized long date - "mardi 28 juillet" / "Tuesday, 28 July".
+  const today = $derived(
+    new Intl.DateTimeFormat($lang, { weekday: 'long', day: 'numeric', month: 'long' }).format(
+      new Date(),
+    ),
+  )
+  const settlesTo = $derived(
+    $t.settles_to($opName(merchant.settlement_provider), formatMsisdn(merchant.settlement_msisdn)),
+  )
+  // Newest first, capped - a merchant scans the last few, not a ledger.
+  const rows = $derived([...txns].reverse().slice(0, 40))
+  const amt = $derived(splitAmount(amount || '0'))
+
+  async function refresh() {
+    try {
+      txns = await api.listTransactions()
+      feedState = 'ok'
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        sessionExpired()
+        return
+      }
+      if (feedState === 'loading') feedState = 'error' // only surface on the first load
+    }
+  }
+
+  async function confirm(id: string, received: boolean) {
+    if (confirming[id]) return
+    confirming = { ...confirming, [id]: true }
+    try {
+      await api.confirmOnNet(id, received)
+      await refresh()
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) sessionExpired()
+    } finally {
+      confirming = { ...confirming, [id]: false }
+    }
+  }
+
+  function openCharge() {
+    const a = amount.trim()
+    if (!a) return
+    chargeAmount = a
+    chargeOpen = true
+  }
+
+  function toDialCode() {
+    document.getElementById('dial')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  onMount(() => {
+    refresh()
+    feedTimer = setInterval(refresh, FEED_MS)
+  })
+  onDestroy(() => feedTimer && clearInterval(feedTimer))
 </script>
 
 <main class="page">
   <div class="pagehead">
     <div>
-      <h1 class="display">Good morning, Alpha</h1>
-      <p class="sub">Tuesday, 22 July · settling to <b>Airtel</b> · +243&thinsp;970&thinsp;123&thinsp;789</p>
+      <h1 class="display">{$t.greet(merchant.name)}</h1>
+      <p class="sub">{today} · {settlesTo}</p>
     </div>
-    <button class="btn btn-primary head-cta"><Icon name="plus" size={18} /> New charge</button>
+    <button class="btn btn-primary head-cta" onclick={openCharge}>
+      <Icon name="plus" size={18} /> {$t.tab_charge}
+    </button>
   </div>
 
   <section class="cols">
     <div class="card hero">
       <div class="panel-h">
-        <h2 class="display">Take a payment</h2><span class="tag">smartphone</span>
+        <h2 class="display">{$t.take_h2}</h2><span class="tag">{$t.take_tag}</span>
       </div>
-      <label class="lbl" for="amt">Amount</label>
+      <label class="lbl" for="amt">{$t.amount_label}</label>
       <div class="amount">
         <span class="cur display">$</span>
         <input id="amt" class="display tnum" bind:value={amount} inputmode="decimal" />
         <span class="ccy">USD</span>
       </div>
-      <button class="btn btn-primary big"><Icon name="qr" size={18} /> Show QR to charge</button>
-      <button class="btn btn-ghost big"><Icon name="phone" size={18} /> Feature phone · no internet</button>
-      <p class="fine">The customer scans and pays exactly this amount. Confirms in seconds.</p>
+      <button class="btn btn-primary big" onclick={openCharge}>
+        <Icon name="qr" size={18} /> {$t.show_qr}
+      </button>
+      <button class="btn btn-ghost big" onclick={toDialCode}>
+        <Icon name="phone" size={18} /> {$t.feature_phone}
+      </button>
+      <p class="fine">{$t.take_fine}</p>
     </div>
 
-    <div class="card till">
+    <div class="card till" id="dial">
       <div class="panel-h">
-        <h2 class="display">Your dial code</h2>
-        <button class="link"><Icon name="print" size={15} /> Print</button>
+        <h2 class="display">{$t.dial_h2}</h2>
+        <button
+          class="link"
+          onclick={() =>
+            printSticker(merchant, {
+              title: $t.sticker_title(merchant.name),
+              lead: $t.sticker_lead,
+              body: $t.sticker_body,
+            })}
+        >
+          <Icon name="print" size={15} /> {$t.dial_print}
+        </button>
       </div>
-      <div class="tillcode display">*123*1001#</div>
-      <div class="qrwrap"><Qr size={150} /></div>
-      <p class="fine">Tape it up. Any phone can dial it - no app, no internet.</p>
+      <div class="tillcode display">{merchant.ussd_string}</div>
+      <div class="qrwrap">
+        <img class="qr" src={merchantQrPath(merchant.id)} alt={$t.dial_h2} />
+      </div>
+      <p class="fine">{$t.dial_fine}</p>
     </div>
   </section>
 
   <section class="card feed">
     <div class="panel-h">
-      <h2 class="display">Recent payments</h2>
-      <a class="link" href="#payments">View all <Icon name="arrow-right" size={15} /></a>
+      <h2 class="display">{$t.feed_h2}</h2>
+      <a class="link" href="#payments">{$t.feed_view_all} <Icon name="arrow-right" size={15} /></a>
     </div>
-    <ul class="list">
-      {#each feed as row}
-        <li>
-          <NetworkBadge network={row.net} />
-          <span class="who"><b>{row.label}</b><span class="t">{row.when}</span></span>
-          <span class="amt display tnum">{row.amount}</span>
-          <span class="chip {row.status === 'ok' ? 'chip-ok' : 'chip-wait'}">
-            {#if row.status === 'ok'}<Icon name="check" size={13} stroke={2} /> Paid{:else}Confirm receipt{/if}
-          </span>
-        </li>
-      {/each}
-    </ul>
+
+    {#if feedState === 'loading'}
+      <p class="empty">{$t.feed_loading}</p>
+    {:else if feedState === 'error'}
+      <div class="empty">
+        <p>{$t.err_api}</p>
+        <button class="btn btn-ghost retry" onclick={() => ((feedState = 'loading'), refresh())}>
+          {$t.retry}
+        </button>
+      </div>
+    {:else if rows.length === 0}
+      <p class="empty">{$t.feed_empty}</p>
+    {:else}
+      <ul class="list">
+        {#each rows as row (row.id)}
+          <li>
+            <NetworkBadge network={providerToNetwork(row.customer_provider)} />
+            <span class="who">
+              <b>{$opName(row.customer_provider)}</b>
+              <span class="tt">{formatMsisdn(row.customer_msisdn)}</span>
+            </span>
+            <span class="amt display tnum">{money(row.amount, row.currency)}</span>
+            {#if needsConfirm(row)}
+              <span class="actions">
+                <button
+                  class="btn btn-primary confirm"
+                  disabled={confirming[row.id]}
+                  onclick={() => confirm(row.id, true)}>{$t.confirm_received}</button
+                >
+              </span>
+            {:else}
+              <span class="chip chip-{pillClass(row.state)}">
+                {#if row.state === 'payout_succeeded'}<Icon name="check" size={13} stroke={2} /> {/if}
+                {$t.states[row.state]}
+              </span>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </section>
 </main>
+
+{#if chargeOpen}
+  <ChargeSheet
+    amount={chargeAmount}
+    onclose={() => (chargeOpen = false)}
+    onpaid={refresh}
+  />
+{/if}
 
 <style>
   .page {
@@ -98,15 +226,10 @@
     color: var(--muted);
     margin-top: 7px;
   }
-  .sub b {
-    color: var(--ink);
-    font-weight: 600;
-  }
   .head-cta {
     padding: 11px 16px;
     white-space: nowrap;
   }
-
   .cols {
     display: grid;
     grid-template-columns: 1.25fr 1fr;
@@ -197,7 +320,6 @@
     gap: 6px;
     text-decoration: none;
   }
-
   .till {
     display: flex;
     flex-direction: column;
@@ -217,7 +339,11 @@
     border-radius: 16px;
     padding: 18px;
   }
-
+  .qr {
+    width: 150px;
+    height: 150px;
+    display: block;
+  }
   .list {
     list-style: none;
     margin: 0;
@@ -245,7 +371,7 @@
     font-weight: 600;
     color: var(--ink);
   }
-  .who .t {
+  .who .tt {
     font-size: 12px;
     color: var(--muted);
   }
@@ -254,7 +380,25 @@
     font-size: 16px;
     color: var(--ink);
   }
-
+  .confirm {
+    padding: 7px 12px;
+    font-size: 12.5px;
+    border-radius: 10px;
+  }
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13.5px;
+    padding: 22px 0 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .retry {
+    padding: 9px 16px;
+    font-size: 13.5px;
+  }
   @media (max-width: 820px) {
     .page {
       padding: 20px 15px 96px;
