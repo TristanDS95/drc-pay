@@ -1,0 +1,19 @@
+{
+  "name": "InterPay - Merchant",
+  "short_name": "InterPay",
+  "description": "Take mobile-money payments across networks - merchant console.",
+  "start_url": "/console/",
+  "scope": "/console/",
+  "display": "standalone",
+  "background_color": "#f6f4f0",
+  "theme_color": "#e2553f",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

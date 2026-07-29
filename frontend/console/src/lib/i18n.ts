@@ -104,6 +104,7 @@ interface Strings {
   // errors
   err_api: string
   retry: string
+  offline: string
   // payments screen
   pay_sub: string
   stat_received: string
@@ -203,6 +204,7 @@ const en: Strings = {
   paid: 'Paid',
   err_api: "Couldn't reach the server.",
   retry: 'Retry',
+  offline: "You're offline - reconnect to take payments.",
   pay_sub: 'Every payment to your business.',
   stat_received: 'Received',
   stat_received_sub: 'settled to you',
@@ -315,6 +317,7 @@ const fr: Strings = {
   paid: 'Payé',
   err_api: 'Impossible de joindre le serveur.',
   retry: 'Réessayer',
+  offline: 'Vous êtes hors ligne - reconnectez-vous pour encaisser.',
   pay_sub: 'Tous les paiements de votre entreprise.',
   stat_received: 'Reçu',
   stat_received_sub: 'réglé chez vous',

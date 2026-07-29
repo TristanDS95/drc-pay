@@ -7,6 +7,13 @@
     <meta name="theme-color" content="#e2553f" />
     <title>InterPay - Merchant</title>
 
+    <!-- PWA: installable, standalone, app icon. -->
+    <link rel="manifest" href="/console/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/console/icon.svg" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="InterPay" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
     <!-- Set the theme before first paint so there is no light→dark flash. Saved choice wins,
          otherwise follow the system. Kept inline and tiny on purpose. -->
     <script>
