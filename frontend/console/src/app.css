@@ -1,0 +1,182 @@
+@import 'tailwindcss';
+
+/* ============================================================================
+   InterPay design tokens - the single source for the console's visual language.
+   The "A+B blend": Inter for UI, Fraunces (serif) for headlines and money.
+   Semantic tokens switch by [data-theme] on <html>; both light and dark are
+   first-class (theme.ts sets the attribute from saved preference, else system).
+   ============================================================================ */
+
+@theme {
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* semantic colours resolve to the switchable vars below → utilities like
+     bg-surface / text-ink / border-line / bg-brand are theme-aware for free */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-brand: var(--brand);
+  --color-brand-text: var(--brand-text);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-chip: var(--chip);
+  --color-pos: var(--pos);
+  --color-ok: var(--ok);
+  --color-okbg: var(--okbg);
+  --color-wait: var(--wait);
+  --color-waitbg: var(--waitbg);
+  --color-inputbg: var(--inputbg);
+}
+
+/* ---- LIGHT (default) ---- */
+:root {
+  --canvas: #f6f4f0;
+  --surface: #ffffff;
+  --ink: #1c1710;
+  --muted: #797166;
+  --faint: #a49c8f;
+  --line: #eae6de;
+  --line2: #ddd8ce;
+  --brand: #e2553f;
+  --brand-text: #c6432b;
+  --brand-ink: #ffffff;
+  --brand-soft: #f8eae4;
+  --chip: #f1ede6;
+  --pos: #1e8e5a;
+  --ok: #136c44;
+  --okbg: #e7f3ec;
+  --wait: #9a6b2f;
+  --waitbg: #f6ead5;
+  --inputbg: #fbfaf6;
+  --qr-bg: #ffffff;
+  --qr-fg: #1c1710;
+  --shadow: 0 1px 2px rgba(28, 23, 16, 0.04), 0 12px 30px rgba(28, 23, 16, 0.05);
+  --brand-glow: 0 6px 16px rgba(226, 85, 63, 0.24);
+  color-scheme: light;
+}
+
+/* ---- DARK ---- */
+:root[data-theme='dark'] {
+  --canvas: #0c0f14;
+  --surface: #151a21;
+  --ink: #eaf0f7;
+  --muted: #93a0af;
+  --faint: #6b7787;
+  --line: #232b35;
+  --line2: #2e3742;
+  --brand: #ff6b5b;
+  --brand-text: #ff8577;
+  --brand-ink: #1a0e0c;
+  --brand-soft: rgba(255, 107, 91, 0.13);
+  --chip: #1c232c;
+  --pos: #3fcf8e;
+  --ok: #7ce0b0;
+  --okbg: rgba(63, 207, 142, 0.12);
+  --wait: #e8b86b;
+  --waitbg: rgba(232, 184, 107, 0.13);
+  --inputbg: #10151b;
+  --qr-bg: #eaf0f7;
+  /* the QR stays dark-on-light in BOTH themes - a light-on-light QR won't scan */
+  --qr-fg: #10151b;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 14px 34px rgba(0, 0, 0, 0.38);
+  --brand-glow: 0 6px 20px rgba(255, 107, 91, 0.3);
+  color-scheme: dark;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'cv05', 'ss01';
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  ::selection {
+    background: var(--brand-soft);
+  }
+}
+
+/* ---- reusable design-system primitives ---- */
+@layer components {
+  .display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    font-weight: 600;
+    border-radius: 12px;
+    font-size: 15px;
+    cursor: pointer;
+    transition:
+      filter 0.15s,
+      transform 0.05s,
+      border-color 0.15s,
+      background 0.15s;
+    border: 1px solid transparent;
+  }
+  .btn-primary {
+    background: var(--brand);
+    color: var(--brand-ink);
+    box-shadow: var(--brand-glow);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.04);
+  }
+  .btn-primary:active {
+    transform: translateY(1px);
+  }
+  .btn-primary:disabled {
+    opacity: 0.55;
+    cursor: default;
+    filter: none;
+  }
+  .btn-ghost {
+    background: var(--surface);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .btn-ghost:hover {
+    border-color: var(--line2);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .chip-ok {
+    color: var(--ok);
+    background: var(--okbg);
+  }
+  .chip-wait {
+    color: var(--wait);
+    background: var(--waitbg);
+  }
+}
