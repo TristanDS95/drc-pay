@@ -48,6 +48,21 @@ interface Strings {
   login_err: string
   login_unreachable: string
   login_demo: string
+  // sign-up
+  to_signup: string
+  to_login: string
+  signup_title: string
+  signup_sub: string
+  signup_name: string
+  signup_msisdn: string
+  signup_provider: string
+  signup_till: string
+  signup_pass: string
+  signup_btn: string
+  signup_busy: string
+  signup_ok: string
+  signup_taken: string
+  signup_fail: string
   // overview header
   greet: (name: string) => string
   settles_to: (op: string, msisdn: string) => string
@@ -72,6 +87,10 @@ interface Strings {
   dial_h2: string
   dial_print: string
   dial_fine: string
+  // printable sticker (opens in a print window; markup is trusted literal, never user data)
+  sticker_title: (name: string) => string
+  sticker_lead: string
+  sticker_body: string
   // recent payments
   feed_h2: string
   feed_view_all: string
@@ -107,6 +126,21 @@ const en: Strings = {
   login_err: 'Invalid username or password.',
   login_unreachable: "Couldn't reach the server. Check your connection and try again.",
   login_demo: 'Demo accounts - one tap signs you in:',
+  to_signup: 'Create an account',
+  to_login: 'Back to sign in',
+  signup_title: 'Create a merchant account',
+  signup_sub: "Register your business. We'll review it and activate your account.",
+  signup_name: 'Business name',
+  signup_msisdn: 'Mobile-money number for payouts',
+  signup_provider: 'Network',
+  signup_till: 'Operator till (optional)',
+  signup_pass: 'Password (at least 8 characters)',
+  signup_btn: 'Create account',
+  signup_busy: 'Creating…',
+  signup_ok:
+    "Account created. An administrator will review it - you'll be able to sign in once it's approved.",
+  signup_taken: 'That username is already taken.',
+  signup_fail: "Couldn't create the account. Check the details and try again.",
   greet: (name) => `Good morning, ${name}`,
   settles_to: (op, msisdn) => `settling to ${op} · ${msisdn}`,
   take_h2: 'Take a payment',
@@ -127,6 +161,10 @@ const en: Strings = {
   dial_h2: 'Your dial code',
   dial_print: 'Print',
   dial_fine: 'Tape it up. Any phone can dial it - no app, no internet.',
+  sticker_title: (name) => `USSD sticker - ${name}`,
+  sticker_lead: 'Pay by mobile money - no app or internet needed',
+  sticker_body:
+    '<b>Dial the code</b> on any phone, or <b>scan the QR</b> to auto-dial.<br>Enter the amount, then confirm with your mobile-money PIN.',
   feed_h2: 'Recent payments',
   feed_view_all: 'View all',
   feed_empty: 'No payments yet - take one above.',
@@ -177,6 +215,21 @@ const fr: Strings = {
   login_err: "Nom d'utilisateur ou mot de passe invalide.",
   login_unreachable: 'Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.',
   login_demo: 'Comptes démo - un clic pour se connecter :',
+  to_signup: 'Créer un compte',
+  to_login: 'Retour à la connexion',
+  signup_title: 'Créer un compte marchand',
+  signup_sub: "Inscrivez votre entreprise. Nous l'examinerons et activerons votre compte.",
+  signup_name: "Nom de l'entreprise",
+  signup_msisdn: 'Numéro mobile money pour les règlements',
+  signup_provider: 'Réseau',
+  signup_till: 'Till opérateur (facultatif)',
+  signup_pass: 'Mot de passe (au moins 8 caractères)',
+  signup_btn: 'Créer le compte',
+  signup_busy: 'Création…',
+  signup_ok:
+    "Compte créé. Un administrateur va l'examiner - vous pourrez vous connecter une fois approuvé.",
+  signup_taken: "Ce nom d'utilisateur est déjà pris.",
+  signup_fail: 'Impossible de créer le compte. Vérifiez les informations et réessayez.',
   greet: (name) => `Bonjour, ${name}`,
   settles_to: (op, msisdn) => `règlement vers ${op} · ${msisdn}`,
   take_h2: 'Encaisser un paiement',
@@ -197,6 +250,10 @@ const fr: Strings = {
   dial_h2: 'Votre code à composer',
   dial_print: 'Imprimer',
   dial_fine: "Affichez-le. N'importe quel téléphone peut le composer - sans appli ni internet.",
+  sticker_title: (name) => `Autocollant USSD - ${name}`,
+  sticker_lead: 'Payez par mobile money - sans appli ni internet',
+  sticker_body:
+    '<b>Composez le code</b> sur n’importe quel téléphone, ou <b>scannez le QR</b> pour composer automatiquement.<br>Saisissez le montant, puis confirmez avec votre PIN mobile money.',
   feed_h2: 'Paiements récents',
   feed_view_all: 'Voir tout',
   feed_empty: 'Aucun paiement pour l’instant - encaissez-en un ci-dessus.',

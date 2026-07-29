@@ -54,6 +54,20 @@ export const api = {
   me: () => request<Merchant>('/auth/me'),
   logout: () => request<{ status: string }>('/auth/logout', { method: 'POST' }),
 
+  // --- onboarding (self-serve sign-up → pending merchant, admin approves) ---
+  signup: (body: {
+    name: string
+    settlement_msisdn: string
+    settlement_provider: string | null
+    operator_till: string | null
+    username: string
+    password: string
+  }) =>
+    request<{ merchant_id: string; status: string; message: string }>('/signup', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   // --- charges (scan-to-pay) ---
   createCharge: (amount: string) =>
     request<Charge>('/charges', { method: 'POST', body: JSON.stringify({ amount }) }),

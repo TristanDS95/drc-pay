@@ -6,6 +6,7 @@
   import { api, ApiError, merchantQrPath } from '../lib/api'
   import { t, lang } from '../lib/i18n'
   import { sessionExpired } from '../lib/session'
+  import { printSticker } from '../lib/sticker'
   import {
     opName,
     providerToNetwork,
@@ -122,9 +123,17 @@
     <div class="card till" id="dial">
       <div class="panel-h">
         <h2 class="display">{$t.dial_h2}</h2>
-        <a class="link" href={merchantQrPath(merchant.id)} target="_blank" rel="noopener">
+        <button
+          class="link"
+          onclick={() =>
+            printSticker(merchant, {
+              title: $t.sticker_title(merchant.name),
+              lead: $t.sticker_lead,
+              body: $t.sticker_body,
+            })}
+        >
           <Icon name="print" size={15} /> {$t.dial_print}
-        </a>
+        </button>
       </div>
       <div class="tillcode display">{merchant.ussd_string}</div>
       <div class="qrwrap">
