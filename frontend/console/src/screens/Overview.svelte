@@ -1,36 +1,20 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
   import Icon from '../lib/Icon.svelte'
-  import NetworkBadge from '../lib/NetworkBadge.svelte'
   import ChargeSheet from '../lib/ChargeSheet.svelte'
-  import { api, ApiError, merchantQrPath } from '../lib/api'
+  import TxRow from '../lib/TxRow.svelte'
+  import { merchantQrPath } from '../lib/api'
   import { t, lang } from '../lib/i18n'
-  import { sessionExpired } from '../lib/session'
   import { printSticker } from '../lib/sticker'
-  import {
-    opName,
-    providerToNetwork,
-    formatMsisdn,
-    money,
-    splitAmount,
-    pillClass,
-    needsConfirm,
-  } from '../lib/format'
-  import type { Merchant, Transaction } from '../lib/types'
+  import { newestFirst, feedStatus, refreshFeed, confirmReceipt } from '../lib/feed'
+  import { opName, formatMsisdn } from '../lib/format'
+  import type { Merchant } from '../lib/types'
 
   let { merchant }: { merchant: Merchant } = $props()
 
   let amount = $state('10.00')
   let chargeOpen = $state(false)
   let chargeAmount = $state('')
-
-  // Feed: first load shows a skeleton; later polls refresh silently and keep old rows on a blip.
-  let txns = $state<Transaction[]>([])
-  let feedState = $state<'loading' | 'ok' | 'error'>('loading')
   let confirming = $state<Record<string, boolean>>({})
-  let feedTimer: ReturnType<typeof setInterval> | undefined
-
-  const FEED_MS = 6000
 
   // Localized long date - "mardi 28 juillet" / "Tuesday, 28 July".
   const today = $derived(
@@ -41,34 +25,14 @@
   const settlesTo = $derived(
     $t.settles_to($opName(merchant.settlement_provider), formatMsisdn(merchant.settlement_msisdn)),
   )
-  // Newest first, capped - a merchant scans the last few, not a ledger.
-  const rows = $derived([...txns].reverse().slice(0, 40))
-  const amt = $derived(splitAmount(amount || '0'))
-
-  async function refresh() {
-    try {
-      txns = await api.listTransactions()
-      feedState = 'ok'
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        sessionExpired()
-        return
-      }
-      if (feedState === 'loading') feedState = 'error' // only surface on the first load
-    }
-  }
+  // Recent few, newest first - a merchant scans the last handful, not the full ledger (Payments has that).
+  const rows = $derived($newestFirst.slice(0, 6))
 
   async function confirm(id: string, received: boolean) {
     if (confirming[id]) return
     confirming = { ...confirming, [id]: true }
-    try {
-      await api.confirmOnNet(id, received)
-      await refresh()
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) sessionExpired()
-    } finally {
-      confirming = { ...confirming, [id]: false }
-    }
+    await confirmReceipt(id, received)
+    confirming = { ...confirming, [id]: false }
   }
 
   function openCharge() {
@@ -81,12 +45,6 @@
   function toDialCode() {
     document.getElementById('dial')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
-
-  onMount(() => {
-    refresh()
-    feedTimer = setInterval(refresh, FEED_MS)
-  })
-  onDestroy(() => feedTimer && clearInterval(feedTimer))
 </script>
 
 <main class="page">
@@ -149,42 +107,19 @@
       <a class="link" href="#payments">{$t.feed_view_all} <Icon name="arrow-right" size={15} /></a>
     </div>
 
-    {#if feedState === 'loading'}
+    {#if $feedStatus === 'loading'}
       <p class="empty">{$t.feed_loading}</p>
-    {:else if feedState === 'error'}
+    {:else if $feedStatus === 'error'}
       <div class="empty">
         <p>{$t.err_api}</p>
-        <button class="btn btn-ghost retry" onclick={() => ((feedState = 'loading'), refresh())}>
-          {$t.retry}
-        </button>
+        <button class="btn btn-ghost retry" onclick={refreshFeed}>{$t.retry}</button>
       </div>
     {:else if rows.length === 0}
       <p class="empty">{$t.feed_empty}</p>
     {:else}
       <ul class="list">
         {#each rows as row (row.id)}
-          <li>
-            <NetworkBadge network={providerToNetwork(row.customer_provider)} />
-            <span class="who">
-              <b>{$opName(row.customer_provider)}</b>
-              <span class="tt">{formatMsisdn(row.customer_msisdn)}</span>
-            </span>
-            <span class="amt display tnum">{money(row.amount, row.currency)}</span>
-            {#if needsConfirm(row)}
-              <span class="actions">
-                <button
-                  class="btn btn-primary confirm"
-                  disabled={confirming[row.id]}
-                  onclick={() => confirm(row.id, true)}>{$t.confirm_received}</button
-                >
-              </span>
-            {:else}
-              <span class="chip chip-{pillClass(row.state)}">
-                {#if row.state === 'payout_succeeded'}<Icon name="check" size={13} stroke={2} /> {/if}
-                {$t.states[row.state]}
-              </span>
-            {/if}
-          </li>
+          <TxRow {row} confirming={confirming[row.id]} onconfirm={(r) => confirm(row.id, r)} />
         {/each}
       </ul>
     {/if}
@@ -192,11 +127,7 @@
 </main>
 
 {#if chargeOpen}
-  <ChargeSheet
-    amount={chargeAmount}
-    onclose={() => (chargeOpen = false)}
-    onpaid={refresh}
-  />
+  <ChargeSheet amount={chargeAmount} onclose={() => (chargeOpen = false)} onpaid={refreshFeed} />
 {/if}
 
 <style>
@@ -348,42 +279,6 @@
     list-style: none;
     margin: 0;
     padding: 0;
-  }
-  .list li {
-    display: grid;
-    grid-template-columns: 38px 1fr auto auto;
-    align-items: center;
-    gap: 14px;
-    padding: 13px 4px;
-    border-top: 1px solid var(--line);
-  }
-  .list li:first-child {
-    border-top: none;
-  }
-  .who {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .who b {
-    font-size: 14.5px;
-    font-weight: 600;
-    color: var(--ink);
-  }
-  .who .tt {
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .amt {
-    font-weight: 600;
-    font-size: 16px;
-    color: var(--ink);
-  }
-  .confirm {
-    padding: 7px 12px;
-    font-size: 12.5px;
-    border-radius: 10px;
   }
   .empty {
     text-align: center;

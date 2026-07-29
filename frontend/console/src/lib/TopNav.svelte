@@ -7,12 +7,12 @@
   import { logout } from './session'
   import type { Merchant } from './types'
 
-  let { merchant, active = 'Overview' }: { merchant: Merchant; active?: string } = $props()
+  let { merchant, active = 'overview' }: { merchant: Merchant; active?: string } = $props()
   const items = $derived([
-    { id: 'Overview', label: $t.nav_overview },
-    { id: 'Payments', label: $t.nav_payments },
-    { id: 'Customers', label: $t.nav_customers },
-    { id: 'Settings', label: $t.nav_settings },
+    { id: 'overview', label: $t.nav_overview },
+    { id: 'payments', label: $t.nav_payments },
+    { id: 'customers', label: $t.nav_customers },
+    { id: 'settings', label: $t.nav_settings },
   ])
 </script>
 
@@ -20,7 +20,7 @@
   <a class="brand" href="#overview"><Mark size={30} /><Wordmark size={19} /></a>
   <nav class="tabs">
     {#each items as item}
-      <a class:on={item.id === active} href={'#' + item.id.toLowerCase()}>{item.label}</a>
+      <a class:on={item.id === active} href={'#' + item.id}>{item.label}</a>
     {/each}
   </nav>
   <div class="right">
