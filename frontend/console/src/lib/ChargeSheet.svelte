@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
+  import { fade, scale } from 'svelte/transition'
   import Icon from './Icon.svelte'
   import { api, ApiError } from './api'
   import { t } from './i18n'
@@ -64,8 +65,16 @@
   aria-label={$t.charge_cancel}
   onclick={onclose}
   onkeydown={(e) => e.key === 'Escape' && onclose()}
+  transition:fade={{ duration: 150 }}
 ></div>
-<div class="sheet card" role="dialog" aria-modal="true" aria-label={$t.charge_title}>
+<div class="center">
+<div
+  class="sheet card"
+  role="dialog"
+  aria-modal="true"
+  aria-label={$t.charge_title}
+  transition:scale={{ duration: 180, start: 0.94 }}
+>
   <button class="x" onclick={onclose} aria-label={$t.charge_cancel}><Icon name="plus" size={20} /></button>
 
   {#if error}
@@ -95,6 +104,7 @@
     <button class="btn btn-ghost wide" onclick={onclose}>{$t.charge_cancel}</button>
   {/if}
 </div>
+</div>
 
 <style>
   .scrim {
@@ -104,13 +114,18 @@
     backdrop-filter: blur(2px);
     z-index: 40;
   }
-  .sheet {
+  .center {
     position: fixed;
+    inset: 0;
     z-index: 41;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: min(400px, calc(100vw - 32px));
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    pointer-events: none; /* clicks outside the sheet fall through to the scrim (closes) */
+  }
+  .sheet {
+    pointer-events: auto;
+    width: min(400px, 100%);
     padding: 26px 24px 22px;
     text-align: center;
   }

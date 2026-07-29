@@ -14,6 +14,8 @@
   import { startFeed, stopFeed } from './lib/feed'
   import { route } from './lib/route'
   import { devcapable, probeDev } from './lib/dev'
+  import { online } from './lib/online'
+  import { t } from './lib/i18n'
 
   onMount(() => {
     loadProviders()
@@ -27,6 +29,10 @@
     else stopFeed()
   })
 </script>
+
+{#if !$online}
+  <div class="offline" role="status">{$t.offline}</div>
+{/if}
 
 {#if $session.status === 'loading'}
   <div class="splash"><Mark size={40} /></div>
@@ -49,6 +55,17 @@
 {/if}
 
 <style>
+  .offline {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--brand-ink);
+    background: var(--brand);
+    padding: 6px 12px;
+  }
   .splash {
     min-height: 100dvh;
     display: grid;
