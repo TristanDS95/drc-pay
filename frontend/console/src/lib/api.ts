@@ -75,8 +75,44 @@ export const api = {
 
   // --- transactions (the live feed + on-net confirm) ---
   listTransactions: () => request<Transaction[]>('/transactions'),
+  getTransaction: (id: string) => request<Transaction>(`/transactions/${id}`),
   confirmOnNet: (id: string, received: boolean) =>
     request<Transaction>(`/transactions/${id}/confirm?received=${received}`, { method: 'POST' }),
+
+  // --- sandbox diagnostics (the /demo router is only mounted off the real-money path) ---
+  /** Simulate a payment for the logged-in merchant, choosing the pawaPay outcome. */
+  createTransaction: (body: {
+    customer_msisdn: string
+    amount: string
+    scenario: string
+    defer: boolean
+  }) =>
+    request<Transaction>('/transactions', {
+      method: 'POST',
+      body: JSON.stringify({ ...body, currency: 'USD' }),
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+    }),
+  reconcile: () =>
+    request<{
+      swept: number
+      resolved: number
+      items: { kind: string; transaction_id: string; disposition: string }[]
+    }>('/demo/reconcile', { method: 'POST' }),
+  /** Walk one step of the USSD menu. The wire is PLAIN TEXT (CON…/END…), not JSON. */
+  ussd: async (body: { session_id: string; msisdn: string; text: string }): Promise<string> => {
+    try {
+      const res = await fetch('/ussd', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) return `END Service unavailable (HTTP ${res.status}).`
+      return await res.text()
+    } catch {
+      return 'END Service unavailable (network error).'
+    }
+  },
 
   // --- reference data ---
   providers: () => request<Record<string, string>>('/public/providers'),

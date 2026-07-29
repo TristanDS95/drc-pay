@@ -6,15 +6,18 @@
   import Payments from './screens/Payments.svelte'
   import Customers from './screens/Customers.svelte'
   import Settings from './screens/Settings.svelte'
+  import DevView from './screens/DevView.svelte'
   import Login from './screens/Login.svelte'
   import Mark from './lib/Mark.svelte'
   import { session, bootSession } from './lib/session'
   import { loadProviders } from './lib/format'
   import { startFeed, stopFeed } from './lib/feed'
   import { route } from './lib/route'
+  import { devcapable, probeDev } from './lib/dev'
 
   onMount(() => {
     loadProviders()
+    probeDev()
     bootSession()
   })
 
@@ -37,6 +40,8 @@
     <Customers />
   {:else if $route === 'settings'}
     <Settings merchant={$session.merchant} />
+  {:else if $route === 'dev' && $devcapable}
+    <DevView merchant={$session.merchant} />
   {:else}
     <Overview merchant={$session.merchant} />
   {/if}

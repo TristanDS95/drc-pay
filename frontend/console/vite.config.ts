@@ -20,6 +20,7 @@ export default defineConfig({
       '/signup': 'http://127.0.0.1:8010',
       '/public': 'http://127.0.0.1:8010',
       '/demo': 'http://127.0.0.1:8010',
+      '/ussd': 'http://127.0.0.1:8010',
     },
   },
 })

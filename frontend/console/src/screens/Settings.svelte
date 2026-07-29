@@ -4,6 +4,8 @@
   import { theme } from '../lib/theme'
   import { logout } from '../lib/session'
   import { opName, formatMsisdn } from '../lib/format'
+  import { devcapable } from '../lib/dev'
+  import { go } from '../lib/route'
   import type { Merchant } from '../lib/types'
 
   let { merchant }: { merchant: Merchant } = $props()
@@ -54,6 +56,16 @@
       </div>
     </div>
   </section>
+
+  {#if $devcapable}
+    <section class="card dev">
+      <div>
+        <h2 class="ch">{$t.dev_title}</h2>
+        <p class="dev-sub">{$t.dev_sub}</p>
+      </div>
+      <button class="btn btn-ghost" onclick={() => go('dev')}>{$t.dev_title}</button>
+    </section>
+  {/if}
 
   <button class="btn btn-ghost signout" onclick={logout}>
     <Icon name="logout" size={17} /> {$t.logout}
@@ -146,6 +158,21 @@
   .seg button.on {
     background: var(--brand);
     color: var(--brand-ink);
+  }
+  .dev {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .dev .ch {
+    margin-bottom: 6px;
+  }
+  .dev-sub {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.5;
+    max-width: 46ch;
   }
   .signout {
     align-self: flex-start;
