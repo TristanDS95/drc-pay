@@ -96,6 +96,25 @@ def test_refund_without_deposit_id_raises() -> None:
         raise AssertionError("expected PawaPayRailError when the original depositId is missing")
 
 
+def test_op_ids_are_deterministic_per_transaction_leg() -> None:
+    # A leg requested twice for the same transaction (e.g. a resent callback and the sweep both
+    # re-driving a payout before the state settles) MUST carry the same op-id, so pawaPay dedups
+    # it instead of paying the merchant twice. A fresh UUID per call would defeat that.
+    rail = _rail_capturing({}, {"status": "ACCEPTED"})
+    m, amt, prov = "243810000002", Money(1000, "USD"), "AIRTEL_COD"
+    first = rail.request_payout(transaction_id="t1", msisdn=m, amount=amt, provider=prov)
+    second = rail.request_payout(transaction_id="t1", msisdn=m, amount=amt, provider=prov)
+    assert first == second, "same (transaction, leg) must yield the same op-id (idempotent)"
+
+    # Different transactions, and different legs of the same transaction, stay distinct.
+    other_tx = rail.request_payout(transaction_id="t2", msisdn=m, amount=amt, provider=prov)
+    assert other_tx != first
+    same_tx_deposit = rail.request_collection(
+        transaction_id="t1", msisdn=m, amount=amt, provider=prov
+    )
+    assert same_tx_deposit != first
+
+
 def _run_all() -> None:
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

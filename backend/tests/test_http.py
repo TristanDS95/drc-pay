@@ -113,6 +113,25 @@ def test_idempotent_retry_returns_the_same_transaction() -> None:
     assert len(client.get("/transactions").json()) == 1  # only one was created
 
 
+def test_idempotency_replay_is_scoped_to_the_calling_merchant() -> None:
+    # A merchant must never receive another merchant's transaction by supplying that merchant's
+    # idempotency key — it would leak the customer's number, the other merchant's settlement
+    # number, amounts and ledger. A foreign key is a conflict (409), never a replay.
+    app = create_app()
+    alpha = as_merchant(TestClient(app), "alpha")
+    beta = as_merchant(TestClient(app), "beta")
+    payload = {"customer_msisdn": "243800000789", "amount": "10.00", "scenario": "success"}
+    key = "shared-key-across-merchants"
+
+    created = alpha.post("/transactions", json=payload, headers={"Idempotency-Key": key})
+    assert created.status_code == 200
+    alpha_settlement = created.json()["merchant_msisdn"]
+
+    replay = beta.post("/transactions", json=payload, headers={"Idempotency-Key": key})
+    assert replay.status_code == 409  # not 200-with-alpha's-data
+    assert alpha_settlement not in replay.text  # alpha's settlement number never leaks
+
+
 def test_different_idempotency_keys_create_different_transactions() -> None:
     client = _client()
     payload = {
