@@ -327,11 +327,19 @@ Réseau de versement du marchand = le marchand que vous ouvrez :
     el.className = "ho-status" + (kind === "ok" ? " ok" : kind === "bad" ? " bad" : "");
     el.textContent = text;
   }
+  // HTML-escape any server/merchant-supplied string before it goes into innerHTML. Merchant
+  // names are self-registered (attacker-controllable), so an unescaped name is stored XSS on the
+  // customer's payment page. This is the only innerHTML sink in this app; everything else uses
+  // textContent, which escapes for free.
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+      ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  }
   function showOnNetHandoff(body){
     $("result").className = "result";                 // hide the routed (pawaPay) result card
     const usingTill = !!body.pay_to_till;
-    $("ho-sub").innerHTML = t().ho_sub(body.merchant_name,
-      NET[body.pay_to_operator] || body.pay_to_operator || t().ho_your_network);
+    $("ho-sub").innerHTML = t().ho_sub(esc(body.merchant_name),
+      esc(NET[body.pay_to_operator] || body.pay_to_operator || t().ho_your_network));
     $("ho-lab").textContent = usingTill ? t().ho_lab_till : t().ho_lab_number;
     $("ho-target").textContent = usingTill ? body.pay_to_till : body.pay_to_msisdn;
     $("ho-amount").textContent = `$${body.amount}`;

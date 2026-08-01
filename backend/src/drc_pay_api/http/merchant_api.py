@@ -117,10 +117,17 @@ def create_transaction(
     if not merchant.is_active:
         raise HTTPException(status_code=422, detail="merchant is not active")
 
-    # Idempotency: a repeated key returns the ORIGINAL result, never a second charge.
+    # Idempotency: a repeated key returns the ORIGINAL result, never a second charge — but only
+    # to the merchant who created it. Idempotency keys share one global namespace, so a merchant
+    # who supplies another merchant's key must NOT be handed back that transaction (its customer
+    # PII, the other merchant's settlement number, amounts, ledger). A foreign key is a conflict,
+    # not a replay — refused without disclosing anything (409, like every other cross-merchant
+    # access in this module is fenced off).
     if idempotency_key is not None:
         existing = container.store.find_by_idempotency_key(idempotency_key)
         if existing is not None:
+            if existing.merchant_id != merchant.id:
+                raise HTTPException(status_code=409, detail="idempotency key already used")
             return _to_response(
                 container,
                 existing,
@@ -152,7 +159,12 @@ def create_transaction(
         defer=body.defer,
         recorder=recorder,
     )
-    return _to_response(container, container.store.get(transaction_id), recorder.messages)
+    result = container.store.get(transaction_id)
+    # Defense in depth against a concurrent cross-merchant key race: the id we settle on must be
+    # this merchant's own transaction before we ever serialize it back.
+    if result.merchant_id != merchant.id:
+        raise HTTPException(status_code=409, detail="idempotency key already used")
+    return _to_response(container, result, recorder.messages)
 
 
 @merchant_api_router.post(
