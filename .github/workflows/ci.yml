@@ -28,6 +28,40 @@ jobs:
       - name: Test (pytest)
         run: pytest
 
+  console:
+    name: Console (Svelte)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/console/package-lock.json
+      # `npm ci` (not `install`): installs exactly the lockfile, so CI can't drift from
+      # what a developer has locally.
+      - name: Install
+        run: npm ci
+      - name: Type-check (svelte-check + tsc)
+        run: npm run check
+      # The console compiles, so a bad import or a syntax error is invisible until something
+      # builds it. Once the deploy image builds it too, that "something" would be the deploy.
+      - name: Build
+        run: npm run build
+
+  image:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Builds the real deploy image, including the Node stage that compiles the console.
+      # This is what stops a broken Dockerfile from being discovered by Railway in production.
+      - name: Build the deploy image
+        run: docker build -t drc-pay:ci .
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
