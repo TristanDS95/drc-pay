@@ -130,7 +130,7 @@ def test_console_pages_are_public_but_the_developer_shell_stays_gated(
     developer shell (docs, /demo/* controls) stays behind the password."""
     for name in ("console", "staff", "customer"):
         (tmp_path / name).mkdir()
-        (tmp_path / name / "index.html").write_text(f"<h1>{name}</h1>")
+        (tmp_path / name / "index.html").write_text(f"<h1>{name}</h1>", encoding="utf-8")
     monkeypatch.setattr(config.settings, "basic_auth_password", "sesame")
     monkeypatch.setattr(config.settings, "console_dir", str(tmp_path / "console"))
     monkeypatch.setattr(config.settings, "staff_dir", str(tmp_path / "staff"))

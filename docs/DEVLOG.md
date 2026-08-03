@@ -241,7 +241,7 @@ into its own service): see [`future-dev.md`](./future-dev.md).
 
 ## How to run
 ```bash
-cd backend && source .venv/bin/activate
+cd backend && source .venv/bin/activate                     # Windows: .\.venv\Scripts\Activate.ps1 (and $env:X= instead of export)
 ruff check . && mypy src && pytest                          # all green (offline; sandbox tests skip)
 # opt-in live sandbox e2e (real network, sandbox only): RUN_PAWAPAY_SANDBOX_E2E=1 pytest tests/test_pawapay_sandbox_e2e.py
 export DRCPAY_CONSOLE_DIR="$PWD/../frontend/merchant-console"

@@ -17,7 +17,7 @@ def test_hidden_utility_is_authoritative() -> None:
     # later with equal specificity. Without !important on `.hidden`, the overlay stayed
     # visible over a fully-logged-in console — login "succeeded" but nothing appeared to
     # happen. The utility hide class must win regardless of source order.
-    css = CONSOLE.read_text()
+    css = CONSOLE.read_text(encoding="utf-8")
     assert ".hidden{display:none !important;}" in css, (
         "`.hidden` must use !important so it always overrides later same-specificity "
         "display rules (e.g. .loginwrap{display:flex})"
