@@ -1,21 +1,15 @@
 <script lang="ts">
   import Icon from './Icon.svelte'
-  import type { IconName } from './Icon.svelte'
+  import { t } from './i18n'
   let { active = 'home' }: { active?: string } = $props()
-  const items: { id: string; label: string; icon: IconName }[] = [
-    { id: 'home', label: 'Home', icon: 'home' },
-    { id: 'payments', label: 'Payments', icon: 'list' },
-    { id: 'customers', label: 'Customers', icon: 'card' },
-    { id: 'settings', label: 'Settings', icon: 'cog' },
-  ]
 </script>
 
 <nav class="tabbar">
-  <a class:on={active === 'home'} href="#home"><Icon name="home" size={22} /><span>Home</span></a>
-  <a class:on={active === 'payments'} href="#payments"><Icon name="list" size={22} /><span>Payments</span></a>
-  <a class="fab" href="#charge" aria-label="New charge"><Icon name="plus" size={26} stroke={1.9} /></a>
-  <a class:on={active === 'customers'} href="#customers"><Icon name="card" size={22} /><span>Customers</span></a>
-  <a class:on={active === 'settings'} href="#settings"><Icon name="cog" size={22} /><span>Settings</span></a>
+  <a class:on={active === 'home'} href="#home"><Icon name="home" size={22} /><span>{$t.tab_home}</span></a>
+  <a class:on={active === 'payments'} href="#payments"><Icon name="list" size={22} /><span>{$t.nav_payments}</span></a>
+  <a class="fab" href="#overview" aria-label={$t.tab_charge}><Icon name="plus" size={26} stroke={1.9} /></a>
+  <a class:on={active === 'customers'} href="#customers"><Icon name="card" size={22} /><span>{$t.nav_customers}</span></a>
+  <a class:on={active === 'settings'} href="#settings"><Icon name="cog" size={22} /><span>{$t.nav_settings}</span></a>
 </nav>
 
 <style>

@@ -30,6 +30,8 @@
   --color-okbg: var(--okbg);
   --color-wait: var(--wait);
   --color-waitbg: var(--waitbg);
+  --color-danger: var(--danger);
+  --color-dangerbg: var(--dangerbg);
   --color-inputbg: var(--inputbg);
 }
 
@@ -52,6 +54,8 @@
   --okbg: #e7f3ec;
   --wait: #9a6b2f;
   --waitbg: #f6ead5;
+  --danger: #c0392b;
+  --dangerbg: #fbe9e6;
   --inputbg: #fbfaf6;
   --qr-bg: #ffffff;
   --qr-fg: #1c1710;
@@ -79,6 +83,8 @@
   --okbg: rgba(63, 207, 142, 0.12);
   --wait: #e8b86b;
   --waitbg: rgba(232, 184, 107, 0.13);
+  --danger: #f28d7e;
+  --dangerbg: rgba(224, 80, 60, 0.15);
   --inputbg: #10151b;
   --qr-bg: #eaf0f7;
   /* the QR stays dark-on-light in BOTH themes - a light-on-light QR won't scan */
@@ -178,5 +184,13 @@
   .chip-wait {
     color: var(--wait);
     background: var(--waitbg);
+  }
+  .chip-bad {
+    color: var(--danger);
+    background: var(--dangerbg);
+  }
+  .chip-mut {
+    color: var(--muted);
+    background: var(--chip);
   }
 }

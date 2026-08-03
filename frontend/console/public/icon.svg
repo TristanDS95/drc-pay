@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Full-bleed coral so the icon is maskable (the OS clips it to its own shape). -->
+  <rect width="512" height="512" fill="#e2553f"/>
+  <!-- The "Exchange" mark - two arrows passing - centered inside the maskable safe zone. -->
+  <g transform="translate(100 100) scale(13)" fill="none" stroke="#ffffff"
+     stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 9h13l-3.2-3.2M20 15H7l3.2 3.2"/>
+  </g>
+</svg>
