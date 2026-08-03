@@ -130,6 +130,9 @@ uvicorn --app-dir src drc_pay_api.main:app --reload
 #   console:   http://localhost:8000/console/   (post a charge → scan/open its QR to pay)
 ```
 
+On **Windows (PowerShell)** the commands are identical except for the shell bits: activate with
+`.\.venv\Scripts\Activate.ps1` and set env vars with `$env:DRCPAY_CONSOLE_DIR="..."` instead of `export`.
+
 Point it at the live sandbox rail instead by putting `DRCPAY_PAWAPAY_BASE_URL` +
 `DRCPAY_PAWAPAY_API_TOKEN` in `backend/.env`. Postgres is optional locally
 (`docker compose up -d`, then set `DRCPAY_DATABASE_URL`); without it the app uses an in-memory store.

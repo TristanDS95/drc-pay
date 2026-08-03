@@ -9,6 +9,10 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install ".[dev]"
 ```
 
+On **Windows** only the activation differs - `.\.venv\Scripts\Activate.ps1` (PowerShell). Everything
+after that (`pip`, `uvicorn`, `pytest`, `ruff`, `mypy`) is the same. Note the caveat below about
+editable installs applies to *paths containing a space*, not to Windows as such.
+
 ## Run
 
 ```bash
