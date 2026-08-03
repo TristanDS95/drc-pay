@@ -12,3 +12,8 @@
 **/.git
 backend/tests
 docs
+# Node artifacts: the console is built inside the image (stage 1), so a developer's local
+# copies must never enter the build context. node_modules in particular holds OS-specific
+# binaries — copying a Windows or macOS tree into the Linux build breaks `npm run build`.
+**/node_modules
+**/dist

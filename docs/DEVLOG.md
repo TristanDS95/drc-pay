@@ -218,6 +218,13 @@ payer page.
 - **On-net (same-network):** routed automatically (all same-network pairs, per `routing.py`) - recorded
   as *awaiting confirmation*, no rail, no money movement; the merchant taps **Confirm received** to mark
   it paid (merchant-attested). No toggle: on-net is always facilitate & record (ADR 0009).
+- **The redesigned console is built into the image but not yet served.** Stage 1 of the `Dockerfile`
+  is a Node stage that runs `npm ci && npm run build` on `frontend/console`; the compiled output lands
+  at **`/app/console-next`**, while `DRCPAY_CONSOLE_DIR` still points at `/app/console` (the old
+  hand-written `merchant-console`). **The cutover is one variable in Railway** -
+  `DRCPAY_CONSOLE_DIR=/app/console-next` - and **rollback is the same flip back**; neither needs a
+  rebuild, because both consoles ship in every image (ADR 0011). CI builds the image on every PR, so a
+  broken Dockerfile or console build fails the PR rather than the deploy.
 - **AWS is the eventual production target** (notes in `future-dev.md`); the Docker image is portable. Alembic head:
   `f1a2b3c4d5e6` (adds `staff_credentials` + `staff_sessions` for admin accounts).
 
